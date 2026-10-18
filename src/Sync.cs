@@ -33,6 +33,8 @@ namespace Memoir {
         private Dictionary<string, object> settingsSeen;
         private bool applying;
         private long sequence;
+        private readonly List<Action> early = new List<Action>(); // what arrived before the window could take it
+        private bool ready;
 
         public Sync(Control owner, Store store, Engine engine, BrowserLink link, string version, Action settingsApplied) {
             this.owner = owner; this.store = store; this.engine = engine; this.version = version; this.settingsApplied = settingsApplied;
@@ -45,8 +47,15 @@ namespace Memoir {
             soon.Tick += delegate { soon.Stop(); foreach (string device in live.Keys.ToArray()) Send(device); };
             link.Message += delegate(Peer peer, Dictionary<string, object> message) { Post(delegate { OnMessage(peer, message); }); };
             link.Closed += delegate(Peer peer) { Post(delegate { OnClosed(peer); }); };
+            owner.HandleCreated += delegate { lock (early) { foreach (var action in early) try { owner.BeginInvoke(action); } catch { } early.Clear(); ready = true; } };
+            if (owner.IsHandleCreated) ready = true;
         }
-        private void Post(Action action) { try { owner.BeginInvoke(action); } catch { } }
+        // The pipe opens while the app is still starting: a browser's hello can arrive before the window has a
+        // handle (BeginInvoke throws then), so it waits for it, in order, instead of being lost.
+        private void Post(Action action) {
+            lock (early) { if (!ready) { early.Add(action); return; } }
+            try { owner.BeginInvoke(action); } catch { }
+        }
 
         // ---------- the sync record: { device, meta, peers: { device: { name, mode, since, pending (dates), lastSync… } } } ----------
         private Dictionary<string, object> Record() { return Json.Clone(Json.Map(Json.Get(store.Data, "sync"))); }

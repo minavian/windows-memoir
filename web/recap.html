@@ -334,6 +334,16 @@
     </div>
     <button class="ip-cancel" type="button" data-mode="" style="--d:150ms">Cancel</button>
   </div>
+  <!-- before linking with Memoir for Windows: both histories, or only from today on (recap.js askLink) -->
+  <div class="pop import-pop link-pop" id="link-pop" role="dialog" aria-labelledby="lp-title" aria-describedby="lp-text" hidden>
+    <p class="ip-title" id="lp-title">Merge what’s already there?</p>
+    <p class="ip-text" id="lp-text">This browser and <span class="wordmark-plain">Memoir</span> for Windows may each have days from before. From today on, they share every day either way.</p>
+    <div class="ip-choices">
+      <button class="ip-choice" type="button" data-mode="merge" style="--d:70ms"><b>Merge both histories</b><small>Keep both, without counting any time twice</small></button>
+      <button class="ip-choice" type="button" data-mode="fresh" style="--d:110ms"><b>Start from today</b><small>Days from before stay where they are</small></button>
+    </div>
+    <button class="ip-cancel" type="button" data-mode="" style="--d:150ms">Cancel</button>
+  </div>
   <div class="pop author-pop" id="author-pop" role="dialog" aria-labelledby="ap-title" hidden>
     <p class="ap-title" id="ap-title">Looking to report bugs?</p>
     <p class="ap-text">Send here!</p>

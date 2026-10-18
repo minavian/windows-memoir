@@ -82,6 +82,7 @@ const pages = {
   get isOpen() { return this.state === 'opening' || this.state === 'open'; },
 };
 const importPop = new MorphPopover($('import-pop'), { radius: 16 });
+const linkPop = new MorphPopover($('link-pop'), { radius: 16 });
 // the author's name in Settings: where bug reports go (shared/mail-pop.js)
 const author = mailPop($('author'), $('author-pop'), {
   address: 'iamminavian@gmail.com',
@@ -3132,6 +3133,7 @@ function closeSettings(focusTrigger = false) {
   clearTimeout(dustNap);
   dustNap = setTimeout(() => dust.pause(true), 900);
   answerImport(null, true);
+  closeLink(true);
   closeAuthor(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
   $('settings-btn').setAttribute('aria-label', 'Settings');
@@ -3733,16 +3735,7 @@ function relabel(btn, text) {
   if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
 }
 async function pressLink() {
-  if (!linkUi.linked && !window.memoir?.windows) {
-    // the permission has to be asked for in this very click
-    let granted = false;
-    try { granted = await chrome.permissions.request({ permissions: ['nativeMessaging'] }); } catch { /* refused */ }
-    if (!granted) { linkUi.live = { state: 'denied' }; renderLink(); return; }
-    linkUi.linked = true; linkUi.live = { state: 'connecting' };
-    renderLink();
-    await chrome.runtime.sendMessage({ type: 'link', mode: 'merge' }).catch(() => {});
-    return;
-  }
+  if (!linkUi.linked && !window.memoir?.windows) { askLink(); return; }
   if (!linkUi.armed) {
     linkUi.armed = true;
     renderLink();
@@ -3756,6 +3749,24 @@ async function pressLink() {
   else await chrome.runtime.sendMessage({ type: 'unlink' }).catch(() => {});
   toast('Unlinked. Both keep what they have');
   loadLink();
+}
+
+// Before linking: both histories (merge), or only the days from today on (fresh). A popover that grows out of
+// Link, like Import's; its answer links (link.js link(mode)), and Memoir for Windows takes the same mode.
+function askLink() {
+  linkPop.open($('link-btn'));
+  $('link-pop').querySelector('[data-mode="merge"]').focus({ preventScroll: true });
+}
+function closeLink(instant = false) { if (!$('link-pop').hidden) linkPop.close({ instant }); }
+async function linkWith(mode) {
+  closeLink();
+  // the permission has to be asked for in this very click (the answer's)
+  let granted = false;
+  try { granted = await chrome.permissions.request({ permissions: ['nativeMessaging'] }); } catch { /* refused */ }
+  if (!granted) { linkUi.live = { state: 'denied' }; renderLink(); return; }
+  linkUi.linked = true; linkUi.live = { state: 'connecting' };
+  renderLink();
+  await chrome.runtime.sendMessage({ type: 'link', mode }).catch(() => {});
 }
 
 function setNukeStep(n) {
@@ -3865,6 +3876,7 @@ function wire() {
       else if (catPop.isOpen) closeCatPop();
       else if (pages.isOpen) { const back = popAnchor; closePagePop(); back?.querySelector('[role="button"]')?.focus({ preventScroll: true }); }
       else if (importAnswer) { answerImport(null); $('import').focus({ preventScroll: true }); }
+      else if (linkPop.isOpen) { closeLink(); $('link-btn').focus({ preventScroll: true }); }
       else if (authorPop.isOpen) { closeAuthor(); focusAuthor(); }
       else if ($('settings').classList.contains('open')) {
         if ($('data-row').dataset.step !== '0') setNukeStep(0);
@@ -4004,8 +4016,9 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #author-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #author-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
+    if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
     if (authorPop.isOpen && !e.target.closest('#author-pop, #author')) closeAuthor();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
     if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
@@ -4316,6 +4329,7 @@ function wire() {
   // the panel scrolls under its popovers: keep them on what they came from
   $('settings-panel').addEventListener('scroll', () => {
     if (!$('import-pop').hidden) importPop.place($('import').getBoundingClientRect());
+    if (!$('link-pop').hidden) linkPop.place($('link-btn').getBoundingClientRect());
     if (!$('author-pop').hidden) authorPop.place($('author').getBoundingClientRect());
   }, { passive: true });
   $('nuke').addEventListener('click', async () => {
@@ -4330,7 +4344,14 @@ function wire() {
     }
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
-  $('link-btn').addEventListener('click', pressLink);
+  $('link-btn').addEventListener('click', () => (linkPop.isOpen ? closeLink() : pressLink()));
+  $('link-pop').addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]');
+    if (!b) return;
+    $('link-btn').focus({ preventScroll: true });
+    if (b.dataset.mode) linkWith(b.dataset.mode);
+    else closeLink();
+  });
 
   $('try-demo').addEventListener('click', () => enterDemo());
   $('exit-demo').addEventListener('click', () => exitDemo(true));
