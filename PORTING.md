@@ -9,7 +9,9 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `91fbfdf` (minavian/memoir-browser-screen-time; `53e8106` plus limits in Import). That commit is the merge base for the next port.
+**Last synced:** 6.0.0, from the extension's commit `d2bb440` (minavian/memoir-browser-screen-time: the link with the extension). That commit is the merge base for the next port.
+
+**The link** (SYNC-PLAN.md in the extension's repository): `BrowserLink.cs` (the pipe, many held-open two-way connections; the native host relaying both ways), `Registration.cs` (the host's manifest and HKCU keys at every start; trusted IDs in `extension-ids.txt`), `Sync.cs` (the exchange, per-peer pending dates, rules, markers) and `SyncData.cs` (`CleanDay`, `MergeDay`, `AnonymizeDay`: the extension's core.js in C#). `tests/merge-cases/merge.json` is a copy of the extension's: when it changes there, copy it here, and `tests/run.ps1` checks both agree.
 
 ## Sync procedure (a three-way merge per file)
 
@@ -26,23 +28,14 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 
 ## Windows edits
 
-`app:<name>.exe` is how Windows apps are stored, next to website domains. `window.memoir.appName(domain)` turns that key into the app's display name; `siteName()` (core.js) calls it, so anything that names a site names apps too.
+`app:<name>.exe` is how Windows apps are stored, next to website domains. Since the link (extension `d2bb440`), app keys are understood by the extension's own shared code: `isApp`, `appName`, `siteName`, `categorize`, `normalizeSite`, `isExcluded` (core.js, reading `window.memoir.apps` here and the synced `apps` there) and the app tiles and names in `fx.js`. Those files need no Windows edits any more.
 
 ### Every page
 - `popup.html`, `recap.html`, `how-it-works.html`, `privacy.html`: `<script src="desktop-bridge.js"></script>` right after the theme-boot script.
 - `popup.js` `main()` and `recap.js` `init()`: `await window.memoir.ready;` before anything else, so app names and categories are loaded before the first render.
 
-### `shared/core.js`
-- `siteName()`: `PAGE_NAMES[d] || (typeof d === 'string' && d.startsWith('app:') && window.memoir ? window.memoir.appName(d) : d)`.
-- `categorize()`: first line `if (domain.startsWith('app:')) return window.memoir.apps[domain]?.category || 'other';`
-- `normalizeSite()`: accept app keys, `if (/^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/.test(s)) return s;`
-- `isExcluded()`: a parent-domain match must not apply to apps: `domain === ex || (!domain.startsWith('app:') && domain.endsWith(`.${ex}`))`
-
-### `shared/fx.js`
-- Favicon fetch (around `FAV_KEY`): `if (domain.startsWith('app:')) return null;`
-- Icon source: when `window.memoir?.windows`, return `https://memoir-icons.example/<icon>` for apps that have a 24-hex-character `.png` icon, and `null` otherwise (websites get their first letter: nothing is fetched). **Keep the `.example` host.** A `.local` host adds about 2 s to every load.
-- `faviconTile()`: after the `~memoir` and page glyphs, a `letterTile()` with the first letter of `siteName(domain)`; `fill()` uses it when there's no icon, and from `img.addEventListener('error', letterTile, { once: true })`.
-- `siteLinkHtml()`: apps render as `<span class="app-name …" title="Windows app">` with `siteName(domain)`, not as a link (before the page-name line).
+### `shared/fx.js` (shared, no edit; for reference)
+- App icons come from `https://memoir-icons.example/<icon>` when `window.memoir?.windows`. **Keep the `.example` host.** A `.local` host adds about 2 s to every load.
 
 ### `popup.js`
 - The category popover's click handler that closes the popup after a link is removed: Today is a window here, not a popup.
@@ -57,10 +50,8 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 ### `recap.js`
 - Wording: "browsing" becomes "screen time" / "activity", "sites" becomes "apps and websites", and "this browser" becomes "this computer": the summary and highlights, empty states, hour and heatmap tooltips ("Screen time"), the trend note and "Days used", the private-time note, the category list's titles, toasts, the hidden Never-track entries' labels, "Never track it" in the category menu, and the tour steps (the last one points at the clock in the notification area).
 - Tracking detail's text: titles on, "Saves page and window titles, like a video you watched on YouTube or a document you had open. They’re kept as long as your history."; off, "Only app and website names are saved, not titles, like Word or youtube.com."
-- `anonymizeSites()`: also read `apps` and drop excluded entries: `if (raw.apps) patch.apps = …filter(([d]) => !isExcluded(d, list))`.
 - `eraseTitles()`: also call `await window.memoir.request('privacy.titles');`. The native side erases titles from the backup too.
-- `clearAllData()`: also remove `'apps'` (inside `withData`).
-- Import: `APP_KEY` (the app-key pattern above) lets `siteKey` accept apps; `readImport` collects an `apps` object (name ≤ 160 characters, a known category, an icon matching `^[a-f0-9]{24}\.png$`) and `writeImport` merges it into `apps`.
+- (Shared since `d2bb440`, no edit: `apps` in `anonymizeSites`, `clearAllData` and Import.)
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.
 
 ### `recap.html`
@@ -91,7 +82,11 @@ Both versions read and write the same `history.json` / `chrome.storage.local` la
 | `goal` | `{ history: [{ from: "YYYY-MM-DD", limit: ms or null }] }` | interface; read by `Engine.Limit` |
 | `goalNotify` | `{ day, n95, over }` | `Engine.CheckGoal` |
 | `categories`, `origins`, `onboarded` | same as the extension | interface / `Engine.Commit` (origins) |
-| `apps` *(Windows only)* | `{ "app:x.exe": { name, category, icon } }` | `Tracker.Remember` |
+| `apps` | `{ "app:x.exe": { name, category, icon } }` | `Tracker.Remember` (the extension gets names and categories over the link) |
+| `link:<device>:YYYY-MM-DD` | a linked extension's day, as it measured it (cleaned, Never track applied) | `Sync.ApplyDays`; shown merged with `day:` (`Engine.View`, core.js `getDays`) |
+| `linkPeers` | the linked extensions' devices (whose `link:` days are shown) | `Sync` |
+| `sync` | `{ device, meta: { settingsAt, excluded, goalAt, categoriesAt, wipe, titlesErased }, peers: { device: { name, mode, since, pending, lastSync, connected… } }, unlinked }` | `Sync` |
+| `wipe`, `titlesErased` | when Clear all / Erase titles last ran (a marker the link carries) | interface |
 | `windowsAppearance`, `windowsWeeklyNotified` *(Windows only)* | theme palette for native UI; last weekly notice | `MainForm`, `Engine.WeeklyReminder` |
 
 Rules that `Engine.cs` mirrors from `background.js` / `core.js`, and must keep in step:
@@ -129,7 +124,7 @@ The last row differs on purpose: Windows observes every second instead of relyin
 ## Verification
 
 ```
-powershell -File tests\run.ps1        # 63 tracking/privacy + 11 connector checks
+powershell -File tests\run.ps1        # 63 tracking/privacy, 9 shared merge cases, 21 link and host checks
 node tests\interface.cjs              # 42 interface checks (Playwright + Chrome)
 powershell -File tests\tray.ps1       # 49 native tray menu checks
 powershell -File build.ps1            # builds Memoir.exe; the previous exe moves to build-tools

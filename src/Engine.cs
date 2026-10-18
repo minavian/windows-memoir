@@ -96,14 +96,14 @@ namespace Memoir {
             store.BackupFilter = delegate(Dictionary<string, object> data) { Redact(data, Json.Get(Settings, "excluded"), true); };
             store.ScrubBackup(store.BackupFilter);
             var patch = new Dictionary<string, object>();
-            foreach (var item in store.Data.Where(p => Regex.IsMatch(p.Key, @"^day:\d{4}-\d{2}-\d{2}$"))) {
+            foreach (var item in store.Data.Where(p => DayRecord.IsMatch(p.Key))) {
                 var rec = Normalize(item.Value); rec["ti"] = Json.Object(); rec["th"] = Json.Object(); rec["tu"] = Json.Object(); rec["tp"] = new object[0]; patch[item.Key] = rec;
             }
             store.Set(patch);
         }
         private static bool Identifies(Dictionary<string, object> data, object excluded) {
             foreach (var pair in data) {
-                if (Regex.IsMatch(pair.Key, @"^day:\d{4}-\d{2}-\d{2}$")) {
+                if (DayRecord.IsMatch(pair.Key)) {
                     var rec = Json.Map(pair.Value);
                     if (new[] { "s", "ti", "tu" }.Any(field => Json.Map(Json.Get(rec, field)).Keys.Any(d => Excluded(d, excluded)))) return true;
                     if (Json.Array(Json.Get(rec, "tp")).Any(d => Excluded(Json.Text(d), excluded))) return true;
@@ -114,7 +114,7 @@ namespace Memoir {
         }
         private static void Redact(Dictionary<string, object> data, object excluded, bool titles) {
             foreach (string key in data.Keys.ToArray()) {
-                if (Regex.IsMatch(key, @"^day:\d{4}-\d{2}-\d{2}$")) {
+                if (DayRecord.IsMatch(key)) {
                     var rec = Normalize(data[key]); var sites = Json.Map(rec["s"]);
                     foreach (string domain in sites.Keys.ToArray()) if (Excluded(domain, excluded)) { sites["~private"] = Json.Number(Json.Get(sites, "~private")) + Json.Number(sites[domain]); sites.Remove(domain); }
                     foreach (object value in Json.Map(rec["hs"]).Values) {
@@ -198,8 +198,23 @@ namespace Memoir {
                 "ti", Json.Clone(Json.Map(Json.Get(rec, "ti"))), "th", Json.Clone(Json.Map(Json.Get(rec, "th"))), "tu", Json.Clone(Json.Map(Json.Get(rec, "tu"))),
                 "tp", Json.Array(Json.Get(rec, "tp")).Where(d => d is string).ToArray());
         }
-        // Runs every second while a limit is set, so it reads the stored record instead of cloning it.
-        public double Total(string day) { return Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "day:" + day)), "s")).Values.Sum(v => Json.Number(v)); }
+        // A day as shown: this app's own (day:<date>, what its tracker writes) merged with each linked
+        // extension's (link:<device>:<date>, as that side measured it), the larger time per name per hour.
+        public static readonly Regex DayRecord = new Regex(@"^(day|link:[a-z0-9-]+):(\d{4}-\d{2}-\d{2})$");
+        public static string RecordDate(string key) { var m = DayRecord.Match(key); return m.Success ? m.Groups[2].Value : null; }
+        public Dictionary<string, object> View(string day) {
+            var view = Normalize(Json.Get(store.Data, "day:" + day));
+            foreach (string peer in Json.Array(Json.Get(store.Data, "linkPeers")).OfType<string>()) {
+                object theirs = Json.Get(store.Data, "link:" + peer + ":" + day);
+                if (theirs != null) view = SyncData.MergeDay(view, Normalize(theirs));
+            }
+            return view;
+        }
+        // Runs every second while a limit is set: unlinked, it reads the stored record instead of cloning it.
+        public double Total(string day) {
+            if (Json.Array(Json.Get(store.Data, "linkPeers")).Length > 0) return SyncData.DayTotal(View(day));
+            return Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "day:" + day)), "s")).Values.Sum(v => Json.Number(v));
+        }
         public double Limit(string day) {
             double result = 0; string latest = "";
             foreach (object entry in Json.Array(Json.Get(Json.Map(Json.Get(store.Data, "goal")), "history"))) {
@@ -231,8 +246,9 @@ namespace Memoir {
         private static string Duration(double ms) { int minutes = (int)Math.Floor(ms / 60000); return minutes >= 60 ? (minutes / 60) + "h " + (minutes % 60) + "m" : Math.Max(1, minutes) + "m"; }
         public void Prune(DateTime now) {
             int days = (int)Json.Number(Json.Get(Settings, "retention")); if (days != 0 && days != 365 && days != 182 && days != 91) return; if (days == 0) return;
-            string cutoff = "day:" + Day(now.Date.AddDays(-(days - 1)));
-            store.Remove(store.Data.Keys.Where(k => Regex.IsMatch(k, @"^day:\d{4}-\d{2}-\d{2}$") && String.CompareOrdinal(k, cutoff) < 0).ToArray());
+            string cutoff = Day(now.Date.AddDays(-(days - 1)));
+            // this app's days and linked extensions' alike
+            store.Remove(store.Data.Keys.Where(k => DayRecord.IsMatch(k) && String.CompareOrdinal(RecordDate(k), cutoff) < 0).ToArray());
         }
         public void ScheduleReminder(DateTime from) {
             int weekday = (int)Json.Number(Json.Get(Settings, "reminderDay")), minutes = (int)Json.Number(Json.Get(Settings, "reminderMinutes"), 1140);

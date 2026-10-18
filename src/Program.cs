@@ -9,9 +9,9 @@ namespace Memoir {
             if (Array.IndexOf(args, "--tray-popup") >= 0) { TrayPopup.Run(args); return; }
             string directory = AppDomain.CurrentDomain.BaseDirectory;
             string data = Path.Combine(directory, "Data"), diagnostics = null;
-            bool minimized = false, nativeHost = false; string command = "";
-            foreach (string arg in args) { if (arg == "--tray") minimized = true; else if (arg.StartsWith("--data-dir=")) data = Path.GetFullPath(arg.Substring(11)); else if (arg.StartsWith("--diagnostics=")) diagnostics = Path.GetFullPath(arg.Substring(14)); else if (arg == "--native-host" || arg.StartsWith("chrome-extension://")) nativeHost = true; else if (arg == "--quit" || arg == "--minimize" || arg == "--tray-menu" || arg == "--dismiss-menu") command = arg.Substring(2); }
-            if (nativeHost) { BrowserLink.NativeHost(data); return; }
+            bool minimized = false, nativeHost = false, fixedData = false; string command = "";
+            foreach (string arg in args) { if (arg == "--tray") minimized = true; else if (arg.StartsWith("--data-dir=")) { data = Path.GetFullPath(arg.Substring(11)); fixedData = true; } else if (arg.StartsWith("--diagnostics=")) diagnostics = Path.GetFullPath(arg.Substring(14)); else if (arg == "--native-host" || arg.StartsWith("chrome-extension://")) nativeHost = true; else if (arg == "--quit" || arg == "--minimize" || arg == "--tray-menu" || arg == "--dismiss-menu") command = arg.Substring(2); }
+            if (nativeHost) { BrowserLink.NativeHost(data, fixedData); return; }
             bool first;
             string mutexName = "Local\\Memoir-" + Tracker.IconName(data.ToLowerInvariant()).Replace(".png", "");
             using (var mutex = new Mutex(true, mutexName, out first)) {

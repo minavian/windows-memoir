@@ -2,7 +2,7 @@ import {
   CATEGORIES, CATEGORY_BY_ID, isPrivate, siteName, categorize, dayKey, addDays, getDays, normalizeDay,
   getSettings, updateSettings, getCategoryOverrides, getSession, unsavedMs, getOrigins,
   formatDuration, storageKeyForDay, dayTotal,
-  getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit,
+  getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, setApps, recordDate,
 } from './shared/core.js';
 import {
   animateNumber, reveal, faviconTile, tween, slicePath, setOrigins, siteLinkHtml, replay, reducedMotion, POP, EASE_OUT, makeScroller, initSmoothScrolling, disableTitleTooltips, MorphPopover,
@@ -62,15 +62,16 @@ async function main() {
   chrome.runtime.sendMessage({ type: 'sync' }).catch(() => {});
 
   const pastKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), -(i + 1))));
-  const [days, settings, overrides, session, origins, history, { popupIntroduced }] = await Promise.all([
+  const [days, settings, overrides, session, origins, history, { popupIntroduced, apps }] = await Promise.all([
     getDays([state.todayKey, ...pastKeys]),
     getSettings(),
     getCategoryOverrides(),
     getSession(),
     getOrigins(),
     getGoalHistory(),
-    chrome.storage.local.get('popupIntroduced'),
+    chrome.storage.local.get(['popupIntroduced', 'apps']),
   ]);
+  setApps(apps); // Windows apps' names and categories, from a linked Memoir for Windows
   state.today = days[state.todayKey];
   state.overrides = overrides;
   state.session = session;
@@ -402,8 +403,9 @@ function onStorage(changes, area) {
     state.session = changes.session.newValue || null;
   }
   if (area !== 'local') return;
-  const key = storageKeyForDay(state.todayKey);
-  if (changes[key]) state.today = normalizeDay(changes[key].newValue);
+  // today as shown: this side's own merged with a linked Memoir's
+  if (Object.keys(changes).some(k => recordDate(k) === state.todayKey) || changes.linkPeers) getDays([state.todayKey]).then(d => { state.today = d[state.todayKey]; });
+  if (changes.apps) setApps(changes.apps.newValue);
   if (changes.categories) state.overrides = changes.categories.newValue || {};
   if (changes.origins) setOrigins(changes.origins.newValue || {});
   if (changes.goal) {

@@ -27,6 +27,7 @@ namespace Memoir {
         private bool locked, busy, disposed;
         private long lastBrowserPoll, lastAudioPoll, audibleUntil;
         public string BrowserStatus { get; private set; }
+        public BrowserLink Link { get { return link; } }
         public Tracker(Control owner, Store store, Engine engine, string dataDirectory) {
             this.owner = owner; this.store = store; this.engine = engine; iconDirectory = Path.Combine(dataDirectory, "icons"); Directory.CreateDirectory(iconDirectory);
             link = new BrowserLink(dataDirectory);
@@ -106,6 +107,10 @@ namespace Memoir {
             if (exact == null) { exact = link.Current(app.Domain.Substring(4)); if (exact != null) url = Json.Text(Json.Get(exact, "url")); }
             string domain = BrowserProbe.Domain(url);
             target = app.Copy();
+            // the Memoir extension names what isn't a website (Memoir, New Tab, the browser's own pages…): the
+            // same names it records, so the two count those minutes alike
+            string page = exact == null ? "" : Json.Text(Json.Get(exact, "page"));
+            if (SyncData.IsPage(page)) { domain = page; target.Origin = null; }
             if (exact != null && Json.Bool(Json.Get(exact, "incognito"))) { domain = "~private"; target.Origin = null; }
             if (domain != null) { target.Domain = domain; target.Origin = BrowserProbe.Origin(url); target.Name = domain; BrowserStatus = "Website detection is active"; }
             else BrowserStatus = "This browser window is recorded as app time until its address is available";

@@ -22,6 +22,7 @@ namespace Memoir {
         private readonly string directory, dataDirectory, diagnostics;
         private readonly NotifyIcon tray;
         private readonly Tracker tracker;
+        private readonly Sync sync;
         private Process trayMenu;
         private readonly EventWaitHandle closeTrayMenu = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\Memoir.Tray." + Process.GetCurrentProcess().Id);
         private DateTime ignoreTrayClickUntil;
@@ -52,6 +53,10 @@ namespace Memoir {
             engine.Notification += delegate(string title, string text) { tray.ShowBalloonTip(6000, title, text, ToolTipIcon.Info); store.Save(); };
             IntPtr handle = Handle; Native.WTSRegisterSessionNotification(handle, 0);
             tracker = new Tracker(this, store, engine, dataDirectory);
+            // the Memoir extension can reach this app (native messaging), and syncs once linked from its Settings
+            Registration.Register(directory, dataDirectory);
+            var version = typeof(MainForm).Assembly.GetName().Version;
+            sync = new Sync(this, store, engine, tracker.Link, version.Major + "." + version.Minor + "." + version.Build, delegate { tracker.SettingsChanged(); });
             store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;
@@ -242,6 +247,7 @@ namespace Memoir {
                         store.Set(Json.Object("windowsAppearance", data)); store.Save(); ApplySavedTheme(); break;
                     case "status": result = Json.Object("browser", tracker.BrowserStatus, "paused", engine.Paused, "uiLoaded", web != null, "dataDirectory", dataDirectory); break;
                     case "folder.open": Process.Start(new ProcessStartInfo(dataDirectory) { UseShellExecute = true }); break;
+                    case "link.unlink": sync.Unlink(Json.Text(Json.Get(data, "device"))); break;
                     case "log": Log(Json.Text(Json.Get(data, "message"))); break;
                     default: throw new InvalidOperationException("Unknown desktop request.");
                 }

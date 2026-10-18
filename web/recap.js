@@ -5,6 +5,7 @@ import {
   storageKeyForDay, normalizeDay, cloneDay, dayTotal, listDayKeys, normalizeSite, isExcluded, uses24h,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, goalLevel, retentionCutoffKey, resetLimit,
   withData, domainFromUrl, safeKey, cleanUrl, EXPORT_FORMAT, GOAL_MIN_MS, GOAL_MAX_MS,
+  isApp, siteKey, cleanDay, mergeDay, anonymizeDay, setApps, listDayRecordKeys, recordDate,
 } from './shared/core.js';
 import {
   animateNumber, tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath,
@@ -119,10 +120,11 @@ async function init() {
   if (m) state.weekStart = startOfWeek(dateFromKey(m[1]));
   if (state.weekStart > startOfWeek(new Date())) state.weekStart = startOfWeek(new Date());
 
-  const [settings, overrides, origins, history, keys, session, today, { onboarded, goalTrial }] = await Promise.all([
+  const [settings, overrides, origins, history, keys, session, today, { onboarded, goalTrial, apps }] = await Promise.all([
     getSettings(), getCategoryOverrides(), getOrigins(), getGoalHistory(), listDayKeys(), getSession(),
-    getDays([state.todayKey]), chrome.storage.local.get(['onboarded', 'goalTrial']),
+    getDays([state.todayKey]), chrome.storage.local.get(['onboarded', 'goalTrial', 'apps']),
   ]);
+  setApps(apps); // Windows apps' names and categories, from a linked Memoir for Windows
   // first visit: the welcome covers the page while it gets ready
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
@@ -3046,61 +3048,47 @@ async function applyCategory(domain, catId) {
 // Moves every trace of these sites into anonymous Private time.
 async function anonymizeSites(list) {
   if (!list.length) return 0;
-  const keys = await listDayKeys();
-  const raw = await chrome.storage.local.get([...keys.map(storageKeyForDay), 'origins', 'categories', 'apps']);
+  // every day record: this side's own and a linked Memoir's
+  const keys = await listDayRecordKeys();
+  const raw = await chrome.storage.local.get([...keys, 'origins', 'categories', 'apps']);
   const patch = {};
   let touched = 0;
   for (const k of keys) {
-    const rec = normalizeDay(raw[storageKeyForDay(k)]);
-    let changed = false;
-    for (const dom of Object.keys(rec.s)) {
-      if (!isExcluded(dom, list)) continue;
-      rec.s[PRIVATE_KEY] = (rec.s[PRIVATE_KEY] || 0) + rec.s[dom];
-      delete rec.s[dom];
-      changed = true;
-    }
-    for (const slot of Object.values(rec.hs)) {
-      for (const dom of Object.keys(slot)) {
-        if (!isExcluded(dom, list)) continue;
-        slot[PRIVATE_KEY] = (slot[PRIVATE_KEY] || 0) + slot[dom];
-        delete slot[dom];
-        changed = true;
-      }
-    }
-    for (const dom of Object.keys(rec.ti)) if (isExcluded(dom, list)) { delete rec.ti[dom]; changed = true; }
-    for (const dom of Object.keys(rec.tu)) if (isExcluded(dom, list)) { delete rec.tu[dom]; changed = true; }
-    for (const slot of Object.values(rec.th)) for (const dom of Object.keys(slot)) if (isExcluded(dom, list)) { delete slot[dom]; changed = true; }
-    if (rec.tp.some(d => isExcluded(d, list))) { rec.tp = rec.tp.filter(d => !isExcluded(d, list)); changed = true; }
-    if (changed) { patch[storageKeyForDay(k)] = rec; touched++; }
+    if (!raw[k]) continue;
+    const rec = normalizeDay(raw[k]);
+    if (anonymizeDay(rec, list)) { patch[k] = rec; touched++; }
   }
   const origins = raw.origins || {};
   const cats = raw.categories || {};
+  const apps = raw.apps || {};
   const o2 = Object.fromEntries(Object.entries(origins).filter(([d]) => !isExcluded(d, list)));
   const c2 = Object.fromEntries(Object.entries(cats).filter(([d]) => !isExcluded(d, list)));
+  const a2 = Object.fromEntries(Object.entries(apps).filter(([d]) => !isExcluded(d, list)));
   if (Object.keys(o2).length !== Object.keys(origins).length) patch.origins = o2;
   if (Object.keys(c2).length !== Object.keys(cats).length) { patch.categories = c2; state.overrides = c2; }
-  if (raw.apps) patch.apps = Object.fromEntries(Object.entries(raw.apps).filter(([d]) => !isExcluded(d, list)));
+  if (Object.keys(a2).length !== Object.keys(apps).length) patch.apps = a2;
   if (Object.keys(patch).length) await chrome.storage.local.set(patch);
   return touched;
 }
 
 async function eraseTitles() {
-  await window.memoir.request('privacy.titles');
-  const keys = await listDayKeys();
-  const raw = await chrome.storage.local.get(keys.map(storageKeyForDay));
+  await window.memoir.request('privacy.titles'); // (Windows: the native side erases them from its backup too)
+  const keys = await listDayRecordKeys();
+  const raw = await chrome.storage.local.get(keys);
   const patch = {};
   for (const k of keys) {
-    const r = raw[storageKeyForDay(k)];
+    const r = raw[k];
     const has = o => o && typeof o === 'object' && Object.keys(o).length;
-    if (r && (has(r.ti) || has(r.th) || has(r.tu) || has(r.tp))) patch[storageKeyForDay(k)] = { ...r, ti: {}, th: {}, tu: {}, tp: [] };
+    if (r && (has(r.ti) || has(r.th) || has(r.tu) || has(r.tp))) patch[k] = { ...r, ti: {}, th: {}, tu: {}, tp: [] };
   }
-  if (Object.keys(patch).length) await chrome.storage.local.set(patch);
+  // a linked Memoir erases its titles from before now too (the marker travels; shared/link.js)
+  await chrome.storage.local.set({ ...patch, titlesErased: Date.now() });
   return Object.keys(patch).length;
 }
 
 async function hasTitles() {
-  const keys = await listDayKeys();
-  const raw = await chrome.storage.local.get(keys.map(storageKeyForDay));
+  const keys = await listDayRecordKeys();
+  const raw = await chrome.storage.local.get(keys);
   return Object.values(raw).some(r => r && r.ti && Object.keys(r.ti).length);
 }
 
@@ -3546,15 +3534,15 @@ async function saveReminder(patch, note = true) {
 let statsRun = 0;
 async function refreshStats() {
   const run = ++statsRun;
-  const keys = await listDayKeys();
-  const dayBytes = keys.length ? await chrome.storage.local.getBytesInUse(keys.map(storageKeyForDay)) : 0;
+  const [keys, records] = await Promise.all([listDayKeys(), listDayRecordKeys()]);
+  const dayBytes = records.length ? await chrome.storage.local.getBytesInUse(records) : 0;
   const all = await chrome.storage.local.getBytesInUse(null);
   state.stats = { keys, days: keys.length, dayBytes, all };
   state.earliestKey = keys[0] || null;
   if (!keys.length) { showUsed('Nothing saved yet.'); return; }
   // how much of it is page titles and their links (they're saved inside each day); the
   // line waits for that, and nothing else does
-  titleBytesIn(keys).then(titles => {
+  titleBytesIn(records).then(titles => {
     if (run !== statsRun) return; // a newer count is on its way
     showUsed(titles ? `Used ${formatBytes(all)} so far, ${formatBytes(titles)} of it page titles.` : `Used ${formatBytes(all)} so far.`);
   });
@@ -3568,7 +3556,7 @@ const utf8 = new TextEncoder();
 async function titleBytesIn(keys) {
   let bytes = 0;
   for (let i = 0; i < keys.length; i += 31) {
-    const raw = await chrome.storage.local.get(keys.slice(i, i + 31).map(storageKeyForDay));
+    const raw = await chrome.storage.local.get(keys.slice(i, i + 31));
     for (const r of Object.values(raw)) {
       for (const f of ['ti', 'th', 'tu']) if (r && r[f] && Object.keys(r[f]).length) bytes += utf8.encode(JSON.stringify(r[f])).length;
     }
@@ -3643,8 +3631,7 @@ async function applyRetention(days) {
   setReveal('ret-confirm', false);
   const cutoff = retentionCutoffKey(days);
   if (cutoff) {
-    const keys = await listDayKeys();
-    const doomed = keys.filter(k => k < cutoff).map(storageKeyForDay);
+    const doomed = (await listDayRecordKeys()).filter(k => recordDate(k) < cutoff);
     if (doomed.length) await chrome.storage.local.remove(doomed);
   }
   state.settings = await updateSettings({ retention: days });
@@ -3688,9 +3675,11 @@ function setNukeStep(n) {
 
 async function clearAllData() {
   await withData(async () => {
-    const keys = await listDayKeys();
-    await chrome.storage.local.remove([...keys.map(storageKeyForDay), 'categories', 'origins', 'apps', 'goalNotify']);
+    const keys = await listDayRecordKeys();
+    await chrome.storage.local.remove([...keys, 'categories', 'origins', 'apps', 'goalNotify']);
     await chrome.storage.session.remove('session');
+    // a linked Memoir clears everything from before now too (the marker travels; shared/link.js)
+    await chrome.storage.local.set({ wipe: Date.now() });
   });
   state.overrides = {};
   state.earliestKey = null;
@@ -4169,7 +4158,12 @@ function wire() {
 
   // your data
   $('export').addEventListener('click', async () => {
+    // days as shown (this side's own merged with a linked Memoir's), as plain days; the link's own
+    // records stay here
     const all = await chrome.storage.local.get(null);
+    const dates = await listDayKeys();
+    Object.assign(all, Object.fromEntries(Object.entries(await getDays(dates)).map(([k, d]) => [storageKeyForDay(k), d])));
+    for (const k of Object.keys(all)) if (k.startsWith('link:') || k === 'link' || k === 'linkPeers' || k === 'sync') delete all[k];
     const blob = new Blob([JSON.stringify({ app: 'Memoir: Browser Screen Time', format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), data: all }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -4378,31 +4372,15 @@ function hideToast() {
   a.finished.then(() => { if (t._move === a) t.replaceChildren(); }, () => {});
 }
 
-// Accepts an export from any version of Browser Screen Time or Memoir.
-// Names from a file must look exactly like the ones the tracker writes: no
-// built-in object names, no markup, nothing a page address couldn't produce.
-// (Windows: an app's key too, app:name.exe)
-const APP_KEY = /^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/;
-const siteKey = d => (d === PRIVATE_KEY || isPage(d) || APP_KEY.test(d) || domainFromUrl(`http://${d}`) === d ? d : null);
-const titleKey = t => (t.length <= 256 && safeKey(t) !== null ? t : null);
-
+// Accepts an export from any version of Browser Screen Time or Memoir, the Windows app's included.
+// Names from a file must look exactly like the ones the tracker writes: no built-in object names,
+// no markup, nothing a page address couldn't produce (cleanDay and siteKey, shared/core.js).
 // Reads an export into clean records, or null when the file isn't one.
 async function readImport(file) {
   let json;
   try { json = JSON.parse(await file.text()); } catch { return null; }
   const data = json && typeof json === 'object' && json.data && typeof json.data === 'object' ? json.data : json;
   if (!data || typeof data !== 'object') return null;
-  const ms = v => (Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
-  const times = (m, keyOf) => {
-    const out = {};
-    if (!m || typeof m !== 'object') return out;
-    for (const [k, v] of Object.entries(m)) {
-      const name = keyOf(k);
-      const t = ms(v);
-      if (name !== null && t !== null) out[name] = t;
-    }
-    return out;
-  };
   const days = {};
   const categories = {};
   const origins = {};
@@ -4410,47 +4388,17 @@ async function readImport(file) {
   const limits = new Map(); // the limit history: from (a day) → limit (ms, or null: none from that day)
   const today = dayKey(new Date());
   for (const [k, v] of Object.entries(data)) {
-    if (/^day:\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v.s === 'object' && Array.isArray(v.h) && v.h.length === 24) {
-      const hs = {};
-      for (const [h, slot] of Object.entries(v.hs && typeof v.hs === 'object' ? v.hs : {})) {
-        if (!/^([0-9]|1[0-9]|2[0-3])$/.test(h)) continue;
-        const clean = times(slot, siteKey);
-        if (Object.keys(clean).length) hs[h] = clean;
-      }
-      const ti = {};
-      for (const [d, pages] of Object.entries(v.ti && typeof v.ti === 'object' ? v.ti : {})) {
-        if (isPrivate(d) || siteKey(d) === null) continue;
-        const clean = times(pages, titleKey);
-        if (Object.keys(clean).length) ti[d] = clean;
-      }
-      // a page's link only for a title that's there, and only to a web page on that site
-      const tu = {};
-      for (const [d, links] of Object.entries(v.tu && typeof v.tu === 'object' ? v.tu : {})) {
-        if (!ti[d] || !links || typeof links !== 'object') continue;
-        for (const [t, url] of Object.entries(links)) {
-          const clean = titleKey(t) !== null && Object.hasOwn(ti[d], t) ? cleanUrl(url, d) : null;
-          if (clean) (tu[d] || (tu[d] = {}))[t] = clean;
-        }
-      }
-      const th = {};
-      for (const [h, slot] of Object.entries(v.th && typeof v.th === 'object' ? v.th : {})) {
-        if (!/^([0-9]|1[0-9]|2[0-3])$/.test(h) || !slot || typeof slot !== 'object') continue;
-        for (const [d, pages] of Object.entries(slot)) {
-          if (!ti[d]) continue;
-          const clean = times(pages, t => (titleKey(t) !== null && Object.hasOwn(ti[d], t) ? t : null));
-          if (Object.keys(clean).length) (th[h] || (th[h] = {}))[d] = clean;
-        }
-      }
-      const tp = Array.isArray(v.tp) ? [...new Set(v.tp.filter(d => typeof d === 'string' && !isPrivate(d) && siteKey(d) !== null))] : [];
-      days[k] = { s: times(v.s, siteKey), h: v.h.map(x => ms(x) ?? 0), hs, ti, th, tu, tp };
+    if (/^day:\d{4}-\d{2}-\d{2}$/.test(k)) {
+      const day = cleanDay(v);
+      if (day) days[k] = day;
     } else if (k === 'categories' && v && typeof v === 'object') {
       for (const [d, cat] of Object.entries(v)) if (CATEGORY_BY_ID[cat] && !isPrivate(d) && siteKey(d) !== null) categories[d] = cat;
     } else if (k === 'origins' && v && typeof v === 'object') {
       for (const [d, origin] of Object.entries(v)) if (typeof origin === 'string' && /^https?:\/\/[^/]+$/.test(origin) && !isPrivate(d) && siteKey(d) !== null) origins[d] = origin;
     } else if (k === 'apps' && v && typeof v === 'object') {
-      // Windows apps: a name, a category and the file name of an icon Memoir saved
+      // Windows apps: a name, a category and the file name of an icon Memoir for Windows saved
       for (const [d, app] of Object.entries(v)) {
-        if (!APP_KEY.test(d) || !app || typeof app.name !== 'string') continue;
+        if (!isApp(d) || !app || typeof app.name !== 'string') continue;
         apps[d] = { name: app.name.slice(0, 160), category: CATEGORY_BY_ID[app.category] ? app.category : 'other', icon: /^[a-f0-9]{24}\.png$/.test(app.icon || '') ? app.icon : null };
       }
     } else if (k === 'goal' && v && Array.isArray(v.history)) {
@@ -4467,41 +4415,6 @@ async function readImport(file) {
   // files from before page links were saved (no format number) are brought up to date
   const format = json && Number.isInteger(json.format) ? json.format : 1;
   return { days, categories, origins, apps, goal, old: format < EXPORT_FORMAT };
-}
-
-// A day in both: the larger time for each site in each hour, so nothing is ever
-// counted twice (importing the same file again changes nothing). Days kept
-// without per-hour detail by older versions keep whichever record holds more.
-const hourlyTotal = d => Object.values(d.hs).reduce((t, slot) => t + sum(Object.values(slot)), 0);
-function mergeDay(a, b) {
-  if (Math.abs(hourlyTotal(a) - dayTotal(a)) > 1000 || Math.abs(hourlyTotal(b) - dayTotal(b)) > 1000) return dayTotal(b) > dayTotal(a) ? b : a;
-  const out = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {}, th: {}, tu: {}, tp: [...new Set([...(a.tp || []), ...(b.tp || [])])] };
-  for (let h = 0; h < 24; h++) {
-    const slot = {};
-    for (const from of [a.hs[h], b.hs[h]]) for (const [d, ms] of Object.entries(from || {})) slot[d] = Math.max(slot[d] || 0, ms);
-    if (!Object.keys(slot).length) continue;
-    out.hs[h] = slot;
-    for (const [d, ms] of Object.entries(slot)) { out.s[d] = (out.s[d] || 0) + ms; out.h[h] += ms; }
-  }
-  for (const from of [a.ti, b.ti]) {
-    for (const [d, pages] of Object.entries(from)) {
-      const into = out.ti[d] || (out.ti[d] = {});
-      for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
-    }
-  }
-  for (const from of [a.th || {}, b.th || {}]) {
-    for (const [h, slot] of Object.entries(from)) {
-      for (const [d, pages] of Object.entries(slot)) {
-        const into = (out.th[h] || (out.th[h] = {}))[d] || (out.th[h][d] = {});
-        for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
-      }
-    }
-  }
-  // the file's link for a page wins (it's the one being brought in)
-  for (const from of [a.tu || {}, b.tu || {}]) {
-    for (const [d, links] of Object.entries(from)) Object.assign(out.tu[d] || (out.tu[d] = {}), links);
-  }
-  return out;
 }
 
 // Runs under the data lock, so the tracker can't save in between.
@@ -4901,11 +4814,12 @@ function onStorageChanged(changes, area) {
   if (changes.goal) getGoalHistory().then(h => { state.goalHistory = h; updateGoal(); renderLimitRow(); if (!state.demo) render({ soft: true }); });
   if (changes.goalTrial) { state.goalTrial = changes.goalTrial.newValue || null; renderLimitRow(); }
   if (changes.origins) setOrigins(changes.origins.newValue || {});
-  const todayKey = storageKeyForDay(state.todayKey);
-  if (changes[todayKey]) { state.todayRec = normalizeDay(changes[todayKey].newValue); updateGoal(); }
+  // a day as shown is this side's own merged with a linked Memoir's: either changing redraws it
+  const dates = new Set(Object.keys(changes).map(recordDate).filter(Boolean));
+  if (dates.has(state.todayKey) || changes.linkPeers) getDays([state.todayKey]).then(d => { state.todayRec = d[state.todayKey]; updateGoal(); });
+  if (changes.apps) setApps(changes.apps.newValue);
   if (state.demo) return;
-  const keys = weekDayKeys(state.weekStart).map(storageKeyForDay);
-  if (Object.keys(changes).some(k => keys.includes(k))) refreshSoon();
+  if (changes.linkPeers || changes.apps || weekDayKeys(state.weekStart).some(k => dates.has(k))) refreshSoon();
 }
 
 // New time saved for the week shown: redraw in a moment, but never under a menu or a

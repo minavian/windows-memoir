@@ -1,0 +1,91 @@
+{
+  "about": "Shared by the extension (tests/merge.test.mjs, shared/core.js) and Memoir for Windows (tests/SyncTests.cs, src/Sync.cs): each case's result must be the same in both. Times are milliseconds; h is a day's 24 hours, written as {hour: ms} here and expanded by the runners.",
+  "merge": [
+    {
+      "name": "different hours and names: both kept",
+      "a": { "s": { "a.com": 600000 }, "h": { "9": 600000 }, "hs": { "9": { "a.com": 600000 } } },
+      "b": { "s": { "app:code.exe": 300000 }, "h": { "10": 300000 }, "hs": { "10": { "app:code.exe": 300000 } } },
+      "out": { "s": { "a.com": 600000, "app:code.exe": 300000 }, "h": { "9": 600000, "10": 300000 }, "hs": { "9": { "a.com": 600000 }, "10": { "app:code.exe": 300000 } } }
+    },
+    {
+      "name": "the same name in the same hour: the larger time, never the sum",
+      "a": { "s": { "youtube.com": 1200000, "~memoir": 60000 }, "h": { "9": 1260000 }, "hs": { "9": { "youtube.com": 1200000, "~memoir": 60000 } } },
+      "b": { "s": { "youtube.com": 1500000 }, "h": { "9": 1500000 }, "hs": { "9": { "youtube.com": 1500000 } } },
+      "out": { "s": { "youtube.com": 1500000, "~memoir": 60000 }, "h": { "9": 1560000 }, "hs": { "9": { "youtube.com": 1500000, "~memoir": 60000 } } }
+    },
+    {
+      "name": "an hour never holds more than an hour: the names share it",
+      "a": { "s": { "app:chrome.exe": 3000000 }, "h": { "14": 3000000 }, "hs": { "14": { "app:chrome.exe": 3000000 } } },
+      "b": { "s": { "youtube.com": 2400000 }, "h": { "14": 2400000 }, "hs": { "14": { "youtube.com": 2400000 } } },
+      "out": { "s": { "app:chrome.exe": 2000000, "youtube.com": 1600000 }, "h": { "14": 3600000 }, "hs": { "14": { "app:chrome.exe": 2000000, "youtube.com": 1600000 } } }
+    },
+    {
+      "name": "titles: the larger time per title, hour by hour; the incoming link wins; deleted-titles lists join",
+      "a": { "s": { "a.com": 150000 }, "h": { "9": 150000 }, "hs": { "9": { "a.com": 150000 } },
+             "ti": { "a.com": { "Page A": 100000, "Page B": 50000 } }, "th": { "9": { "a.com": { "Page A": 100000, "Page B": 50000 } } },
+             "tu": { "a.com": { "Page A": "https://a.com/a" } }, "tp": ["old.com"] },
+      "b": { "s": { "a.com": 120000 }, "h": { "9": 120000 }, "hs": { "9": { "a.com": 120000 } },
+             "ti": { "a.com": { "Page A": 120000 } }, "th": { "9": { "a.com": { "Page A": 120000 } } },
+             "tu": { "a.com": { "Page A": "https://a.com/a2" } }, "tp": ["older.com"] },
+      "out": { "s": { "a.com": 150000 }, "h": { "9": 150000 }, "hs": { "9": { "a.com": 150000 } },
+               "ti": { "a.com": { "Page A": 120000, "Page B": 50000 } }, "th": { "9": { "a.com": { "Page A": 120000, "Page B": 50000 } } },
+               "tu": { "a.com": { "Page A": "https://a.com/a2" } }, "tp": ["old.com", "older.com"] }
+    },
+    {
+      "name": "a day kept without hourly detail (older versions): the fuller record wins whole",
+      "a": { "s": { "a.com": 900000 }, "h": {}, "hs": {} },
+      "b": { "s": { "b.com": 300000 }, "h": { "9": 300000 }, "hs": { "9": { "b.com": 300000 } } },
+      "out": { "s": { "a.com": 900000 }, "h": {}, "hs": {} }
+    },
+    {
+      "name": "merging a day with itself changes nothing",
+      "a": { "s": { "a.com": 150000, "~private": 40000 }, "h": { "9": 150000, "21": 40000 }, "hs": { "9": { "a.com": 150000 }, "21": { "~private": 40000 } },
+             "ti": { "a.com": { "Page A": 150000 } }, "th": { "9": { "a.com": { "Page A": 150000 } } } },
+      "b": { "s": { "a.com": 150000, "~private": 40000 }, "h": { "9": 150000, "21": 40000 }, "hs": { "9": { "a.com": 150000 }, "21": { "~private": 40000 } },
+             "ti": { "a.com": { "Page A": 150000 } }, "th": { "9": { "a.com": { "Page A": 150000 } } } },
+      "out": { "s": { "a.com": 150000, "~private": 40000 }, "h": { "9": 150000, "21": 40000 }, "hs": { "9": { "a.com": 150000 }, "21": { "~private": 40000 } },
+               "ti": { "a.com": { "Page A": 150000 } }, "th": { "9": { "a.com": { "Page A": 150000 } } } }
+    }
+  ],
+  "clean": [
+    {
+      "name": "only names the tracker could write, real times, titles with their own links and hours",
+      "in": {
+        "s": { "a.com": 1000, "constructor": 5, "<b>x</b>": 7, "app:code.exe": 2000, "app:bad": 3, "~memoir": 400, "~private": 50, "neg.com": -5, "Big.com": 10, "www.a.com": 9 },
+        "h": { "9": 1400.4, "10": -1 },
+        "hs": { "9": { "a.com": 1000, "Big.com": 3 }, "24": { "a.com": 1 }, "x": { "a.com": 1 } },
+        "ti": { "a.com": { "Title": 100, "constructor": 5 }, "~private": { "secret": 1 } },
+        "tu": { "a.com": { "Title": "https://a.com/t?utm_source=x", "Missing": "https://a.com/m" } },
+        "th": { "9": { "a.com": { "Title": 100, "Other": 3 } } },
+        "tp": ["gone.com", "~private", 5, "gone.com"]
+      },
+      "out": {
+        "s": { "a.com": 1000, "app:code.exe": 2000, "~memoir": 400, "~private": 50 },
+        "h": { "9": 1400 },
+        "hs": { "9": { "a.com": 1000 } },
+        "ti": { "a.com": { "Title": 100 } },
+        "tu": { "a.com": { "Title": "https://a.com/t" } },
+        "th": { "9": { "a.com": { "Title": 100 } } },
+        "tp": ["gone.com"]
+      }
+    },
+    {
+      "name": "not a day at all",
+      "in": { "s": { "a.com": 1 }, "h": [1, 2, 3] },
+      "out": null
+    }
+  ],
+  "anonymize": [
+    {
+      "name": "Never track: the name's time becomes Private, its titles and links go; an app is only ever itself",
+      "list": ["youtube.com", "app:steam.exe"],
+      "in": { "s": { "m.youtube.com": 600000, "a.com": 100000, "app:steam.exe": 50000, "app:my.steam.exe": 20000 }, "h": { "9": 770000 },
+              "hs": { "9": { "m.youtube.com": 600000, "a.com": 100000, "app:steam.exe": 50000, "app:my.steam.exe": 20000 } },
+              "ti": { "m.youtube.com": { "A video": 600000 }, "a.com": { "Page": 100000 } }, "th": { "9": { "m.youtube.com": { "A video": 600000 } } },
+              "tu": { "m.youtube.com": { "A video": "https://m.youtube.com/watch" } }, "tp": ["youtube.com", "b.com"] },
+      "out": { "s": { "a.com": 100000, "app:my.steam.exe": 20000, "~private": 650000 }, "h": { "9": 770000 },
+               "hs": { "9": { "a.com": 100000, "app:my.steam.exe": 20000, "~private": 650000 } },
+               "ti": { "a.com": { "Page": 100000 } }, "th": { "9": {} }, "tu": {}, "tp": ["b.com"] }
+    }
+  ]
+}

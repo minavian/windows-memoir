@@ -19,9 +19,16 @@ export const PAGE_NAMES = Object.freeze({
   '~memoir': 'Memoir', '~newtab': 'New Tab', '~browser': 'Browser pages', '~extensions': 'Extensions', '~files': 'Files',
 });
 export const isPage = d => Object.hasOwn(PAGE_NAMES, d);
+// Windows apps (from Memoir for Windows: its own, or the extension's once linked), app:name.exe, each with
+// a name, a category and (on Windows) an icon: the `apps` record, or Windows' own list (window.memoir)
+export const APP_KEY = /^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/;
+export const isApp = d => typeof d === 'string' && APP_KEY.test(d);
+let appList = {};
+export const setApps = map => { appList = map && typeof map === 'object' ? map : {}; };
+const appInfo = d => (globalThis.memoir?.apps || appList)[d];
+export const appName = d => appInfo(d)?.name || d.slice(4).replace(/\.exe$/i, '');
 // what a site is called on screen
-// (Windows: an app, app:name.exe, by the name Windows gives it)
-export const siteName = d => PAGE_NAMES[d] || (typeof d === 'string' && d.startsWith('app:') && window.memoir ? window.memoir.appName(d) : d);
+export const siteName = d => PAGE_NAMES[d] || (isApp(d) ? appName(d) : d);
 
 export const RETENTION_OPTIONS = [0, 365, 182, 91]; // 0 = forever
 export const GOAL_MIN_MS = 60_000;
@@ -146,7 +153,7 @@ function brandOf(domain) {
 export function categorize(domain, overrides = {}) {
   if (!domain) return 'other';
   if (overrides[domain] && CATEGORY_BY_ID[overrides[domain]]) return overrides[domain];
-  if (domain.startsWith('app:')) return window.memoir.apps[domain]?.category || 'other';
+  if (isApp(domain)) return CATEGORY_BY_ID[appInfo(domain)?.category] ? appInfo(domain).category : 'other';
   const parts = domain.split('.');
   for (let i = 0; i < parts.length - 1; i++) {
     const hit = SITE_LOOKUP.get(parts.slice(i).join('.'));
@@ -204,6 +211,7 @@ export function normalizeSite(input) {
   let s = input.trim().toLowerCase();
   if (/^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/.test(s)) return s;
   if (!s || /\s/.test(s)) return null;
+  if (isApp(s)) return s; // a Windows app, as its key
   if (!/^[a-z][a-z0-9+.-]*:\/\//.test(s)) s = `http://${s.replace(/^\*\./, '')}`;
   let host;
   try { host = new URL(s).hostname; } catch { return null; }
@@ -217,7 +225,8 @@ export function normalizeSite(input) {
 
 export function isExcluded(domain, list) {
   if (!domain || isPrivate(domain) || !Array.isArray(list)) return false;
-  return list.some(ex => domain === ex || (!domain.startsWith('app:') && domain.endsWith(`.${ex}`)));
+  // a website's subdomains go with it; an app is only ever itself
+  return list.some(ex => domain === ex || (!isApp(domain) && domain.endsWith(`.${ex}`)));
 }
 
 // ---------- dates ----------
@@ -389,6 +398,127 @@ export function cloneDay(d) {
 
 export const dayTotal = d => Object.values(d.s).reduce((a, b) => a + b, 0);
 
+// ---------- days from outside: an import, or Memoir for Windows once linked ----------
+// One set of rules for both, and Memoir for Windows has the same in C# (src/Sync.cs): the merge
+// cases in tests/merge-cases run on both sides, so the two always agree.
+
+const HOUR_MS = 3_600_000;
+// a name the tracker could have written: a website, Private, a kind of page or a Windows app
+export const siteKey = d => (typeof d === 'string' && (d === PRIVATE_KEY || isPage(d) || isApp(d) || domainFromUrl(`http://${d}`) === d) ? d : null);
+export const titleKey = t => (typeof t === 'string' && t.length <= 256 && safeKey(t) !== null ? t : null);
+const msOf = v => (Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+function timesOf(m, keyOf) {
+  const out = {};
+  if (!m || typeof m !== 'object') return out;
+  for (const [k, v] of Object.entries(m)) {
+    const name = keyOf(k);
+    const t = msOf(v);
+    if (name !== null && t !== null) out[name] = t;
+  }
+  return out;
+}
+const HOUR = /^([0-9]|1[0-9]|2[0-3])$/;
+
+// A day from outside, as clean as one the tracker writes (or null when it isn't a day)
+export function cleanDay(v) {
+  if (!v || typeof v !== 'object' || !v.s || typeof v.s !== 'object' || !Array.isArray(v.h) || v.h.length !== 24) return null;
+  const hs = {};
+  for (const [h, slot] of Object.entries(v.hs && typeof v.hs === 'object' ? v.hs : {})) {
+    if (!HOUR.test(h)) continue;
+    const clean = timesOf(slot, siteKey);
+    if (Object.keys(clean).length) hs[h] = clean;
+  }
+  const ti = {};
+  for (const [d, pages] of Object.entries(v.ti && typeof v.ti === 'object' ? v.ti : {})) {
+    if (isPrivate(d) || siteKey(d) === null) continue;
+    const clean = timesOf(pages, titleKey);
+    if (Object.keys(clean).length) ti[d] = clean;
+  }
+  // a page's link only for a title that's there, and only to a web page on that site
+  const tu = {};
+  for (const [d, links] of Object.entries(v.tu && typeof v.tu === 'object' ? v.tu : {})) {
+    if (!ti[d] || !links || typeof links !== 'object') continue;
+    for (const [t, url] of Object.entries(links)) {
+      const clean = titleKey(t) !== null && Object.hasOwn(ti[d], t) ? cleanUrl(url, d) : null;
+      if (clean) (tu[d] || (tu[d] = {}))[t] = clean;
+    }
+  }
+  const th = {};
+  for (const [h, slot] of Object.entries(v.th && typeof v.th === 'object' ? v.th : {})) {
+    if (!HOUR.test(h) || !slot || typeof slot !== 'object') continue;
+    for (const [d, pages] of Object.entries(slot)) {
+      if (!ti[d]) continue;
+      const clean = timesOf(pages, t => (titleKey(t) !== null && Object.hasOwn(ti[d], t) ? t : null));
+      if (Object.keys(clean).length) (th[h] || (th[h] = {}))[d] = clean;
+    }
+  }
+  const tp = Array.isArray(v.tp) ? [...new Set(v.tp.filter(d => typeof d === 'string' && !isPrivate(d) && siteKey(d) !== null))] : [];
+  return { s: timesOf(v.s, siteKey), h: v.h.map(x => msOf(x) ?? 0), hs, ti, th, tu, tp };
+}
+
+// A day in both: the larger time for each site in each hour, so nothing is ever counted twice (the same
+// file imported again, or the same minutes from both apps, change nothing). No hour holds more than an
+// hour: past that, the two counted the same minutes under different names, so they share the hour.
+// Days kept without per-hour detail by older versions keep whichever record holds more.
+const hourlyTotal = d => Object.values(d.hs).reduce((t, slot) => t + Object.values(slot).reduce((x, y) => x + y, 0), 0);
+export function mergeDay(a, b) {
+  if (Math.abs(hourlyTotal(a) - dayTotal(a)) > 1000 || Math.abs(hourlyTotal(b) - dayTotal(b)) > 1000) return dayTotal(b) > dayTotal(a) ? b : a;
+  const out = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {}, th: {}, tu: {}, tp: [...new Set([...(a.tp || []), ...(b.tp || [])])] };
+  for (let h = 0; h < 24; h++) {
+    const slot = {};
+    for (const from of [a.hs[h], b.hs[h]]) for (const [d, ms] of Object.entries(from || {})) slot[d] = Math.max(slot[d] || 0, ms);
+    if (!Object.keys(slot).length) continue;
+    const sum = Object.values(slot).reduce((x, y) => x + y, 0);
+    if (sum > HOUR_MS) for (const d of Object.keys(slot)) slot[d] = Math.floor(slot[d] * HOUR_MS / sum);
+    out.hs[h] = slot;
+    for (const [d, ms] of Object.entries(slot)) { out.s[d] = (out.s[d] || 0) + ms; out.h[h] += ms; }
+  }
+  for (const from of [a.ti, b.ti]) {
+    for (const [d, pages] of Object.entries(from)) {
+      const into = out.ti[d] || (out.ti[d] = {});
+      for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
+    }
+  }
+  for (const from of [a.th || {}, b.th || {}]) {
+    for (const [h, slot] of Object.entries(from)) {
+      for (const [d, pages] of Object.entries(slot)) {
+        const into = (out.th[h] || (out.th[h] = {}))[d] || (out.th[h][d] = {});
+        for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
+      }
+    }
+  }
+  // the incoming link for a page wins (it's the one being brought in)
+  for (const from of [a.tu || {}, b.tu || {}]) {
+    for (const [d, links] of Object.entries(from)) Object.assign(out.tu[d] || (out.tu[d] = {}), links);
+  }
+  return out;
+}
+
+// Never track, on one day: an excluded name's time becomes Private, its titles and links go (in place;
+// true when anything changed)
+export function anonymizeDay(rec, list) {
+  let changed = false;
+  for (const dom of Object.keys(rec.s)) {
+    if (!isExcluded(dom, list)) continue;
+    rec.s[PRIVATE_KEY] = (rec.s[PRIVATE_KEY] || 0) + rec.s[dom];
+    delete rec.s[dom];
+    changed = true;
+  }
+  for (const slot of Object.values(rec.hs)) {
+    for (const dom of Object.keys(slot)) {
+      if (!isExcluded(dom, list)) continue;
+      slot[PRIVATE_KEY] = (slot[PRIVATE_KEY] || 0) + slot[dom];
+      delete slot[dom];
+      changed = true;
+    }
+  }
+  for (const dom of Object.keys(rec.ti)) if (isExcluded(dom, list)) { delete rec.ti[dom]; changed = true; }
+  for (const dom of Object.keys(rec.tu)) if (isExcluded(dom, list)) { delete rec.tu[dom]; changed = true; }
+  for (const slot of Object.values(rec.th)) for (const dom of Object.keys(slot)) if (isExcluded(dom, list)) { delete slot[dom]; changed = true; }
+  if (rec.tp.some(d => isExcluded(d, list))) { rec.tp = rec.tp.filter(d => !isExcluded(d, list)); changed = true; }
+  return changed;
+}
+
 // ---------- storage ----------
 
 // Every read-then-write of tracked data holds this lock, in the tracker and in the
@@ -427,19 +557,42 @@ export async function getOrigins() {
   return origins || {};
 }
 
+// ---------- linked days ----------
+// This side's own days are day:<date> (its tracker writes only these); each linked side's days (Memoir for
+// Windows, or on Windows each extension) are link:<peer>:<date>, exactly as that side measured them. What's
+// shown is both merged (mergeDay: the larger time per name per hour), so two independent measurements of
+// the same minutes never add up; a tracker adding onto a merged day would count them twice.
+export const linkKey = (peer, date) => `link:${peer}:${date}`;
+const DAY_RECORD = /^(day|link:[a-z0-9-]+):(\d{4}-\d{2}-\d{2})$/;
+export const isDayRecord = key => DAY_RECORD.test(key);
+export const recordDate = key => (DAY_RECORD.exec(key) || [])[2] || null;
+async function storageKeys() {
+  if (chrome.storage.local.getKeys) return chrome.storage.local.getKeys();
+  return Object.keys(await chrome.storage.local.get(null));
+}
+export async function linkPeers() {
+  const { linkPeers: peers } = await chrome.storage.local.get('linkPeers');
+  return Array.isArray(peers) ? peers.filter(p => typeof p === 'string' && /^[a-z0-9-]+$/.test(p)) : [];
+}
+// every stored day record, this side's and its linked sides' (privacy changes, Keep history, Clear all)
+export async function listDayRecordKeys() { return (await storageKeys()).filter(isDayRecord); }
+
+// days as shown: this side's own, merged with each linked side's
 export async function getDays(keys) {
-  const raw = await chrome.storage.local.get(keys.map(storageKeyForDay));
+  const peers = await linkPeers();
+  const raw = await chrome.storage.local.get([...keys.map(storageKeyForDay), ...peers.flatMap(p => keys.map(k => linkKey(p, k)))]);
   const out = {};
-  for (const k of keys) out[k] = normalizeDay(raw[storageKeyForDay(k)]);
+  for (const k of keys) {
+    let d = normalizeDay(raw[storageKeyForDay(k)]);
+    for (const p of peers) if (raw[linkKey(p, k)]) d = mergeDay(d, normalizeDay(raw[linkKey(p, k)]));
+    out[k] = d;
+  }
   return out;
 }
 
-// All stored day keys ("YYYY-MM-DD"), oldest first.
+// The dates that have a day ("YYYY-MM-DD"), on this side or a linked one, oldest first.
 export async function listDayKeys() {
-  let keys;
-  if (chrome.storage.local.getKeys) keys = await chrome.storage.local.getKeys();
-  else keys = Object.keys(await chrome.storage.local.get(null));
-  return keys.filter(k => /^day:\d{4}-\d{2}-\d{2}$/.test(k)).map(k => k.slice(4)).sort();
+  return [...new Set((await storageKeys()).map(recordDate).filter(Boolean))].sort();
 }
 
 export async function getSession() {
