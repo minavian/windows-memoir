@@ -4895,10 +4895,13 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
   // Most used's Apps | Browsers, when there are both (Memoir for Windows, or linked with it)
   const kinds = !$('kind').hidden;
   const kindsText = kinds ? ' <b>Apps</b> and <b>Browsers</b> are the same minutes seen two ways: your apps, a browser among them with all its time, or the websites in it.' : '';
-  const kindTasks = kinds ? [
+  // with the switch, in the order the list allows: Browsers first (its websites have pages to open), then back
+  const withKinds = (category, row) => (kinds ? [
     { text: 'Switch to <b>Browsers</b>', watch: onClick('#kind [data-kind="sites"]') },
-    { text: 'And back to <b>Apps</b>', watch: onClick('#kind [data-kind="apps"]') },
-  ] : [];
+    { ...row, text: 'Click a website’s row to see the time on each of its pages' },
+    category,
+    { text: 'Then back to <b>Apps</b>', watch: onClick('#kind [data-kind="apps"]') },
+  ] : [category, row]);
 
   const steps = [
     { title: 'Your weeks', text: 'Click <b>‹</b> or <b>›</b> to step back through your weeks, or forward again once you’ve stepped back. The <b>←</b> and <b>→</b> keys work too. This is a <b>sample week</b>, so nothing is saved.', target: () => q('.week-nav'), before: toWeek, settle: 0, radius: 12,
@@ -4943,11 +4946,10 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
       { text: 'Click it to see what’s in it', watch: onClick('.donut-card .donut-seg, .donut-card .cat-legend button') },
       { text: 'Switch to <b>Week</b>, then back to <b>Day</b>', watch: onClick('#scope [data-scope="day"]', () => state.scope === 'day' && scopeTried) },
     ] },
-    { title: 'Most used', text: 'Every app and website you used is listed here, with page and window titles too if you turn them on later in Settings.' + kindsText, target: () => q('.sites-card'), before: noSettings, settle: 0, tasks: [
-      ...kindTasks,
+    { title: 'Most used', text: 'Every app and website you used is listed here, with page and window titles too if you turn them on later in Settings.' + kindsText, target: () => q('.sites-card'), before: noSettings, settle: 0, tasks: withKinds(
       { text: 'Click a category to move that app or website (or never track it)', watch: onClick('.sites-card .cat-btn') },
       { text: 'Click a row to see the time on each page or window', watch: onClick('.sites-card .site.has-pages', () => pages.isOpen) },
-    ] },
+    ) },
     { title: 'Settings', text: '', target: () => ($('settings').classList.contains('open') ? q('#settings-panel') : q('#settings-btn')), before: noSettings, settle: 0, radius: 22, pad: 6, tasks: [
       { text: 'Click the gear to open Settings', watch: onClick('#settings-btn', () => $('settings').classList.contains('open')) },
     ] },
