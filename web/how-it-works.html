@@ -17,7 +17,7 @@
 <body>
   <main>
     <!-- How Memoir for Windows counts time, in plain words (the extension has its own). Keep it true to
-         src/Tracker.cs and src/Engine.cs: when a tracking rule changes, change this page with it. -->
+         src/Tracker.cs, src/Engine.cs and src/Sync.cs: when a tracking or sync rule changes, change this page with it. -->
     <header class="brand">
       <span class="logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
       <span class="wordmark">Memoir</span>
@@ -30,7 +30,7 @@
     <h2>What counts</h2>
     <ul>
       <li><b>The app you’re using</b>, in the window that’s in front. Apps behind it don’t count, even if a video is playing in them.</li>
-      <li><b>Websites, under their name</b>, like <code>youtube.com</code>, in Chrome, Edge, Firefox, Brave, Opera, Vivaldi, Arc and Comet. Memoir reads the site’s name from the browser’s address bar; until it can, the time counts under the browser.</li>
+      <li><b>Websites, under their name</b>, like <code>youtube.com</code>, in Chrome, Edge, Firefox, Brave, Opera, Vivaldi, Arc and Comet. Memoir reads the site’s name from the browser’s address bar, or from Memoir in that browser once you link them; until it can, the time counts under the browser.</li>
       <li><b>Memoir itself</b>, as Memoir. The desktop and the taskbar don’t count.</li>
       <li><b>By the hour.</b> Each day keeps how long you spent in each app and on each site, and in which hours, so the report can show your day hour by hour.</li>
     </ul>
@@ -51,14 +51,25 @@
     </ul>
 
     <h2>Private time</h2>
-    <p>Apps and websites on your <b>Never track</b> list still count towards your total and your limit, but only as one <b>Private</b> line, with no names. Adding one makes its past time Private too. Private (Incognito) browser windows count as Private only with the optional browser connector, allowed to run in them; without it, Memoir can’t tell a private window from any other.</p>
+    <p>Apps and websites on your <b>Never track</b> list still count towards your total and your limit, but only as one <b>Private</b> line, with no names. Adding one makes its past time Private too. Private (Incognito) browser windows count as Private only with Memoir linked in that browser, or the optional browser connector, allowed to run in them; without either, Memoir can’t tell a private window from any other.</p>
 
     <h2>What’s kept</h2>
     <ul>
       <li>Each app’s and site’s name and its time, hour by hour, and each app’s icon. Never what you type, click or see.</li>
       <li><b>Page and window titles</b>, only if you turn on <b>Page titles</b> in Settings: up to 30 an app or site each day, the rest as “other pages”.</li>
       <li>Everything is kept for as long as you choose under <b>Keep history</b> (forever, unless you pick a shorter time).</li>
-      <li>It all stays on this computer, in the <b>Data</b> folder next to Memoir. More in the <a href="privacy.html">privacy policy</a>.</li>
+      <li>It all stays on this computer: in the <b>Data</b> folder next to Memoir, and in the browsers you link. More in the <a href="privacy.html">privacy policy</a>.</li>
+    </ul>
+
+    <h2>Linked with Memoir in your browser</h2>
+    <ul>
+      <li><b>Optional.</b> Add Memoir to any browser that runs Chrome extensions and press <b>Link</b> in its Settings, under Your data: that browser and Memoir for Windows show the same week. You choose to merge both histories, or to start from today.</li>
+      <li><b>Both keep counting.</b> Each keeps the other’s days apart from its own and shows the two merged: where both counted the same hour, the larger time counts, never the two added together.</li>
+      <li><b>Every browser you use.</b> Link each one: Memoir passes each one’s time on to the others, and its Settings show a row for each.</li>
+      <li><b>One set of rules.</b> Never track, Page titles, Keep history, the weekly reminder, your daily limit, categories and pausing follow whichever side changed them last. Your theme, cursor and Rainbow clock stay each one’s own.</li>
+      <li>While Memoir for Windows is open, it sends the limit and weekly notifications, so each comes once.</li>
+      <li><b>Unlink</b> from either side and both keep what they have. While linked, <b>Clear all</b> on either side clears both.</li>
+      <li>It runs through your browser’s native messaging and a named pipe only your Windows account can open: on this computer, never online.</li>
     </ul>
 
     <h2>Your daily limit</h2>
