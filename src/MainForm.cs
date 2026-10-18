@@ -66,6 +66,13 @@ namespace Memoir {
             registration = new System.Threading.Timer(delegate { Registration.Register(directory, dataDirectory); }, null, 600000, 600000);
             var version = typeof(MainForm).Assembly.GetName().Version;
             sync = new Sync(this, store, engine, tracker.Link, version.Major + "." + version.Minor + "." + version.Build, delegate { tracker.SettingsChanged(); });
+            // the first browser linked here brings a short tour of what linking does (recap.js maybeLinkTour): Memoir
+            // comes to the front for it; a browser linked before this version gets it the next time Memoir opens
+            sync.Linked += delegate(string device) {
+                if (Json.Get(store.Data, "linkTour") != null) return;
+                store.Set(Json.Object("linkTour", Json.Object("pending", device))); store.Save(); RestoreWindow();
+            };
+            if (Json.Get(store.Data, "linkTour") == null) { var peers = Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "sync")), "peers")); if (peers.Count > 0) store.Set(Json.Object("linkTour", Json.Object("pending", peers.Keys.First()))); }
             store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;

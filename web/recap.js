@@ -192,6 +192,7 @@ async function init() {
     });
   } else {
     await show();
+    maybeLinkTour();
   }
 
   // back from the restart that finishes a Link (link.js restartForLink): Settings, at Memoir for Windows
@@ -4775,10 +4776,12 @@ function useTourWeek() {
   state.demo = true;
   state.demoOverrides = {};
   state.weekStart = startOfWeek(new Date());
+  showPaused();
 }
 
 // prepared: the board already shows the tour's week (first visit, from the welcome)
-async function startTour({ prepared = false, handoff = null } = {}) {
+// link: Memoir for Windows' own short tour, for the first browser linked with it (its device), on your own week
+async function startTour({ prepared = false, handoff = null, link = null } = {}) {
   if (touring) return;
   touring = true;
   closeSettings();
@@ -4794,7 +4797,14 @@ async function startTour({ prepared = false, handoff = null } = {}) {
   document.body.classList.add('touring');
   const popZ = catPop.z;
   catPop.z = 5190;
-  if (!prepared) {
+  if (link) {
+    // your own week, this week: what the link brought in is in it
+    state.demo = false;
+    state.demoOverrides = {};
+    state.weekStart = startOfWeek(new Date());
+    resetView({ instant: true });
+    await render({});
+  } else if (!prepared) {
     const wasEmpty = $('board').classList.contains('is-empty');
     useTourWeek();
     resetView({ instant: true });
@@ -4882,6 +4892,13 @@ async function startTour({ prepared = false, handoff = null } = {}) {
   const chartOpen = () => (state.view.type !== 'week' ? chart() : null);
   // a limit can be tried in the tour only when none is locked in already
   const canTryLimit = !limitLocked(state.goalHistory, dayKey(new Date()));
+  // Most used's Apps | Browsers, when there are both (Memoir for Windows, or linked with it)
+  const kinds = !$('kind').hidden;
+  const kindsText = kinds ? ' <b>Apps</b> and <b>Browsers</b> are the same minutes seen two ways: your apps, a browser among them with all its time, or the websites in it.' : '';
+  const kindTasks = kinds ? [
+    { text: 'Switch to <b>Browsers</b>', watch: onClick('#kind [data-kind="sites"]') },
+    { text: 'And back to <b>Apps</b>', watch: onClick('#kind [data-kind="apps"]') },
+  ] : [];
 
   const steps = [
     { title: 'Your weeks', text: 'Click <b>‹</b> or <b>›</b> to step back through your weeks, or forward again once you’ve stepped back. The <b>←</b> and <b>→</b> keys work too. This is a <b>sample week</b>, so nothing is saved.', target: () => q('.week-nav'), before: toWeek, settle: 0, radius: 12,
@@ -4926,7 +4943,8 @@ async function startTour({ prepared = false, handoff = null } = {}) {
       { text: 'Click it to see what’s in it', watch: onClick('.donut-card .donut-seg, .donut-card .cat-legend button') },
       { text: 'Switch to <b>Week</b>, then back to <b>Day</b>', watch: onClick('#scope [data-scope="day"]', () => state.scope === 'day' && scopeTried) },
     ] },
-    { title: 'Most used', text: 'Every app and website you used is listed here, with page and window titles too if you turn them on later in Settings.', target: () => q('.sites-card'), before: noSettings, settle: 0, tasks: [
+    { title: 'Most used', text: 'Every app and website you used is listed here, with page and window titles too if you turn them on later in Settings.' + kindsText, target: () => q('.sites-card'), before: noSettings, settle: 0, tasks: [
+      ...kindTasks,
       { text: 'Click a category to move that app or website (or never track it)', watch: onClick('.sites-card .cat-btn') },
       { text: 'Click a row to see the time on each page or window', watch: onClick('.sites-card .site.has-pages', () => pages.isOpen) },
     ] },
@@ -4940,7 +4958,7 @@ async function startTour({ prepared = false, handoff = null } = {}) {
       { text: 'Switch <b>Custom cursor</b> off, then on again, to compare', watch: onChange('#set-cursor') },
       { text: 'Try <b>Smooth cursor</b>', watch: onChange('#set-smooth') },
     ] },
-    { title: 'What gets tracked', text: '<b>Page titles</b> also keeps window titles, so you can see which pages and windows took the time. Turning off <b>Track screen time</b> pauses tracking. Type a website into <b>Never track</b> and it will never be tracked, unless you remove it.', target: () => [block('#detail'), block('#ex-form')], before: toSettings('#ex-form'), settle: 350, radius: 14, tasks: [
+    { title: 'What gets tracked', text: '<b>Page titles</b> also keeps window titles, so you can see which pages and windows took the time. Turning off <b>Track screen time</b> pauses tracking, and <b>Start with Windows</b> opens Memoir quietly when you sign in. Type a website into <b>Never track</b> and it will never be tracked, unless you remove it.', target: () => [block('#detail'), block('#ex-form')], before: toSettings('#ex-form'), settle: 350, radius: 14, tasks: [
       { text: 'Switch <b>Tracking detail</b>', watch: onClick('#detail button[aria-pressed="false"]') },
       { text: 'Add a website to <b>Never track</b>', watch: onNewSite },
     ] },
@@ -4950,15 +4968,16 @@ async function startTour({ prepared = false, handoff = null } = {}) {
       { text: 'Change the time', watch: either(onChange('#rem-h, #rem-m'), onClick('#rem-ampm'), listen('keydown', e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !!e.target.closest('#rem-h, #rem-m'))) },
     ] },
     { title: 'Your limit and history', text: 'A committed limit can only be undone here. <b>Keep history</b> sets how long days are kept.', target: () => [row('#limit-reset'), block('#retention')], before: toSettings('#retention'), settle: 350, radius: 14 },
-    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, sync with the <b>Memoir extension</b>, and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
+    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, link <b>Memoir in your browsers</b> (its <b>Guide</b> shows how), and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
     { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you use your computer. Double-click the clock in the notification area to come back to Memoir.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
   ];
-  await runTour(steps, {
+  await runTour(link ? await linkSteps() : steps, {
     handoff,
     // popovers and menus a try opened stay in sight
     avoid: () => [...document.querySelectorAll('.pop:not([hidden]), .menu:not([hidden])')].filter(el => el.dataset.state !== 'closing'),
   });
-  chrome.storage.local.set({ onboarded: true });
+  if (link) chrome.storage.local.set({ linkTour: { shown: Date.now() } });
+  else chrome.storage.local.set({ onboarded: true });
   document.body.classList.remove('touring');
   catPop.z = popZ;
   closeSettings();
@@ -4967,9 +4986,39 @@ async function startTour({ prepared = false, handoff = null } = {}) {
   state.demo = before.demo;
   state.weekStart = before.weekStart;
   state.demoOverrides = before.demoOverrides;
+  showPaused();
   resetView({ instant: true });
   await render({});
   touring = false;
+  maybeLinkTour();
+
+  // Memoir for Windows, the first browser linked with it: what linking does, on your own week
+  async function linkSteps() {
+    const { sync } = await chrome.storage.local.get('sync');
+    const p = sync && sync.peers && sync.peers[link];
+    const name = p ? namePeers([{ device: link, ...p }])[0].label : 'your browser';
+    const inBrowser = p ? `Memoir in ${name}` : 'Memoir in your browser';
+    return [
+      { kicker: 'Linked', title: `${inBrowser} is linked`, text: `This app and ${inBrowser} now share one week, on this computer only: its websites come in here, and your apps go there. It shows here in <b>Your data</b>.`, target: () => q('#link-rows'), before: toSettings('#link-rows'), settle: 450, radius: 14 },
+      { title: 'Apps and Browsers', text: `<b>Apps</b> lists your apps, ${name} among them with all its time. <b>Browsers</b> lists the websites you used in it. They’re the same minutes seen two ways, so they’re never added together.`, target: () => q('.sites-card'), before: noSettings, settle: 300,
+        tasks: !$('kind').hidden ? [
+          { text: 'Switch to <b>Browsers</b>', watch: onClick('#kind [data-kind="sites"]') },
+          { text: 'And back to <b>Apps</b>', watch: onClick('#kind [data-kind="apps"]') },
+        ] : undefined },
+      { title: 'Each minute once', text: `Your daily average, your limit, the categories and every hour count the time in ${name} once, whichever side saw it.`, target: () => [q('.summary .caption'), q('#stat-avg')], before: toWeek, settle: 0, radius: 14, below: true },
+      { title: 'One set of rules', text: 'Never track, page titles, Keep history, your limit, the weekly reminder and categories follow whichever side changed them last. <b>Clear all</b> on either side clears both; <b>Unlink</b> leaves both what they have.', target: () => q('#link-rows') && q('#link-rows').closest('.p-block'), before: toSettings('#data-row'), settle: 350, radius: 14 },
+      { kicker: 'All set', title: 'You’re linked', text: 'Using another browser too? Add Memoir to it and press <b>Link</b> there. <b>Connect another browser</b>, under the rows here, shows how.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
+    ];
+  }
+}
+
+// Memoir for Windows: the first browser linked with it brings a short tour of what linking does (the app comes to the
+// front for it: src/MainForm.cs). After the welcome and any other tour, and only once.
+async function maybeLinkTour() {
+  if (!window.memoir?.windows || touring || document.querySelector('.wel')) return;
+  const { linkTour, onboarded } = await chrome.storage.local.get(['linkTour', 'onboarded']);
+  if (!onboarded || !linkTour || !linkTour.pending || linkTour.shown) return;
+  setTimeout(() => { if (!touring) startTour({ link: linkTour.pending }); }, reducedMotion() ? 0 : 700);
 }
 
 // Leaving the sample week: the pill melts into the gear like a drop of liquid
@@ -5104,6 +5153,7 @@ function onStorageChanged(changes, area) {
   }
   if (area !== 'local') return;
   if (changes.link || changes.sync) loadLink();
+  if (changes.linkTour) maybeLinkTour();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
     showPaused();
@@ -5157,6 +5207,17 @@ const SAMPLE_SITES = [
   ['wikipedia.org', 'learning', 0.25], ['pinterest.com', 'social', 0.22], ['spotify.com', 'video', 0.15],
   ['chess.com', 'games', 0.22], ['notion.so', 'work', 0.3], ['facebook.com', 'social', 0.4],
 ];
+// Memoir for Windows' sample week has apps too (named here, as the app would have them), and its websites in Chrome
+const SAMPLE_BROWSER = 'app:chrome.exe';
+const SAMPLE_APPS = [
+  ['app:code.exe', 'work', 1.0, 'Visual Studio Code'], ['app:winword.exe', 'work', 0.6, 'Microsoft Word'], ['app:spotify.exe', 'video', 0.5, 'Spotify'],
+  ['app:photoshop.exe', 'work', 0.35, 'Adobe Photoshop'], ['app:discord.exe', 'social', 0.45, 'Discord'], ['app:explorer.exe', 'other', 0.3, 'File Explorer'],
+  ['app:steam.exe', 'games', 0.3, 'Steam'],
+];
+if (window.memoir?.windows) {
+  const known = window.memoir.apps || (window.memoir.apps = {});
+  for (const [key, category, , name] of [...SAMPLE_APPS, [SAMPLE_BROWSER, 'other', 0, 'Google Chrome']]) if (!known[key]) known[key] = { name, category, icon: null };
+}
 const SAMPLE_TITLES = {
   'youtube.com': ['Lo-fi beats to study to', 'How pasta is made', 'Tiny desk concert', 'A day in Kyoto'],
   'github.com': ['Pull request #128 · memoir', 'Issues · memoir', 'README.md'],
@@ -5232,12 +5293,27 @@ function makeSampleDay(key) {
       while (idx < pool.length - 1 && x > pool[idx].w) { x -= pool[idx].w; idx++; }
       picks.push(pool.splice(idx, 1)[0].d);
     }
+    // Memoir for Windows: part of the hour in apps, the rest in the browser, its sites filed under it too
+    let browsing = ms;
+    if (window.memoir?.windows) {
+      const appMs = Math.round(ms * (hour >= 9 && hour < 18 && !weekend ? 0.55 : 0.35) * (0.7 + rnd() * 0.6));
+      browsing = ms - appMs;
+      const pool = SAMPLE_APPS.map(([d, c, base]) => ({ d, w: base * boost(c, hour, weekend) * (0.5 + rnd()) }));
+      const total = sum(pool.map(p => p.w));
+      let x = rnd() * total, idx = 0;
+      while (idx < pool.length - 1 && x > pool[idx].w) { x -= pool[idx].w; idx++; }
+      const app = pool[idx].d;
+      (day.hs[hour] || (day.hs[hour] = {}))[app] = appMs;
+      day.s[app] = (day.s[app] || 0) + appMs;
+      day.hs[hour][SAMPLE_BROWSER] = browsing;
+      day.s[SAMPLE_BROWSER] = (day.s[SAMPLE_BROWSER] || 0) + browsing;
+    }
     const shares = picks.map(() => 0.4 + rnd());
     const ssum = sum(shares);
     let used = 0;
-    const slot = (day.hs[hour] = {});
+    const slot = day.hs[hour] || (day.hs[hour] = {});
     picks.forEach((d, i) => {
-      const part = i === picks.length - 1 ? ms - used : Math.round((ms * shares[i]) / ssum);
+      const part = i === picks.length - 1 ? browsing - used : Math.round((browsing * shares[i]) / ssum);
       used += part;
       day.s[d] = (day.s[d] || 0) + part;
       slot[d] = (slot[d] || 0) + part;

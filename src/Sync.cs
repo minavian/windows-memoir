@@ -33,6 +33,7 @@ namespace Memoir {
         private Dictionary<string, object> settingsSeen;
         private bool applying;
         private long sequence;
+        public event Action<string> Linked;   // a browser linked here for the first time (MainForm: the link tour)
         private readonly List<Action> early = new List<Action>(); // what arrived before the window could take it
         private bool ready;
 
@@ -134,6 +135,7 @@ namespace Memoir {
             // unlinked here while it was away: it unlinks too, unless it has linked again since
             double unlinkedAt = Json.Number(Json.Get(Json.Map(Json.Get(record, "unlinked")), device));
             if (known == null && unlinkedAt > 0 && Json.Number(Json.Get(linked, "since")) <= unlinkedAt) { peer.Send(Json.Object("type", "unlink")); return; }
+            bool first = known == null;
             if (known == null) {
                 known = Json.Object("mode", Json.Text(Json.Get(linked, "mode")) == "fresh" ? "fresh" : "merge", "since", Json.Number(Json.Get(linked, "since"), Engine.Now), "linkedAt", Engine.Now, "lastSync", 0);
                 peers[device] = known;
@@ -150,6 +152,7 @@ namespace Memoir {
             Peer old; if (live.TryGetValue(device, out old) && old != peer) Requeue(device, record);
             live[device] = peer; deviceOf[peer.Id] = device; rulesDue.Add(device);
             Save(record); Send(device);
+            if (first) { var handler = Linked; if (handler != null) handler(device); }
         }
         private void OnClosed(Peer peer) {
             string device; if (!deviceOf.TryGetValue(peer.Id, out device)) return;
