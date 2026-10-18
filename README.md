@@ -1,6 +1,6 @@
 # Windows Memoir
 
-Made by Mina Vian. Version 5.0.2.
+Made by Mina Vian. Version 6.0.0.
 
 Open **Memoir.exe** in this folder. Keep the `web` folder, the three WebView2 DLLs, `Memoir.exe.config`, `Memoir.ico` and `Memoir-rainbow.ico` beside it. No installer or administrator access is needed. The app uses Windows' .NET Framework 4.8 and Microsoft Edge WebView2 Runtime, which are installed on this computer.
 
