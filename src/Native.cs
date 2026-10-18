@@ -11,6 +11,18 @@ namespace Memoir {
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int RegisterWindowMessage(string name);
         [DllImport("user32.dll")] internal static extern bool PostMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
         [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(IntPtr hwnd);
+        [DllImport("user32.dll")] internal static extern bool AllowSetForegroundWindow(int processId);
+        [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
+        [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint attach, uint to, bool on);
+        [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+        // A window brought in front of whatever is there, as when it's clicked: Windows lets only the program you're
+        // using change the window in front, so this one borrows the front window's input for a moment
+        internal static void ToFront(IntPtr hwnd) {
+            IntPtr front = GetForegroundWindow(); uint frontPid; uint frontThread = front == IntPtr.Zero ? 0 : GetWindowThreadProcessId(front, out frontPid), me = GetCurrentThreadId();
+            bool attached = frontThread != 0 && frontThread != me && AttachThreadInput(me, frontThread, true);
+            try { BringWindowToTop(hwnd); SetForegroundWindow(hwnd); } finally { if (attached) AttachThreadInput(me, frontThread, false); }
+        }
         [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern int GetClassName(IntPtr hwnd, StringBuilder text, int max);

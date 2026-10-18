@@ -25,6 +25,9 @@ namespace Memoir {
         private readonly Sync sync;
         private Process trayMenu;
         private readonly EventWaitHandle closeTrayMenu = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\Memoir.Tray." + Process.GetCurrentProcess().Id);
+        // the menu, started while the mouse is over the clock (hidden, ready), shown by a click (TrayPopup --standby)
+        private readonly EventWaitHandle showTrayMenu = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\Memoir.TrayShow." + Process.GetCurrentProcess().Id);
+        private Process trayStandby; private string trayStandbyFor;
         private DateTime ignoreTrayClickUntil;
         private WebView2 web;
         private CoreWebView2Environment environment;
@@ -50,6 +53,7 @@ namespace Memoir {
             ApplySavedTheme();
             tray = new NotifyIcon { Icon = Icon, Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time", Visible = true };
             ApplyIcon();
+            tray.MouseMove += delegate { WarmTrayMenu(); };
             tray.MouseClick += delegate(object sender, MouseEventArgs args) { if (DateTime.UtcNow >= ignoreTrayClickUntil && (args.Button == MouseButtons.Left || args.Button == MouseButtons.Right)) ShowTrayMenu(); };
             tray.DoubleClick += delegate { ignoreTrayClickUntil = DateTime.UtcNow.AddMilliseconds(SystemInformation.DoubleClickTime); RestoreWindow(); };
             tray.BalloonTipClicked += delegate { RestoreWindow(); };
@@ -171,24 +175,43 @@ namespace Memoir {
             environment = null;
         }
         private void MinimizeToTray() { if (exiting) return; CloseTrayMenu(); Hide(); ReleaseWeb(); engine.Flush(Engine.Now); store.Save(); releaseTimer.Start(); WriteDiagnostics(); }
-        public async void RestoreWindow() { if (exiting) return; CloseTrayMenu(); releaseTimer.Stop(); ApplySavedTheme(); Show(); WindowState = FormWindowState.Normal; Activate(); tracker.RefreshForeground(true); await LoadView(); }
+        public async void RestoreWindow() { if (exiting) return; CloseTrayMenu(); releaseTimer.Stop(); ApplySavedTheme(); Show(); WindowState = FormWindowState.Normal; Activate(); Native.ToFront(Handle); tracker.RefreshForeground(true); await LoadView(); }
         private void CloseTrayMenu() { if (trayMenu != null) closeTrayMenu.Set(); }
+        // what the menu shows (the theme, paused or not): a menu made ready for something else isn't used
+        private string TrayState() { return Convert.ToBase64String(Encoding.UTF8.GetBytes(Json.Encode(Appearance.Resolve(Json.Get(store.Data, "windowsAppearance"))))) + (engine.Paused ? " --paused" : ""); }
+        private Process StartTrayMenu(string arguments) {
+            var menu = new Process { StartInfo = new ProcessStartInfo(Path.Combine(directory, "Memoir.exe"), "--tray-popup --parent=" + Process.GetCurrentProcess().Id + " --owner=" + Handle.ToInt64() + " --message=" + restoreMessage + " " + arguments + (!String.IsNullOrEmpty(diagnostics) ? " --inspect-menu" : "")) { UseShellExecute = false, CreateNoWindow = true }, EnableRaisingEvents = true };
+            menu.Exited += delegate { try { BeginInvoke(new Action(delegate {
+                if (trayStandby == menu) { trayStandby = null; menu.Dispose(); return; }
+                if (trayMenu != menu) return; trayMenu = null; tracker.IgnoreProcess(trayMenuPid, false); menu.Dispose();
+                if (!exiting) { tracker.RefreshForeground(true); if (!Visible) releaseTimer.Start(); WriteDiagnostics(); }
+            })); } catch { menu.Dispose(); } };
+            menu.Start();
+            return menu;
+        }
+        private int trayMenuPid;
+        // the mouse is over the clock: the menu gets ready, so a click shows it at once
+        private void WarmTrayMenu() {
+            if (exiting || trayMenu != null || trayStandby != null) return;
+            try { closeTrayMenu.Reset(); trayStandbyFor = TrayState(); trayStandby = StartTrayMenu("--standby --anchor=0,0 --appearance=" + trayStandbyFor); }
+            catch (Exception error) { trayStandby = null; Log("Tray menu: " + error.GetType().Name); }
+        }
         private void ShowTrayMenu() {
             if (exiting) return;
             if (trayMenu != null) { CloseTrayMenu(); return; }
             releaseTimer.Stop(); engine.Stop(Engine.Now);
+            var ready = trayStandby; trayStandby = null;
+            if (ready != null && !ready.HasExited && trayStandbyFor == TrayState()) {
+                trayMenu = ready; trayMenuPid = ready.Id; tracker.IgnoreProcess(trayMenuPid, true);
+                // the click gave this app the front: the menu may take it, so it closes when you click elsewhere
+                Native.AllowSetForegroundWindow(trayMenuPid);
+                showTrayMenu.Set(); WriteDiagnostics();
+                return;
+            }
+            if (ready != null) try { ready.Kill(); } catch { }
             var anchor = Control.MousePosition;
-            string appearance = Convert.ToBase64String(Encoding.UTF8.GetBytes(Json.Encode(Appearance.Resolve(Json.Get(store.Data, "windowsAppearance")))));
-            string arguments = "--tray-popup --parent=" + Process.GetCurrentProcess().Id + " --owner=" + Handle.ToInt64() + " --message=" + restoreMessage + " --anchor=" + anchor.X + "," + anchor.Y + " --appearance=" + appearance + (engine.Paused ? " --paused" : "") + (!String.IsNullOrEmpty(diagnostics) ? " --inspect-menu" : "");
-            var menu = new Process { StartInfo = new ProcessStartInfo(Path.Combine(directory, "Memoir.exe"), arguments) { UseShellExecute = false, CreateNoWindow = true }, EnableRaisingEvents = true };
-            closeTrayMenu.Reset(); trayMenu = menu;
-            int popupPid = 0;
-            menu.Exited += delegate { try { BeginInvoke(new Action(delegate {
-                if (trayMenu != menu) return; trayMenu = null; tracker.IgnoreProcess(popupPid, false); menu.Dispose();
-                if (!exiting) { tracker.RefreshForeground(true); if (!Visible) releaseTimer.Start(); WriteDiagnostics(); }
-            })); } catch { menu.Dispose(); } };
-            try { menu.Start(); popupPid = menu.Id; tracker.IgnoreProcess(popupPid, true); WriteDiagnostics(); }
-            catch (Exception error) { trayMenu = null; menu.Dispose(); Log("Tray menu: " + error.GetType().Name); if (!Visible) releaseTimer.Start(); }
+            try { closeTrayMenu.Reset(); trayMenu = StartTrayMenu("--anchor=" + anchor.X + "," + anchor.Y + " --appearance=" + TrayState()); trayMenuPid = trayMenu.Id; tracker.IgnoreProcess(trayMenuPid, true); WriteDiagnostics(); }
+            catch (Exception error) { trayMenu = null; Log("Tray menu: " + error.GetType().Name); if (!Visible) releaseTimer.Start(); }
         }
         // the clock in the notification area and on the window, in rainbow colours with the Rainbow clock on
         private void ApplyIcon() {

@@ -23,11 +23,12 @@ namespace Memoir {
         private readonly bool animated = SystemParameters.ClientAreaAnimation;
         private bool closing;
         private readonly Action<string> selected;
+        private System.Drawing.Point anchor;
         [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left,Top,Right,Bottom; }
         [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd,out Rect rect);
         [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
         public TrayMenu(string directory, Dictionary<string,object> appearance, bool paused, System.Drawing.Point anchor, Action<string> selected) {
-            this.selected=selected;
+            this.selected=selected; this.anchor=anchor;
             Title="Memoir actions"; Width=268; Height=274; WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent; ShowInTaskbar=false; Topmost=true; WindowStartupLocation=WindowStartupLocation.Manual;
             var palette=Json.Map(Json.Get(appearance,"palette"));
             string theme=Json.Text(Json.Get(appearance,"theme"),"light");
@@ -45,20 +46,15 @@ namespace Memoir {
             var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.UriSource=new Uri(System.IO.Path.Combine(directory,"web","icons","icon32.png"));image.EndInit();image.Freeze();
             header.Children.Add(new Image {Source=image,Width=25,Height=25,Margin=new Thickness(0,0,10,0),VerticalAlignment=VerticalAlignment.Center});
             var words=new StackPanel();words.Children.Add(new TextBlock {Text="Memoir",FontWeight=FontWeights.SemiBold,FontSize=13,Foreground=new SolidColorBrush(label)});words.Children.Add(new TextBlock {Text=paused?"Tracking paused":"Tracking screen time",FontSize=10.5,Foreground=new SolidColorBrush(secondary),Margin=new Thickness(0,1,0,0)});header.Children.Add(words);content.Children.Add(header);
-            Add(content,"Open Memoir","report","M6,3 H3 V13 H13 V10 M9,2 H14 V7 M7,9 L14,2",label,secondary,hover);
-            Add(content,"Today","today","M8,2 A6,6 0 1 1 7.99,2 M8,4.5 V8 L10.5,9.5",label,secondary,hover);
+            // the app's own icons (the report's menu and its clock): rounded, drawn at their size, never stretched
+            Add(content,"Open Memoir","report","M5,2 H11 A3,3 0 0 1 14,5 V11 A3,3 0 0 1 11,14 H5 A3,3 0 0 1 2,11 V5 A3,3 0 0 1 5,2 Z M5,10 V8 M8,10 V5 M11,10 V7",label,secondary,hover);
+            Add(content,"Today","today","M14,8 A6,6 0 1 1 2,8 A6,6 0 1 1 14,8 Z M8,4.8 V8 L10.2,9.4",label,secondary,hover);
             Add(content,paused?"Resume tracking":"Pause tracking","pause",paused?"M5,2.5 L13,8 L5,13.5 Z":"M5.5,3 V13 M10.5,3 V13",label,secondary,hover);
             content.Children.Add(new Border {Height=1,Margin=new Thickness(10,5,10,5),Background=new SolidColorBrush(Color.FromArgb(32,secondary.R,secondary.G,secondary.B))});
-            Add(content,"Quit Memoir","quit","M6,3 H3 V13 H6 M8,8 H14 M11,5 L14,8 L11,11",label,secondary,hover);
+            Add(content,"Quit Memoir","quit","M6.5,2.5 H5 A2.5,2.5 0 0 0 2.5,5 V11 A2.5,2.5 0 0 0 5,13.5 H6.5 M7.5,8 H13.5 M11,5.5 L13.5,8 L11,10.5",label,secondary,hover);
             content.Children.Add(new TextBlock {Text="Made by Mina Vian",FontSize=9.5,Foreground=new SolidColorBrush(secondary),Margin=new Thickness(11,6,0,0)});
             KeyboardNavigation.SetTabNavigation(content,KeyboardNavigationMode.Cycle);
-            SourceInitialized+=delegate {
-                IntPtr hwnd=new WindowInteropHelper(this).Handle;Rect bounds;GetWindowRect(hwnd,out bounds);int width=bounds.Right-bounds.Left,height=bounds.Bottom-bounds.Top;
-                var area=System.Windows.Forms.Screen.FromPoint(anchor).WorkingArea;
-                int x=Math.Max(area.Left+4,Math.Min(anchor.X-width+30,area.Right-width-4));
-                int y=anchor.Y-height+12; if(y<area.Top+4)y=Math.Min(anchor.Y+8,area.Bottom-height-4);y=Math.Max(area.Top+4,Math.Min(y,area.Bottom-height-4));
-                SetWindowPos(hwnd,IntPtr.Zero,x,y,0,0,0x15);
-            };
+            SourceInitialized+=delegate { Place(); };
             ContentRendered+=delegate { PlayIn(); };
             Deactivated+=delegate { Dismiss(); };
             PreviewKeyDown+=delegate(object sender,KeyEventArgs args) {
@@ -68,13 +64,25 @@ namespace Memoir {
                 }
             };
         }
+        // beside the clock that was clicked, inside the screen
+        private void Place() {
+            IntPtr hwnd=new WindowInteropHelper(this).Handle;Rect bounds;GetWindowRect(hwnd,out bounds);int width=bounds.Right-bounds.Left,height=bounds.Bottom-bounds.Top;
+            var area=System.Windows.Forms.Screen.FromPoint(anchor).WorkingArea;
+            int x=Math.Max(area.Left+4,Math.Min(anchor.X-width+30,area.Right-width-4));
+            int y=anchor.Y-height+12; if(y<area.Top+4)y=Math.Min(anchor.Y+8,area.Bottom-height-4);y=Math.Max(area.Top+4,Math.Min(y,area.Bottom-height-4));
+            SetWindowPos(hwnd,IntPtr.Zero,x,y,0,0,0x15);
+        }
+        // a menu made ready before the click (TrayPopup's standby): shown where the click was, in front
+        public void ShowAt(System.Drawing.Point at) {
+            anchor=at; Place(); Show(); Activate();
+        }
         private void Add(StackPanel parent,string text,string action,string geometry,Color label,Color secondary,Color hover) {
             var button=new Button {Height=34,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Foreground=new SolidColorBrush(label),Padding=new Thickness(11,7,11,7),HorizontalContentAlignment=HorizontalAlignment.Left,Cursor=Cursors.Hand,Opacity=0,FocusVisualStyle=null,Tag=action};
             var template=new FrameworkElementFactory(typeof(Grid));template.SetValue(Panel.BackgroundProperty,Brushes.Transparent);
             var highlightPanel=new FrameworkElementFactory(typeof(Border),"Highlight");highlightPanel.SetValue(Border.CornerRadiusProperty,new CornerRadius(9));highlightPanel.SetValue(Border.BackgroundProperty,new SolidColorBrush(hover));highlightPanel.SetValue(UIElement.OpacityProperty,0.0);template.AppendChild(highlightPanel);
             var presenter=new FrameworkElementFactory(typeof(ContentPresenter));presenter.SetValue(FrameworkElement.MarginProperty,new Thickness(11,6,11,6));presenter.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);template.AppendChild(presenter);button.Template=new ControlTemplate(typeof(Button)){VisualTree=template};
             var row=new StackPanel {Orientation=Orientation.Horizontal};
-            row.Children.Add(new Shape {Data=Geometry.Parse(geometry),Stroke=new SolidColorBrush(secondary),StrokeThickness=1.4,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round,Width=16,Height=16,Stretch=Stretch.Uniform,Margin=new Thickness(0,0,11,0)});
+            row.Children.Add(new Shape {Data=Geometry.Parse(geometry),Stroke=new SolidColorBrush(secondary),StrokeThickness=1.4,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round,Width=16,Height=16,Stretch=Stretch.None,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,11,0)});
             row.Children.Add(new TextBlock {Text=text,VerticalAlignment=VerticalAlignment.Center});button.Content=row;
             System.Windows.Automation.AutomationProperties.SetName(button,text);
             var move=new TranslateTransform(0,4);button.RenderTransform=move;

@@ -14,7 +14,7 @@ Memoir draws its own title bar, the colour of the page with the window's buttons
 
 Minimizing or closing the window keeps tracking in the Windows notification area. The web interface and its browser processes unload. A click with either mouse button on the clock opens a small native menu that matches the app theme, with animated entrances, hover states, and closing. Double-click opens the app directly.
 
-The menu offers Open Memoir, Today, Pause / Resume tracking, and Quit Memoir. Arrow keys navigate, Enter selects, and Escape or clicking elsewhere closes it. Windows' reduced-animation setting is respected. System appearance follows Windows.
+The menu offers Open Memoir, Today, Pause / Resume tracking, and Quit Memoir, with the app's own rounded icons. It gets ready while the mouse is over the clock (a hidden menu process that leaves after 10 seconds unclicked), so a click shows it at once; Open Memoir and Today bring the window to the front, over whatever is open. Arrow keys navigate, Enter selects, and Escape or clicking elsewhere closes it. Windows' reduced-animation setting is respected. System appearance follows Windows.
 
 Quit Memoir ends tracking and saves the current session. Memoir also saves on Windows shutdown, locking, sleep, and regular intervals. Opening it again starts tracking.
 
