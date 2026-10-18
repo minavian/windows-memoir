@@ -194,6 +194,12 @@ async function init() {
     await show();
   }
 
+  // back from the restart that finishes a Link (link.js restartForLink): Settings, at Memoir for Windows
+  if (location.hash === '#link') {
+    window.history.replaceState(null, '', location.pathname); // (init has its own history: the limit's)
+    openSettings();
+    setTimeout(() => $('link-row').scrollIntoView({ block: 'center', behavior: 'smooth' }), 700);
+  }
   watchTheme(updateAppearanceUI);
   chrome.storage.onChanged.addListener(onStorageChanged);
   document.addEventListener('visibilitychange', applyHiddenChanges);
