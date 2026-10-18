@@ -30,6 +30,7 @@ namespace Memoir {
         private Process trayStandby; private string trayStandbyFor;
         private DateTime ignoreTrayClickUntil;
         private WebView2 web;
+        private Splash splash;   // over the web view until its page has painted (Splash.cs)
         private CoreWebView2Environment environment;
         private readonly Icon plainIcon, rainbowIcon;
         private bool exiting, hiddenStart, loading, recovering;
@@ -93,7 +94,8 @@ namespace Memoir {
         private async Task LoadView() {
             if (web != null || loading || exiting || !Visible) return;
             loading = true; int current = ++generation;
-            var control = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor }; web = control; Controls.Add(control);
+            var control = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor, BackColor = BackColor }; web = control; Controls.Add(control);
+            ShowSplash();
             try {
                 var options = new CoreWebView2EnvironmentOptions("--disable-background-networking --disable-component-update --disable-features=msEdgeSidebarV2");
                 bool existingProfile = Directory.Exists(Path.Combine(dataDirectory, "WebView"));
@@ -102,6 +104,8 @@ namespace Memoir {
                 await control.EnsureCoreWebView2Async(environment);
                 if (current != generation || web != control || control.IsDisposed) return;
                 var core = control.CoreWebView2;
+                ApplyColorScheme();
+                core.NavigationCompleted += delegate { var check = new Timer { Interval = 2500 }; check.Tick += delegate { check.Dispose(); if (web == control) HideSplash(); }; check.Start(); };   // (a page that never says)
                 core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false; core.Settings.AreDevToolsEnabled = !String.IsNullOrEmpty(diagnostics); core.Settings.IsZoomControlEnabled = false;
                 // Not .local: Chromium resolves .local names over the network first, which added ~2 s to every page load.
                 core.SetVirtualHostNameToFolderMapping("memoir.example", Path.Combine(directory, "web"), CoreWebView2HostResourceAccessKind.DenyCors);
@@ -168,9 +172,32 @@ namespace Memoir {
             // An interrupted attempt (the window was minimized) runs again next time.
             if (!control.IsDisposed) try { File.WriteAllText(marker, ""); } catch { }
         }
+        // the loading clock, over the web view; and away again, once the page has painted
+        private void ShowSplash() {
+            if (splash != null) { splash.BackColor = BackColor; return; }
+            if (splashLogo == null) try { splashLogo = Image.FromFile(Path.Combine(directory, "web", "icons", "icon128.png")); } catch { }
+            if (splashRainbow == null) try { splashRainbow = Image.FromFile(Path.Combine(directory, "web", "icons", "rainbow128.png")); } catch { }
+            splash = new Splash(Json.Bool(Json.Get(engine.Settings, "rainbow")) && splashRainbow != null ? splashRainbow : splashLogo, BackColor);
+            Controls.Add(splash); splash.BringToFront();
+        }
+        private Image splashLogo, splashRainbow;
+        private void HideSplash() {
+            var gone = splash; if (gone == null) return;
+            gone.Finish(delegate { if (splash == gone) splash = null; Controls.Remove(gone); gone.Dispose(); });
+        }
+        // the web view's own colours (before a page has any, and its default for "System") follow Memoir's theme,
+        // not Windows': no dark frame under a Light Memoir
+        private void ApplyColorScheme() {
+            try {
+                if (web == null || web.CoreWebView2 == null) return;
+                string mode = Json.Text(Json.Get(Appearance.Resolve(Json.Get(store.Data, "windowsAppearance")), "mode"), "auto");
+                web.CoreWebView2.Profile.PreferredColorScheme = mode == "light" ? CoreWebView2PreferredColorScheme.Light : mode == "dark" ? CoreWebView2PreferredColorScheme.Dark : CoreWebView2PreferredColorScheme.Auto;
+            } catch { }
+        }
         private void ReleaseWeb() {
             ++generation;
             var control = web; web = null;
+            if (splash != null) { var gone = splash; splash = null; Controls.Remove(gone); gone.Dispose(); }
             if (control != null) { Controls.Remove(control); control.Dispose(); }
             environment = null;
         }
@@ -272,6 +299,7 @@ namespace Memoir {
                     case "window.minimize": Post(Json.Object("id", id, "result", true)); MinimizeToTray(); return;
                     // the page's title bar (TitleBar.cs)
                     case "window.state": result = WindowFacts(); break;
+                    case "window.painted": HideSplash(); break;
                     case "window.maximize": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
                     case "window.close": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { Close(); })); return;
                     case "window.drag": { int hit = (int)Json.Number(Json.Get(data, "hit"), TitleBar.Caption); Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { TitleBar.Drag(Handle, hit); })); return; }
@@ -284,7 +312,7 @@ namespace Memoir {
                     case "startup.get": result = Json.Object("available", Startup.Available(fixedData), "on", Startup.Available(fixedData) && Startup.IsOn()); break;
                     case "startup.set": if (!Startup.Available(fixedData)) throw new InvalidOperationException("Not for this copy."); result = Json.Object("available", true, "on", Startup.Set(Json.Bool(Json.Get(data, "on")), StartupCommand())); break;
                     case "theme":
-                        store.Set(Json.Object("windowsAppearance", data)); store.Save(); ApplySavedTheme(); break;
+                        store.Set(Json.Object("windowsAppearance", data)); store.Save(); ApplySavedTheme(); ApplyColorScheme(); break;
                     case "status": result = Json.Object("browser", tracker.BrowserStatus, "paused", engine.Paused, "uiLoaded", web != null, "dataDirectory", dataDirectory); break;
                     case "folder.open": Process.Start(new ProcessStartInfo(dataDirectory) { UseShellExecute = true }); break;
                     case "link.unlink": sync.Unlink(Json.Text(Json.Get(data, "device"))); break;

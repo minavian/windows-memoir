@@ -8,7 +8,7 @@ Memoir tracks the focused Windows app and websites in supported browsers. The re
 
 ## Window
 
-Memoir draws its own title bar, the colour of the page with the window's buttons in the app's style; Windows keeps the frame, so resizing, Snap, the shadow and the window menu (right-click the top) work as usual.
+Memoir draws its own title bar, the colour of the page with the window's buttons in the app's style; Windows keeps the frame, so resizing, Snap, the shadow and the window menu (right-click the top) work as usual. While the page loads (the window's web view starts fresh each time it opens), the window shows Memoir's clock on the page's own background, breathing gently, and hands over as the report's cards come in; the web view follows Memoir's theme rather than Windows', so nothing flashes another colour first (`Splash.cs`).
 
 ## Minimized behavior
 

@@ -114,6 +114,15 @@
   }
   addEventListener('DOMContentLoaded', () => {
     buildTitleBar();
+    // painted: the window's loading clock can go (src/Splash.cs), as the report's cards start to come in (fx.js
+    // reveal adds .ready); a page without that, two frames in
+    let said = false;
+    const painted = () => { if (said) return; said = true; request('window.painted').catch(() => {}); };
+    if (document.body.classList.contains('ready')) painted();
+    else {
+      new MutationObserver((list, watch) => { if (document.body.classList.contains('ready')) { watch.disconnect(); painted(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+      setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(painted)), root.dataset.winPage === 'doc' ? 0 : 1500);
+    }
     theme(); new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
     // How Memoir works and the privacy policy open in this same window (there are no tabs here):
