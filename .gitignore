@@ -1,0 +1,29 @@
+# Personal history and the WebView profile: never commit
+Data/
+WebView/
+*.writing
+*.damaged-*
+errors.log
+
+# Build outputs (build.ps1 and tests/run.ps1 make them again)
+Memoir.exe
+Memoir.build.exe
+*.dll
+tests/*.exe
+build-tools/Memoir.previous-*.exe
+
+# WebView2 SDK: Microsoft.Web.WebView2 1.0.4258.31 from NuGet, extracted to build-tools/webview2 for build.ps1
+build-tools/webview2/
+build-tools/webview2.nupkg
+
+# Test runs, verification profiles (real app usage) and screenshots that may show personal history
+tests/runs/
+tests/native-data/
+tests/native-final/
+tests/native-diagnostics.json
+tests/native-final.json
+tests/*.png
+
+# Release archives
+*.7z
+*.zip

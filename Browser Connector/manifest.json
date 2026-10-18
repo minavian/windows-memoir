@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Memoir Windows Connector",
+  "version": "5.0.2",
+  "description": "Precise active-tab and audio tracking for the local Memoir Windows app. Made by Mina Vian.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ggVT83HKDvujTzlwFkv55b2SawnHT0enfvFDUbPFcW61oNnW78NiWS6RaL5QpTSCdOvTgkuDd8cTls1FimeqX5SQC68fd+ipjngBKHT09E9b61l6BBr3pNbOilDxpZ0Kqj/LA4qJeTXVbQHTpY0RobNb0y+VGPgevOE6Ey0/PrvbmX4R3nBR3uHn/7E5KK7Jwtrhf0cJG+XoebakRAm1nNvL46fSHfTBxzn7EwX9eIsi2ZIunxxrOSBTyqQqt1lXMwZSpDVZjnJ/qep6e9Y/ENVC1jZWL9/UkO/HpN6dnQKAnohrkUDZgpzbTfq+sFfeXuLJZdlzyMZhSA4twCzJQIDAQAB",
+  "permissions": [
+    "tabs",
+    "nativeMessaging",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Memoir browser connector"
+  },
+  "icons": {
+    "32": "icon32.png",
+    "128": "icon128.png"
+  }
+}

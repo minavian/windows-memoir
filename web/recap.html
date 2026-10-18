@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memoir · Weekly Report</title>
+  <link rel="icon" href="icons/icon32.png">
+  <script src="desktop-bridge.js"></script>
+  <script src="shared/theme-boot.js"></script>
+  <link rel="stylesheet" href="shared/theme.css">
+  <link rel="stylesheet" href="shared/goal.css">
+  <link rel="stylesheet" href="recap.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-chev-l" viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-chev-r" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-chev-ll" viewBox="0 0 16 16"><path d="M8 3.5 3.5 8 8 12.5M12.5 3.5 8 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-play" viewBox="0 0 16 16"><path d="M5.2 3.6v8.8a.6.6 0 0 0 .9.5l6.9-4.4a.6.6 0 0 0 0-1L6.1 3.1a.6.6 0 0 0-.9.5Z" fill="currentColor"/></symbol>
+      <symbol id="i-chev-d" viewBox="0 0 12 12"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 20 20"><path d="M10 6.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.6 2.5h2.8l.4 2.1 1.5.8 2-.8 1.4 2.4-1.6 1.4v1.8l1.6 1.4-1.4 2.4-2-.8-1.5.8-.4 2.1H8.6l-.4-2.1-1.5-.8-2 .8-1.4-2.4L4.9 11V9.1L3.3 7.7 4.7 5.3l2 .8 1.5-.8.4-2.1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+      <symbol id="i-close" viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="i-cal" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 6.8h11M5.5 2v3M10.5 2v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+      <symbol id="i-hour" viewBox="0 0 16 16"><path d="M8 2.2v1.3M8 12.5v1.3M2.2 8h1.3M12.5 8h1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="i-focus" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="i-trend" viewBox="0 0 16 16"><path d="M2.5 11.5 6.5 7.5l2.5 2.5 4.5-4.5M10.5 5.5h3v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.2 8h11.6M8 2.2c2 1.8 2 9.8 0 11.6M8 2.2c-2 1.8-2 9.8 0 11.6" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9s8 4 8 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 3v10M4 9l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-limit" viewBox="0 0 16 16"><path d="M8 2.2a5.8 5.8 0 1 0 5.8 5.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M8 5v3l2 1.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M11 2.6h2.6v2.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12.2 1.8c.7 3.3-1.1 5-2.9 7.1-1.5 1.8-2.3 3.6-1.6 6-1.3-.6-2.2-1.9-2.3-3.5-1.7 2.2-2.2 4.9-.9 7.4C5.8 21.3 8.6 23 12 23c3.8 0 6.8-2.3 7.4-5.9.5-3-.9-5.9-3-8.3.1 1.6-.6 2.9-1.8 3.6.5-4.2-.6-7.9-2.4-10.6Z" fill="currentColor"/></symbol>
+      <symbol id="i-private" viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5.4a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+      <symbol id="i-x" viewBox="0 0 12 12"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
+
+  <main class="dash">
+    <header class="head" data-anim style="--i:0">
+      <div class="head-left">
+        <img class="mark" src="icons/icon48.png" alt="" width="28" height="28">
+        <h1 class="display"><span class="title-text" id="hero-title">This week</span></h1>
+        <nav class="week-nav" aria-label="Choose a week">
+          <button class="icon-btn" id="prev-week" data-dir="prev" aria-label="Previous week"><svg><use href="#i-chev-l"/></svg></button>
+          <span class="week-range-wrap"><span class="week-range num" id="week-range"></span></span>
+          <button class="icon-btn" id="next-week" data-dir="next" aria-label="Next week"><svg><use href="#i-chev-r"/></svg></button>
+        </nav>
+      </div>
+
+      <div class="head-right">
+        <div class="demo-pill" id="demo-banner" hidden>
+          <span>Sample week</span>
+          <button class="btn btn-secondary btn-sm" id="exit-demo">Exit</button>
+        </div>
+
+        <div class="morph" id="settings">
+          <div class="morph-panel" id="settings-panel" role="dialog" aria-label="Settings">
+            <div class="panel-inner">
+              <p class="panel-title display">Settings</p>
+              <div class="panel-cols">
+                <div class="panel-col">
+                  <div class="p-block">
+                    <span class="p-label">Appearance</span>
+                    <div class="segmented" id="appearance" role="group" aria-label="Appearance">
+                      <span class="thumb"></span>
+                      <button type="button" data-pref="auto" aria-pressed="false">System</button>
+                      <button type="button" data-pref="light" aria-pressed="false">Light</button>
+                      <button type="button" data-pref="dark" aria-pressed="false">Dark</button>
+                      <button type="button" data-pref="pink" aria-pressed="false">Pink</button>
+                    </div>
+                  </div>
+
+                  <div class="p-row">
+                    <span><b>Track screen time</b><small>Pause any time from Today or the tray</small></span>
+                    <label class="switch"><input type="checkbox" id="set-tracking" aria-label="Track screen time"><span class="track"></span><span class="knob"></span></label>
+                  </div>
+
+                  <div class="p-row">
+                    <span><b>Custom cursor</b><small>Use the animated pointer. Turning it off is recommended on low-end devices</small></span>
+                    <label class="switch"><input type="checkbox" id="set-cursor" aria-label="Custom cursor"><span class="track"></span><span class="knob"></span></label>
+                  </div>
+
+                  <div class="p-block">
+                    <span class="p-label">Tracking detail</span>
+                    <div class="segmented" id="detail" role="group" aria-label="Tracking detail">
+                      <span class="thumb"></span>
+                      <button type="button" data-val="domains" aria-pressed="false">Names only</button>
+                      <button type="button" data-val="titles" aria-pressed="false">Page titles</button>
+                    </div>
+                    <p class="p-desc" id="detail-desc"></p>
+                    <div class="reveal" id="detail-confirm"><div class="reveal-inner">
+                      <div class="inline-confirm">
+                        <span>Erase the page titles saved so far?</span>
+                        <button class="btn btn-secondary btn-xs" id="detail-keep" type="button">Keep</button>
+                        <button class="btn btn-danger btn-xs" id="detail-erase" type="button">Erase</button>
+                      </div>
+                    </div></div>
+                  </div>
+
+                  <div class="p-block">
+                    <span class="p-label">Never track</span>
+                    <p class="p-desc">Time in these apps and websites still counts toward your totals and limit, filed as Private — their names are never saved or shown. Past time in an app or website you add is made Private too.</p>
+                    <form class="ex-form" id="ex-form" autocomplete="off">
+                      <input id="ex-input" type="text" placeholder="Add a site, like youtube.com" aria-label="Site to never track" spellcheck="false">
+                      <button class="btn btn-primary btn-xs ex-add" id="ex-add" type="submit" aria-label="Add site"><svg><use href="#i-plus"/></svg><span>Add</span></button>
+                    </form>
+                    <div class="ex-wrap" id="ex-wrap"><ul class="ex-list" id="ex-list"></ul></div>
+                  </div>
+                </div>
+
+                <div class="panel-col">
+                  <div class="p-block">
+                  <div class="p-row">
+                    <span><b>Weekly recap reminder</b><small id="rem-desc">Sundays at 7:00 PM</small></span>
+                    <label class="switch"><input type="checkbox" id="set-reminder" aria-label="Weekly recap reminder"><span class="track"></span><span class="knob"></span></label>
+                  </div>
+                  <div class="reveal" id="rem-more"><div class="reveal-inner">
+                    <div class="rem-controls">
+                      <div class="day-chips" id="rem-days" role="radiogroup" aria-label="Reminder day"></div>
+                      <div class="time-pill" id="rem-time">
+                        <input id="rem-h" class="num" inputmode="numeric" maxlength="2" aria-label="Hour">
+                        <span class="colon">:</span>
+                        <input id="rem-m" class="num" inputmode="numeric" maxlength="2" aria-label="Minute">
+                        <button class="ampm" id="rem-ampm" type="button" aria-label="AM or PM"><span data-v="AM">AM</span><span data-v="PM">PM</span></button>
+                      </div>
+                    </div>
+                  </div></div>
+                  </div>
+
+                  <div class="p-row" id="limit-row">
+                    <span><b>Daily limit</b><small id="limit-desc">No limit set</small></span>
+                    <button class="btn btn-secondary btn-xs" id="limit-reset" type="button" disabled>Reset…</button>
+                  </div>
+
+                  <div class="p-block">
+                    <span class="p-label">Keep history</span>
+                    <div class="segmented" id="retention" role="group" aria-label="Keep history">
+                      <span class="thumb"></span>
+                      <button type="button" data-days="0" aria-pressed="false">Forever</button>
+                      <button type="button" data-days="365" aria-pressed="false">1 year</button>
+                      <button type="button" data-days="182" aria-pressed="false">6 months</button>
+                      <button type="button" data-days="91" aria-pressed="false">3 months</button>
+                    </div>
+                    <p class="p-desc" id="ret-desc">Hover an option for an estimate.</p>
+                    <div class="reveal" id="ret-confirm"><div class="reveal-inner">
+                      <div class="inline-confirm">
+                        <span id="ret-msg"></span>
+                        <button class="btn btn-secondary btn-xs" id="ret-keep" type="button">Keep</button>
+                        <button class="btn btn-danger btn-xs" id="ret-remove" type="button">Remove</button>
+                      </div>
+                    </div></div>
+                  </div>
+
+                  <div class="p-block">
+                    <div class="p-row">
+                      <span><b>Sample week</b><small>Look around with made-up data</small></span>
+                      <label class="switch"><input type="checkbox" id="set-demo" aria-label="Sample week"><span class="track"></span><span class="knob"></span></label>
+                    </div>
+                    <div class="p-row">
+                      <span><b>Tutorial</b><small>A quick tour of every feature</small></span>
+                      <button class="btn btn-secondary btn-xs replay-btn" id="replay-tour" type="button"><svg><use href="#i-play"/></svg>Replay</button>
+                    </div>
+                  </div>
+
+                  <div class="p-block">
+                    <span class="p-label">Your data</span>
+                    <div class="data-row" id="data-row" data-step="0">
+                      <button class="btn btn-secondary btn-sm keep-btn" id="export" type="button">Export</button>
+                      <button class="btn btn-secondary btn-sm keep-btn" id="import" type="button">Import</button>
+                      <button class="btn nuke" id="nuke" type="button">
+                        <span class="nuke-glow" aria-hidden="true"></span>
+                        <span class="nuke-labels">
+                          <span data-l="0">Clear all</span>
+                          <span data-l="q" class="nk-q">Are you <span class="nk-abs"><span>absolutely&nbsp;</span></span><span class="nk-sure"><span class="lo"><i style="--k:0">s</i><i style="--k:1">u</i><i style="--k:2">r</i><i style="--k:3">e</i></span><span class="up" aria-hidden="true"><i style="--k:0">S</i><i style="--k:1">U</i><i style="--k:2">R</i><i style="--k:3">E</i></span></span>?</span>
+                          <span data-l="3">Cleared</span>
+                        </span>
+                      </button>
+                    </div>
+                    <button class="never-mind" id="nuke-cancel" type="button" tabindex="-1">Never mind</button>
+                    <input type="file" id="import-file" accept="application/json,.json" hidden>
+                  </div>
+                </div>
+              </div>
+              <p class="p-foot">Memoir · Made by Mina Vian · Your data never leaves this computer</p>
+            </div>
+          </div>
+          <button class="icon-btn morph-trigger" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-panel">
+            <svg class="g-gear"><use href="#i-gear"/></svg>
+            <svg class="g-close"><use href="#i-close"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="settings-scrim" id="settings-scrim" aria-hidden="true"></div>
+    <div class="board" id="board">
+      <section class="card summary" data-anim style="--i:1">
+        <p class="caption">Daily average</p>
+        <p class="hero-num display num" id="stat-avg">0m</p>
+        <button class="trend-btn" id="trend-btn" type="button" aria-label="Open trend over time" title="Trend over time">
+          <span class="trend" id="trend"></span>
+          <span class="tb-more"><svg><use href="#i-trend"/></svg><span>Trend</span></span>
+        </button>
+        <dl class="facts">
+          <div><dt>Total</dt><dd class="num" id="stat-total">0m</dd></div>
+          <div><dt>Busiest day</dt><dd id="stat-busy">—</dd></div>
+          <div><dt>Most used</dt><dd id="stat-top">—</dd></div>
+        </dl>
+        <h2 class="section-title story-title">Highlights</h2>
+        <ul class="story" id="story"></ul>
+      </section>
+
+      <section class="card goal-card" id="goal-card" data-anim style="--i:4">
+        <header class="panel-head goal-head">
+          <h2 class="section-title">Today’s limit</h2>
+          <span class="goal-chip" id="goal-chip" hidden></span>
+        </header>
+        <div class="goal-host"><div class="goal-ring" id="goal-ring"></div></div>
+      </section>
+
+      <section class="card chart-card lift" id="chart-card" data-anim style="--i:2">
+        <header class="panel-head chart-head">
+          <div class="ch-title">
+            <h2 class="section-title"><span class="title-swap" id="chart-title">Daily activity</span></h2>
+            <button class="back-btn" id="chart-back" type="button" aria-hidden="true" tabindex="-1">
+              <svg><use href="#i-chev-l"/></svg><span id="back-label">Back to daily activity</span>
+            </button>
+            <button class="home-btn" id="chart-home" type="button" aria-label="All the way back to daily activity" title="All the way back" aria-hidden="true" tabindex="-1">
+              <svg><use href="#i-chev-ll"/></svg>
+            </button>
+          </div>
+          <div class="stepper" id="stepper">
+            <button class="step-btn" id="step-prev" type="button" aria-label="Previous" tabindex="-1"><svg><use href="#i-chev-l"/></svg></button>
+            <span class="caption chart-caption" id="chart-caption"></span>
+            <button class="step-btn" id="step-next" type="button" aria-label="Next" tabindex="-1"><svg><use href="#i-chev-r"/></svg></button>
+          </div>
+        </header>
+        <div class="views">
+          <div class="view is-active" id="week-view">
+            <div class="chart" id="chart" role="img" aria-label="Time per day by category">
+              <div class="plot" id="plot"></div>
+            </div>
+          </div>
+          <div class="view" id="detail-view" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card donut-card lift" data-anim style="--i:3">
+        <header class="panel-head">
+          <h2 class="section-title">Categories</h2>
+          <div class="segmented scope-seg" id="scope" role="group" aria-label="Show the whole week or one day" style="--k:1">
+            <span class="thumb"></span>
+            <button type="button" data-scope="week" aria-pressed="false">Week</button>
+            <button type="button" data-scope="day" aria-pressed="true">Day</button>
+          </div>
+        </header>
+        <div class="donut-wrap">
+          <div class="donut-box">
+            <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="Time by category">
+              <circle class="donut-track" cx="100" cy="100" r="78"/>
+              <g id="donut-segs" transform="rotate(-90 100 100)"></g>
+            </svg>
+            <div class="donut-center" id="donut-center">
+              <span class="donut-total display num" id="donut-total">0m</span>
+              <span class="donut-sub" id="donut-sub">this week</span>
+            </div>
+          </div>
+          <ul class="cat-legend" id="cat-legend"></ul>
+        </div>
+      </section>
+
+      <section class="card heat-card lift" id="heat-card" data-anim style="--i:5">
+        <header class="panel-head">
+          <h2 class="section-title">Activity by hour</h2>
+          <span class="scale" aria-hidden="true">Less<i style="--c:var(--g0)"></i><i style="--c:var(--g1)"></i><i style="--c:var(--g2)"></i><i style="--c:var(--g3)"></i><i style="--c:var(--g4)"></i><i style="--c:var(--g5)"></i>More</span>
+        </header>
+        <div class="heat-wrap" id="heat-wrap"><div class="heat" id="heat" role="grid" aria-label="Browsing by hour of day. Use arrow keys to move and Enter to open an hour."></div><div class="heat-sel" id="heat-sel" aria-hidden="true"><div class="hs-dim"><i class="hs-b" data-k="l"></i><i class="hs-b" data-k="r"></i><i class="hs-b" data-k="t"></i><i class="hs-b" data-k="b"></i></div><i class="hs-e" data-k="t"></i><i class="hs-e" data-k="b"></i><i class="hs-e" data-k="l"></i><i class="hs-e" data-k="r"></i><i class="hs-c" data-k="tl"></i><i class="hs-c" data-k="tr"></i><i class="hs-c" data-k="bl"></i><i class="hs-c" data-k="br"></i></div></div>
+      </section>
+
+      <section class="card sites-card lift" data-anim style="--i:6">
+        <header class="panel-head">
+          <h2 class="section-title">Most used</h2>
+          <span class="caption" id="sites-cap">This week · click a category to change it</span>
+        </header>
+        <ol class="sites" id="sites"></ol>
+      </section>
+
+      <section class="card empty" id="empty" data-anim style="--i:2" hidden>
+        <svg class="empty-icon" aria-hidden="true"><use href="#i-hourglass"/></svg>
+        <h2 class="display" id="empty-title">No activity yet</h2>
+        <p id="empty-text">Use your computer as usual and your week will appear here. Nothing ever leaves this computer.</p>
+        <button class="btn btn-secondary" id="try-demo">Preview a sample week</button>
+      </section>
+    </div>
+  </main>
+
+  <div class="menu" id="cat-menu" role="menu" hidden></div>
+  <div class="pop" id="cat-pop" role="dialog" aria-label="Apps and websites in this category" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="recap.js"></script>
+</body>
+</html>
