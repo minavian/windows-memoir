@@ -48,6 +48,9 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - The category popover's click handler that closes the popup after a link is removed: Today is a window here, not a popup.
 - Wording: "of private activity" (not "on private sites"), "No screen time yet today", "N used" (not "N sites").
 
+### `popup.html`
+- `<link rel="icon" href="icons/icon32.png">` after the title: Today is a page in a window, which otherwise asks for a missing `/favicon.ico`.
+
 ### `popup.css`
 - `html, body { width: 100%; height: 100%; min-width: 350px; min-height: 560px; overflow: auto; }` replaces the fixed 380 × 600 popup size.
 
@@ -120,6 +123,7 @@ The last row differs on purpose: Windows observes every second instead of relyin
 - `Engine.EnforcePrivacy` runs the full-history pass only when the exclusion list changes or excluded names show up in the data.
 - `Engine.Total` reads without cloning; it runs every second while a limit is set.
 - Process names come from `Native.ProcessName`. `Process.ProcessName` snapshots every process on .NET Framework.
+- `MainForm.Scaled`: window sizes are the pages' CSS sizes times Windows' display scaling (read from the screen's DPI; `DeviceDpi` says 96 before the window exists), within the screen's free area. In physical pixels, 125% scaling gave the report its two-column fallback, cut Settings' footer and made Today narrower than its page.
 - `Memoir.ico` and `Memoir-rainbow.ico`: the clock on its black disc, made from the extension's `icons/` (16, 32, 48, 128) and the logo master (20, 24, 40, 64, 256); the rainbow one recolours only the ring, as the extension's `rainbowN.png`.
 
 ## Verification

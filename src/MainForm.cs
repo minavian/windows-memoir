@@ -39,7 +39,7 @@ namespace Memoir {
         public MainForm(string directory, string dataDirectory, bool minimized, string diagnostics) {
             this.directory = directory; this.dataDirectory = dataDirectory; this.diagnostics = diagnostics; hiddenStart = minimized;
             restoreMessage = Native.RegisterWindowMessage("Local\\Memoir-" + Tracker.IconName(dataDirectory.ToLowerInvariant()).Replace(".png", ""));
-            Text = "Memoir"; BackColor = Color.FromArgb(245, 245, 247); ClientSize = new Size(1360, 850); MinimumSize = new Size(680, 520); StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
+            Text = "Memoir"; BackColor = Color.FromArgb(245, 245, 247); ClientSize = Scaled(1360, 850, true); MinimumSize = Scaled(680, 520); StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             if (File.Exists(Path.Combine(directory, "Memoir.ico"))) Icon = plainIcon = new Icon(Path.Combine(directory, "Memoir.ico"));
             if (File.Exists(Path.Combine(directory, "Memoir-rainbow.ico"))) rainbowIcon = new Icon(Path.Combine(directory, "Memoir-rainbow.ico"));
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
@@ -192,7 +192,16 @@ namespace Memoir {
         }
         private void ChangeView(string page) {
             if (page != "popup.html" && page != "recap.html") return;
-            view = page; ReleaseWeb(); MinimumSize = page == "popup.html" ? new Size(380, 640) : new Size(680, 520); ClientSize = page == "popup.html" ? new Size(380, 600) : new Size(1360, 850); RestoreWindow();
+            view = page; ReleaseWeb(); MinimumSize = page == "popup.html" ? Scaled(380, 640) : Scaled(680, 520); ClientSize = page == "popup.html" ? Scaled(380, 600, true) : Scaled(1360, 850, true); RestoreWindow();
+        }
+        // Sizes are the pages' own (CSS pixels, as in the extension), scaled with Windows' display scaling: at 125%
+        // the report's 1360 × 850 is 1700 × 1063 on screen, or it falls back to its two-column scrolling layout and
+        // Today is narrower than its page. A window's inside never outgrows the screen's free area.
+        private Size Scaled(int width, int height, bool fit = false) {
+            float scale; using (var screen = Graphics.FromHwnd(IntPtr.Zero)) scale = screen.DpiX / 96f; // (DeviceDpi says 96 before the window exists)
+            int w = (int)Math.Round(width * scale), h = (int)Math.Round(height * scale);
+            if (fit) { var area = Screen.FromPoint(Cursor.Position).WorkingArea; w = Math.Min(w, area.Width - 32); h = Math.Min(h, area.Height - 80); }
+            return new Size(w, h);
         }
         // A website opens in the default browser; a mailto: link (the bug report, the author's address) in the email app
         private static void OpenLink(string address) {
