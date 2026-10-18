@@ -1,0 +1,74 @@
+/* Memoir for Windows' own title bar (desktop-bridge.js builds it; src/TitleBar.cs gives it the window's caption).
+   A clear band across the top to drag the window by, so the page shows through it whatever it does (Settings'
+   scrim, the tour's spotlight), solid in the page's colour only once something scrolls under it; and the
+   window's buttons above everything, in the app's style: small rounded fills, line icons, Close in red. */
+html.win-chrome { --titlebar: 32px; }
+
+/* room for it: the report and Today keep their own spacing below it; the reading pages start under it */
+html.win-chrome .dash { padding-top: calc(var(--titlebar) + 4px); }
+html.win-chrome .heat { --s: max(6px, min(calc((100cqw - 34px - 24 * var(--gap)) / 24), calc((100dvh - 548px) / 7))); }
+@media (max-width: 1099px), (max-height: 579px) {
+  html.win-chrome .heat { --s: max(6px, calc((100cqw - 34px - 24 * var(--gap)) / 24)); }
+}
+html.win-chrome .app { padding-top: calc(var(--titlebar) + 4px); }
+html.win-chrome[data-win-page="doc"] body { padding-top: var(--titlebar); }
+
+.win-band {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--titlebar);
+  z-index: 30;
+  background: transparent;
+  transition: background-color 0.2s var(--ease);
+  user-select: none;
+  -webkit-user-select: none;
+}
+html.win-scrolled .win-band { background: var(--bg); }
+/* the top edge resizes, as a window's does (not while maximized) */
+.win-edge { position: absolute; top: 0; height: 5px; }
+.win-edge[data-hit="12"] { left: 10px; right: 10px; }
+.win-edge[data-hit="13"] { left: 0; width: 10px; }
+.win-edge[data-hit="14"] { right: 0; width: 10px; }
+html.win-chrome .win-edge[data-hit="12"] { cursor: ns-resize !important; }
+html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
+html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
+html.win-max .win-edge { display: none; }
+
+.win-buttons {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: var(--titlebar);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 0;
+  z-index: 2147483000;
+}
+.win-buttons button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  transition: background-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.win-buttons svg { width: 10px; height: 10px; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+.win-buttons button:hover { background: var(--fill-1); color: var(--label); }
+.win-buttons button:active { background: var(--fill-2); transform: scale(0.96); }
+.win-buttons .win-close:hover { background: var(--danger); color: #fff; }
+.win-buttons .win-close:active { background: color-mix(in srgb, var(--danger) 85%, #000); }
+.win-buttons button:focus-visible { outline: none; box-shadow: var(--ring); }
+/* Maximize or Restore, as the window is */
+.win-buttons .win-restore-icon, html.win-max .win-buttons .win-max-icon { display: none; }
+html.win-max .win-buttons .win-restore-icon { display: block; }
+/* a window in the background: its buttons quieter, as Windows' own are */
+html.win-inactive .win-buttons button:not(:hover) { color: var(--label-3); }

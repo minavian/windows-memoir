@@ -17,6 +17,7 @@ namespace Memoir {
             bool dark = theme == "dark";
             return Json.Object("theme", theme, "mode", mode, "palette", Json.Object(
                 "surface", dark ? "#1c1c1e" : "#ffffff",
+                "background", dark ? "#000000" : "#f5f5f7",
                 "label", dark ? "#f5f5f7" : "#1d1d1f",
                 "secondary", dark ? "#a1a1a6" : "#6e6e73",
                 "hover", dark ? "rgba(120,120,128,0.18)" : "rgba(120,120,128,0.08)"));

@@ -6,6 +6,10 @@ Open **Memoir.exe** in this folder. Keep the `web` folder, the three WebView2 DL
 
 Memoir tracks the focused Windows app and websites in supported browsers. The report keeps the extension's welcome, charts, transitions, Light and Dark themes (and the optional Rainbow clock, which also colours the clock in the notification area), custom cursor, and smooth scrolling. How Memoir works and the privacy policy, opened from Settings, describe the Windows app and open in the same window, with a way back. Categories starts on Day. The report header has a Settings button; Today is available from the tray menu.
 
+## Window
+
+Memoir draws its own title bar, the colour of the page with the window's buttons in the app's style; Windows keeps the frame, so resizing, Snap, the shadow and the window menu (right-click the top) work as usual.
+
 ## Minimized behavior
 
 Minimizing or closing the window keeps tracking in the Windows notification area. The web interface and its browser processes unload. A click with either mouse button on the clock opens a small native menu that matches the app theme, with animated entrances, hover states, and closing. Double-click opens the app directly.

@@ -63,7 +63,9 @@ namespace Memoir {
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;
             Shown += async delegate { if (hiddenStart) { Hide(); hiddenStart = false; releaseTimer.Start(); } else await LoadView(); };
-            Resize += delegate { if (WindowState == FormWindowState.Minimized) MinimizeToTray(); };
+            Resize += delegate { if (WindowState == FormWindowState.Minimized) MinimizeToTray(); else PostWindowState(); };
+            Activated += delegate { PostWindowState(); };
+            Deactivate += delegate { PostWindowState(); };
             FormClosing += delegate(object sender, FormClosingEventArgs args) {
                 if (args.CloseReason == CloseReason.WindowsShutDown || args.CloseReason == CloseReason.TaskManagerClosing) exiting = true;
                 if (!exiting) { args.Cancel = true; MinimizeToTray(); return; }
@@ -195,7 +197,9 @@ namespace Memoir {
         }
         private void ApplySavedTheme() {
             var appearance = Appearance.Resolve(Json.Get(store.Data, "windowsAppearance"));
-            ApplyTheme(Json.Text(Json.Get(appearance, "theme")), Json.Text(Json.Get(Json.Map(Json.Get(appearance, "palette")), "surface")));
+            // the window's own colour is the page's background, so the title bar and edges never show a seam
+            var palette = Json.Map(Json.Get(appearance, "palette"));
+            ApplyTheme(Json.Text(Json.Get(appearance, "theme")), Json.Text(Json.Get(palette, "background"), Json.Text(Json.Get(palette, "surface"))));
         }
         private void ChangeView(string page) {
             if (page != "popup.html" && page != "recap.html") return;
@@ -241,6 +245,12 @@ namespace Memoir {
                     case "window.report": Post(Json.Object("id", id, "result", Json.Object("ok", true))); ChangeView("recap.html"); return;
                     case "window.today": Post(Json.Object("id", id, "result", true)); ChangeView("popup.html"); return;
                     case "window.minimize": Post(Json.Object("id", id, "result", true)); MinimizeToTray(); return;
+                    // the page's title bar (TitleBar.cs)
+                    case "window.state": result = WindowFacts(); break;
+                    case "window.maximize": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
+                    case "window.close": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { Close(); })); return;
+                    case "window.drag": { int hit = (int)Json.Number(Json.Get(data, "hit"), TitleBar.Caption); Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { TitleBar.Drag(Handle, hit); })); return; }
+                    case "window.menu": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { TitleBar.Menu(Handle); })); return;
                     case "privacy.titles": engine.Flush(Engine.Now); engine.EraseTitles(); store.Save(); break;
                     case "link.open": OpenLink(Json.Text(Json.Get(data, "url"))); break;
                     case "clipboard.read": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;
@@ -269,7 +279,12 @@ namespace Memoir {
             if (IsDisposed) return;
             try { Invoke(new Action(delegate { if (args.Mode == PowerModes.Suspend) { engine.Suspend(Engine.Now); store.Save(); } else if (args.Mode == PowerModes.Resume) tracker.Resume(); })); } catch { }
         }
+        private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "active", ActiveForm == this); }
+        private void PostWindowState() { if (IsHandleCreated) Post(Json.Object("event", "window", "state", WindowFacts())); }
+        protected override void OnHandleCreated(EventArgs args) { base.OnHandleCreated(args); TitleBar.Refresh(Handle); }
         protected override void WndProc(ref Message message) {
+            // no Windows caption: the page draws Memoir's own title bar in its place (TitleBar.cs)
+            if (message.Msg == TitleBar.CalcSize && message.WParam != IntPtr.Zero) { int top = TitleBar.ProposedTop(message.LParam); base.WndProc(ref message); TitleBar.GiveCaption(Handle, message.LParam, top); message.Result = IntPtr.Zero; return; }
             if (message.Msg == restoreMessage && restoreMessage != 0) {
                 int command = message.WParam.ToInt32();
                 BeginInvoke(new Action(delegate {

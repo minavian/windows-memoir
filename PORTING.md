@@ -72,6 +72,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 ### `desktop-bridge.js` (Windows only)
 - `chrome.runtime.getManifest()`: `{ version: '6.0.0 for Windows' }` (the report reads it at load for the bug report's subject). Keep it with `src/AssemblyInfo.cs`.
 - On How Memoir works and the privacy policy (pages with `main > .brand`): a "‹ Back to Memoir" link above the name, and Esc, back to the report. `MainForm` opens these pages in the same window.
+- Memoir's own title bar on every page (`desktop-chrome.css`, `src/TitleBar.cs`): a clear band to drag by (double-click maximizes, right-click opens the window menu, its top edge resizes) and Minimize, Maximize and Close in the app's style. It needs room at the top of each page: `.dash` and `.app` start under it, the heatmap's height formula counts it, reading pages get `padding-top`. A new page shown in the window needs the same.
 
 ## Data contract
 

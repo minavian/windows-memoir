@@ -2,6 +2,18 @@
 (() => {
   const native = window.chrome?.webview;
   if (!native) throw new Error('Memoir needs its Windows host.');
+  // Memoir's own title bar (desktop-chrome.css, src/TitleBar.cs): its styles before the page's first paint
+  const root = document.documentElement;
+  const page = location.pathname.split('/').pop();
+  root.classList.add('win-chrome');
+  root.dataset.winPage = page === 'recap.html' ? 'report' : page === 'popup.html' ? 'today' : 'doc';
+  const chromeCss = document.createElement('link');
+  chromeCss.rel = 'stylesheet'; chromeCss.href = 'desktop-chrome.css';
+  document.head.append(chromeCss);
+  const windowState = state => {
+    root.classList.toggle('win-max', !!state.maximized); root.classList.toggle('win-inactive', !state.active);
+    document.querySelector('.win-maximize')?.setAttribute('aria-label', state.maximized ? 'Restore' : 'Maximize');
+  };
   const listeners = new Set();
   const pending = new Map();
   let sequence = 0;
@@ -13,6 +25,7 @@
   });
   native.addEventListener('message', event => {
     const msg = event.data;
+    if (msg.event === 'window') { windowState(msg.state || {}); return; }
     if (msg.event === 'storage') {
       if (msg.area === 'local' && msg.changes.apps) window.memoir.apps = msg.changes.apps.newValue || {};
       for (const fn of listeners) fn(msg.changes, msg.area);
@@ -58,10 +71,49 @@
     const token = name => style.getPropertyValue(name).trim();
     return request('theme', {
       mode, theme: mode === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode,
-      palette: { surface: token('--surface'), label: token('--label'), secondary: token('--label-2'), hover: token('--fill-1') },
+      palette: { surface: token('--surface'), background: token('--bg'), label: token('--label'), secondary: token('--label-2'), hover: token('--fill-1') },
     }).catch(() => {});
   };
+  // the band: drag it to move the window (Snap included), double-click to maximize, right-click for the window's
+  // menu, its top edge to resize; Minimize (to the notification area, as before), Maximize and Close on the right
+  const ICONS = {
+    min: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8"/></svg>',
+    max: '<svg viewBox="0 0 10 10" aria-hidden="true"><rect class="win-max-icon" x="1" y="1" width="8" height="8" rx="1.6"/><g class="win-restore-icon"><rect x="1" y="3" width="6" height="6" rx="1.4"/><path d="M3 1.5h4.1A1.4 1.4 0 0 1 8.5 2.9V7"/></g></svg>',
+    close: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>',
+  };
+  function buildTitleBar() {
+    const band = document.createElement('div');
+    band.className = 'win-band';
+    band.innerHTML = '<div class="win-edge" data-hit="12"></div><div class="win-edge" data-hit="13"></div><div class="win-edge" data-hit="14"></div>';
+    const buttons = document.createElement('div');
+    buttons.className = 'win-buttons';
+    buttons.innerHTML = `<button class="win-min" type="button" tabindex="-1" aria-label="Minimize">${ICONS.min}</button>`
+      + `<button class="win-maximize" type="button" tabindex="-1" aria-label="Maximize">${ICONS.max}</button>`
+      + `<button class="win-close" type="button" tabindex="-1" aria-label="Close">${ICONS.close}</button>`;
+    document.body.append(band, buttons);
+    let last = { at: 0, x: 0, y: 0 };
+    band.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const edge = e.target.closest('.win-edge');
+      if (edge) { request('window.drag', { hit: +edge.dataset.hit }).catch(() => {}); return; }
+      // the second press of a double-click maximizes (the first one's drag swallowed its own mouse-up)
+      const twice = e.timeStamp - last.at < 500 && Math.abs(e.screenX - last.x) < 6 && Math.abs(e.screenY - last.y) < 6;
+      last = twice ? { at: 0, x: 0, y: 0 } : { at: e.timeStamp, x: e.screenX, y: e.screenY };
+      request(twice ? 'window.maximize' : 'window.drag', { hit: 2 }).catch(() => {});
+    });
+    band.addEventListener('contextmenu', e => { e.preventDefault(); request('window.menu').catch(() => {}); });
+    buttons.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      request(b.classList.contains('win-min') ? 'window.minimize' : b.classList.contains('win-close') ? 'window.close' : 'window.maximize').catch(() => {});
+    });
+    buttons.addEventListener('contextmenu', e => e.preventDefault());
+    request('window.state').then(windowState).catch(() => {});
+    const scrolled = () => root.classList.toggle('win-scrolled', scrollY > 0);
+    addEventListener('scroll', scrolled, { passive: true }); scrolled();
+  }
   addEventListener('DOMContentLoaded', () => {
+    buildTitleBar();
     theme(); new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
     // How Memoir works and the privacy policy open in this same window (there are no tabs here):
