@@ -9,7 +9,7 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `3702b7f` (minavian/memoir-browser-screen-time: Link asks to merge or start from today). That commit is the merge base for the next port.
+**Last synced:** 6.0.0, from the extension's commit `981eba1` (minavian/memoir-browser-screen-time: Memoir in browser, a row per browser, the guide). That commit is the merge base for the next port.
 
 **The link** (SYNC-PLAN.md in the extension's repository): `BrowserLink.cs` (the pipe, many held-open two-way connections; the native host relaying both ways), `Registration.cs` (the host's manifest and HKCU keys at every start; trusted IDs in `extension-ids.txt`), `Sync.cs` (the exchange, per-peer pending dates, rules, markers) and `SyncData.cs` (`CleanDay`, `MergeDay`, `AnonymizeDay`: the extension's core.js in C#). `tests/merge-cases/merge.json` is a copy of the extension's: when it changes there, copy it here, and `tests/run.ps1` checks both agree.
 
@@ -57,7 +57,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.
 
 ### `recap.html`
-- "Track screen time" / "Pause any time from Today or the tray" (tracking switch), "Names only" (detail option), Never-track description in terms of apps and websites, empty-state text, the link row's starting texts (`link-title` "Memoir extension", `link-desc` "Link it from Memoir in your browser", `link-btn` `hidden`) and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
+- "Track screen time" / "Pause any time from Today or the tray" (tracking switch), "Names only" (detail option), Never-track description in terms of apps and websites, empty-state text, the link row's starting texts (`link-row` `data-key=""`, `link-title` "Memoir in browser", `link-desc` "Not linked yet", the button's label "Guide") and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
 
 ### `welcome.js`
 - Tagline "Screen Time"; "This app tracks your screen time and summarizes it."; "Everything stays on this computer."

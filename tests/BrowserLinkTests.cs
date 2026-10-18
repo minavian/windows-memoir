@@ -55,9 +55,10 @@ namespace Memoir {
                 var toHost = host.StandardInput.BaseStream; var fromHost = host.StandardOutput.BaseStream;
                 Check(Json.Text(Next(fromHost)["app"]) == "online", "The host says the app is open");
                 BrowserLink.WriteFrame(toHost, Json.Object("type", "tab", "tab", Json.Object("focused", true, "url", "https://relay.example")), BrowserLink.PipeLimit);
-                bool relayed = done.WaitOne(3000); var now = link.Current("chrome.exe");
+                bool relayed = done.WaitOne(3000); string starter = Path.GetFileNameWithoutExtension(exe).ToLowerInvariant() + ".exe"; var now = link.Current(starter);
                 if (now == null || Json.Text(now["url"]) != "https://relay.example") Console.WriteLine("relay: changed=" + relayed + " current=" + (now == null ? "null" : Json.Encode(now)) + " hostExited=" + host.HasExited + " stderr=" + (host.HasExited ? host.StandardError.ReadToEnd() : ""));
                 Check(now != null && Json.Text(now["url"]) == "https://relay.example", "The host relays the browser's messages to the app");
+                Check(link.Knows(starter) && link.Current("chrome.exe") == null, "Any browser that starts the host counts as one, under its own name (not Chrome's)");
                 BrowserLink.WriteFrame(toHost, Json.Object("type", "hello", "device", "relay-device"), BrowserLink.PipeLimit);
                 Check(heard.WaitOne(3000) && messaged.Send(Json.Object("type", "hello", "kind", "windows")) && Json.Text(Next(fromHost)["kind"]) == "windows", "The host relays the app's answers to the browser");
                 link.Dispose();

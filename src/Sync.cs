@@ -119,7 +119,7 @@ namespace Memoir {
             string type = Json.Text(Json.Get(message, "type"));
             if (type == "hello") { Hello(peer, message); return; }
             string device; if (!deviceOf.TryGetValue(peer.Id, out device)) return;
-            if (type == "rules") ApplyRules(message);
+            if (type == "rules") ApplyRules(message, device);
             else if (type == "days") ApplyDays(peer, device, message);
             else if (type == "ack") Acked(device, (long)Json.Number(Json.Get(message, "seq")));
             else if (type == "unlink") { Drop(device); peer.Send(Json.Object("type", "unlinked")); }
@@ -277,7 +277,8 @@ namespace Memoir {
             day["s"] = s; day["h"] = h;
         }
 
-        private void ApplyRules(Dictionary<string, object> remote) {
+        private void ApplyRules(Dictionary<string, object> remote, string sender) {
+            string before = SyncData.Canonical(Rules());
             var record = Record(); var meta = Meta(record); var patch = new Dictionary<string, object>();
             var settings = Json.Clone(engine.Settings); bool settingsChanged = false, privacy = false;
             // settings: each field from whichever side changed it last
@@ -347,6 +348,8 @@ namespace Memoir {
             } finally { applying = was; }
             if (settingsChanged) settingsApplied();
             store.Save();
+            // one browser's change reaches the other browsers linked here too, while they're open
+            if (SyncData.Canonical(Rules()) != before) { foreach (string device in live.Keys) if (device != sender) rulesDue.Add(device); soon.Stop(); soon.Start(); }
         }
         // Clear all on the other side: everything up to its hour goes here too
         private void Wipe(long at) {

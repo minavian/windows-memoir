@@ -31,12 +31,12 @@ namespace Memoir {
         public Tracker(Control owner, Store store, Engine engine, string dataDirectory) {
             this.owner = owner; this.store = store; this.engine = engine; iconDirectory = Path.Combine(dataDirectory, "icons"); Directory.CreateDirectory(iconDirectory);
             link = new BrowserLink(dataDirectory);
-            link.Changed += delegate { try { owner.BeginInvoke(new Action(delegate { if (!disposed && app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4))) PollBrowser(true); })); } catch { } };
+            link.Changed += delegate { try { owner.BeginInvoke(new Action(delegate { if (!disposed && app != null && IsBrowser(app.Domain.Substring(4))) PollBrowser(true); })); } catch { } };
             BrowserStatus = "Website detection is ready";
             callback = delegate(IntPtr hook, uint eventId, IntPtr hwnd, int objectId, int childId, uint threadId, uint time) {
                 if (disposed || hwnd == IntPtr.Zero) return;
                 if (eventId == 3 || (eventId == 0x800C && objectId == 0 && hwnd == Native.GetForegroundWindow())) {
-                    try { owner.BeginInvoke(new Action(delegate { if (!disposed) { RefreshForeground(); if (app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4))) PollBrowser(true); else if (target != null && app != null && Json.Bool(Json.Get(engine.Settings, "titles"))) { target.Title = Native.Title(foreground); engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); } } })); } catch { }
+                    try { owner.BeginInvoke(new Action(delegate { if (!disposed) { RefreshForeground(); if (app != null && IsBrowser(app.Domain.Substring(4))) PollBrowser(true); else if (target != null && app != null && Json.Bool(Json.Get(engine.Settings, "titles"))) { target.Title = Native.Title(foreground); engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); } } })); } catch { }
                 }
             };
             foregroundHook = Native.SetWinEventHook(3, 3, IntPtr.Zero, callback, 0, 0, 2);
@@ -47,7 +47,7 @@ namespace Memoir {
                 try {
                     RefreshForeground();
                     long idle = Native.IdleMilliseconds(), now = Engine.Now;
-                    if (app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4)) && !locked && !engine.Paused) PollBrowser(false);
+                    if (app != null && IsBrowser(app.Domain.Substring(4)) && !locked && !engine.Paused) PollBrowser(false);
                     var exact = app == null ? null : link.Current(app.Domain.Substring(4));
                     if (!locked && !engine.Paused && target != null && app != null && exact == null && idle >= Engine.IdleLimit - 2000 && now - lastAudioPoll >= 2000) {
                         lastAudioPoll = now;
@@ -85,9 +85,11 @@ namespace Memoir {
             target = app.Copy(); target.Title = Json.Bool(Json.Get(engine.Settings, "titles")) ? Native.Title(next) : null;
             Remember(app);
             engine.Observe(target, Engine.Now, Native.IdleMilliseconds());
-            if (BrowserProbe.IsBrowser(app.Domain.Substring(4)) && !engine.Paused) PollBrowser(true);
+            if (IsBrowser(app.Domain.Substring(4)) && !engine.Paused) PollBrowser(true);
         }
         public void SettingsChanged() { engine.SettingsChanged(Engine.Now); RefreshForeground(true); }
+        // a browser Memoir knows, or any other a linked Memoir extension runs in (its tabs say which website)
+        private bool IsBrowser(string executable) { return BrowserProbe.IsBrowser(executable) || link.Knows(executable); }
         public void IgnoreProcess(int pid, bool ignore) { if (ignore) ignoredProcesses.Add(pid); else ignoredProcesses.Remove(pid); RefreshForeground(true); }
         private void PollBrowser(bool force) {
             var exact = app == null ? null : link.Current(app.Domain.Substring(4));
@@ -103,7 +105,7 @@ namespace Memoir {
             });
         }
         private void ApplyBrowser(IntPtr hwnd, string url, Dictionary<string, object> exact = null) {
-            if (disposed || locked || foreground != hwnd || Native.GetForegroundWindow() != hwnd || app == null || !BrowserProbe.IsBrowser(app.Domain.Substring(4))) return;
+            if (disposed || locked || foreground != hwnd || Native.GetForegroundWindow() != hwnd || app == null || !IsBrowser(app.Domain.Substring(4))) return;
             if (exact == null) { exact = link.Current(app.Domain.Substring(4)); if (exact != null) url = Json.Text(Json.Get(exact, "url")); }
             string domain = BrowserProbe.Domain(url);
             target = app.Copy();

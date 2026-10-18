@@ -34,6 +34,7 @@ namespace Memoir {
         private string view = "recap.html";
         private readonly Timer diagnosticsTimer;
         private readonly Timer releaseTimer;
+        private System.Threading.Timer registration; // browsers installed later get Memoir's host too
         private readonly int restoreMessage;
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
@@ -55,6 +56,7 @@ namespace Memoir {
             tracker = new Tracker(this, store, engine, dataDirectory);
             // the Memoir extension can reach this app (native messaging), and syncs once linked from its Settings
             Registration.Register(directory, dataDirectory);
+            registration = new System.Threading.Timer(delegate { Registration.Register(directory, dataDirectory); }, null, 600000, 600000);
             var version = typeof(MainForm).Assembly.GetName().Version;
             sync = new Sync(this, store, engine, tracker.Link, version.Major + "." + version.Minor + "." + version.Build, delegate { tracker.SettingsChanged(); });
             store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
@@ -65,7 +67,7 @@ namespace Memoir {
             FormClosing += delegate(object sender, FormClosingEventArgs args) {
                 if (args.CloseReason == CloseReason.WindowsShutDown || args.CloseReason == CloseReason.TaskManagerClosing) exiting = true;
                 if (!exiting) { args.Cancel = true; MinimizeToTray(); return; }
-                ++generation; CloseTrayMenu(); ReleaseWeb(); tracker.Dispose(); diagnosticsTimer.Dispose(); releaseTimer.Dispose(); closeTrayMenu.Dispose(); tray.Visible = false; tray.Dispose(); SystemEvents.PowerModeChanged -= OnPower; Native.WTSUnRegisterSessionNotification(Handle);
+                ++generation; CloseTrayMenu(); ReleaseWeb(); tracker.Dispose(); diagnosticsTimer.Dispose(); releaseTimer.Dispose(); registration.Dispose(); closeTrayMenu.Dispose(); tray.Visible = false; tray.Dispose(); SystemEvents.PowerModeChanged -= OnPower; Native.WTSUnRegisterSessionNotification(Handle);
             };
             diagnosticsTimer = new Timer { Interval = 5000 };
             diagnosticsTimer.Tick += delegate { WriteDiagnostics(); };

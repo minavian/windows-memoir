@@ -83,6 +83,7 @@ const pages = {
 };
 const importPop = new MorphPopover($('import-pop'), { radius: 16 });
 const linkPop = new MorphPopover($('link-pop'), { radius: 16 });
+const guidePop = new MorphPopover($('guide-pop'), { radius: 16 });
 // the author's name in Settings: where bug reports go (shared/mail-pop.js)
 const author = mailPop($('author'), $('author-pop'), {
   address: 'iamminavian@gmail.com',
@@ -3134,6 +3135,7 @@ function closeSettings(focusTrigger = false) {
   dustNap = setTimeout(() => dust.pause(true), 900);
   answerImport(null, true);
   closeLink(true);
+  closeGuide(true);
   closeAuthor(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
   $('settings-btn').setAttribute('aria-label', 'Settings');
@@ -3675,21 +3677,40 @@ const LINK_TEXT = {
   denied: ['Link', 'Needs your permission first'],
   update: ['Linked', 'Update the app to sync again'],
 };
-const linkUi = { linked: false, live: null, peer: null, armed: false, timer: 0, tick: 0 };
+const linkUi = { linked: false, live: null, peers: [], armed: '', timer: 0, tick: 0 };
 function syncedText(at) {
   if (!at) return 'Syncing…';
   if (Date.now() - at < 60_000) return 'Synced just now';
   const d = new Date(at);
   return d.toDateString() === new Date().toDateString() ? `Synced at ${timeOnly.format(d)}` : `Synced ${monthDay.format(d)}, ${timeOnly.format(d)}`;
 }
+// Memoir for Windows: a "Memoir in browser" row for every browser linked with it, any that runs Chrome extensions,
+// one per browser profile, in the order they were linked. The description names the browser: what its extension
+// said, or the program that started its host when it couldn't tell (Arc, Comet, Vivaldi… only say Chromium);
+// a second profile of the same browser gets a number.
+const BROWSER_NAMES = { 'chrome.exe': 'Chrome', 'msedge.exe': 'Edge', 'brave.exe': 'Brave', 'vivaldi.exe': 'Vivaldi', 'opera.exe': 'Opera', 'arc.exe': 'Arc', 'comet.exe': 'Comet', 'thorium.exe': 'Thorium', 'chromium.exe': 'Chromium' };
+const andList = new Intl.ListFormat(undefined, { type: 'conjunction' });
+function namePeers(peers) {
+  const count = {};
+  for (const p of peers) {
+    const exe = BROWSER_NAMES[String(p.browser || '').toLowerCase()];
+    const said = p.name && p.name !== 'Memoir extension' ? p.name : '';
+    const program = String(p.browser || '').toLowerCase().replace(/\.exe$/, '');
+    const fromProgram = exe || (program && program !== 'browser' ? program[0].toUpperCase() + program.slice(1) : '');
+    p.browserName = (!said || said === 'Chrome') && fromProgram ? fromProgram : said || 'your browser';
+    count[p.browserName] = (count[p.browserName] || 0) + 1;
+    p.label = `${p.browserName[0].toUpperCase()}${p.browserName.slice(1)}${count[p.browserName] > 1 ? ` (${count[p.browserName]})` : ''}`;
+  }
+  return peers;
+}
 async function loadLink() {
   if (window.memoir?.windows) {
-    // Windows: the linked browser in sync most recently
     const { sync } = await chrome.storage.local.get('sync');
     const peers = Object.entries((sync && sync.peers) || {}).map(([device, p]) => ({ device, ...p }));
-    peers.sort((a, b) => (b.connected - a.connected) || ((b.lastSync || 0) - (a.lastSync || 0)));
-    linkUi.peer = peers[0] || null;
-    linkUi.linked = !!linkUi.peer;
+    peers.sort((a, b) => ((a.linkedAt || 0) - (b.linkedAt || 0)) || a.device.localeCompare(b.device));
+    linkUi.peers = namePeers(peers);
+    linkUi.linked = peers.length > 0;
+    if (linkUi.armed && !peers.some(p => p.device === linkUi.armed)) linkUi.armed = '';
   } else {
     const [{ link }, session] = await Promise.all([chrome.storage.local.get('link'), chrome.storage.session.get('linkLive').catch(() => ({}))]);
     linkUi.linked = !!(link && link.linked);
@@ -3698,31 +3719,56 @@ async function loadLink() {
   renderLink();
 }
 function renderLink() {
-  const btn = $('link-btn');
-  let state, label, desc;
+  let rows;
   if (window.memoir?.windows) {
-    const p = linkUi.peer;
-    const browser = (p && p.name) || 'your browser';
-    $('link-title').textContent = p ? `Memoir in ${browser}` : 'Memoir extension';
-    state = !p ? 'none' : p.connected ? 'insync' : 'offline';
-    label = state === 'insync' ? 'In sync' : 'Linked';
-    desc = !p ? 'Link it from Memoir in your browser' : p.connected ? syncedText(p.lastSync) : `Syncs when ${browser} is open`;
-    btn.hidden = !p;
+    const peers = linkUi.peers;
+    rows = peers.length
+      ? peers.map(p => ({ key: p.device, name: p.label, title: 'Memoir in browser', state: p.connected ? 'insync' : 'offline', label: p.connected ? 'In sync' : 'Linked', desc: `${p.label} · ${p.connected ? syncedText(p.lastSync) : 'syncs when it’s open'}` }))
+      : [{ key: '', title: 'Memoir in browser', state: 'guide', label: 'Guide', desc: 'Not linked yet' }];
+    // a browser linked or unlinked: its row comes or goes, and the block makes room
+    const box = $('link-rows');
+    const fit = () => {
+      while (box.children.length < rows.length) box.append(copyLinkRow());
+      while (box.children.length > rows.length) box.lastElementChild.remove();
+    };
+    if (box.children.length !== rows.length) animateHeight(box, fit);
+    else fit();
+    if (peers.length) $('nuke-also').textContent = `Memoir in ${andList.format([...new Set(peers.map(p => p.browserName))])} is cleared too.`;
+    $('link-more').hidden = !peers.length;
   } else {
     const live = linkUi.live && linkUi.live.state;
-    state = !linkUi.linked ? (live === 'denied' ? 'denied' : 'off') : live && live !== 'off' ? live : 'connecting';
-    [label, desc] = LINK_TEXT[state] || LINK_TEXT.connecting;
-    if (state === 'insync') desc = syncedText(linkUi.live.lastSync);
+    const state = !linkUi.linked ? (live === 'denied' ? 'denied' : 'off') : live && live !== 'off' ? live : 'connecting';
+    const [label, text] = LINK_TEXT[state] || LINK_TEXT.connecting;
+    rows = [{ key: 'app', title: 'Memoir for Windows', state, label, desc: state === 'insync' ? syncedText(linkUi.live.lastSync) : text }];
   }
-  if (linkUi.armed) { label = 'Unlink?'; desc = 'Both keep what they have so far'; }
-  btn.dataset.state = state;
-  btn.dataset.arm = linkUi.armed ? '1' : '';
-  btn.setAttribute('aria-label', linkUi.armed ? 'Press again to unlink' : label);
-  relabel(btn, label);
-  swapText($('link-desc'), desc);
+  rows.forEach((row, i) => paintLinkRow($('link-rows').children[i], row));
   // "Synced just now" turns into "Synced at 12:04" in a minute, while Settings are open
   clearTimeout(linkUi.tick);
-  if (state === 'insync' && $('settings').classList.contains('open')) linkUi.tick = setTimeout(renderLink, 30_000);
+  if (rows.some(r => r.state === 'insync') && $('settings').classList.contains('open')) linkUi.tick = setTimeout(renderLink, 30_000);
+}
+function paintLinkRow(el, { key, name, title, state, label, desc }) {
+  const btn = el.querySelector('.link-btn');
+  const armed = !!key && linkUi.armed === key;
+  // (which browser it is stays in sight while it asks)
+  if (armed) { label = 'Unlink?'; desc = name ? `${name} · both keep what they have` : 'Both keep what they have so far'; }
+  el.dataset.key = key;
+  swapText(el.querySelector('.link-title'), title);
+  btn.hidden = state === 'none';
+  btn.dataset.state = state;
+  btn.dataset.arm = armed ? '1' : '';
+  btn.setAttribute('aria-label', state === 'guide' ? 'How to connect a browser' : armed ? `Press again to unlink ${name || title}` : `${label}: ${name ? `${title}, ${name}` : title}`);
+  if (label) relabel(btn, label);
+  swapText(el.querySelector('.link-desc'), desc);
+}
+// another row like the first, for one more linked browser
+let linkRowSeq = 0;
+function copyLinkRow() {
+  const el = $('link-row').cloneNode(true);
+  for (const node of [el, ...el.querySelectorAll('[id]')]) node.removeAttribute('id');
+  const desc = el.querySelector('.link-desc');
+  desc.id = `link-desc-${++linkRowSeq}`;
+  el.querySelector('.link-btn').setAttribute('aria-describedby', desc.id);
+  return el;
 }
 // a button's label swaps, and its width follows
 function relabel(btn, text) {
@@ -3734,18 +3780,20 @@ function relabel(btn, text) {
   const to = btn.getBoundingClientRect().width;
   if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
 }
-async function pressLink() {
+// key: 'app' in the extension; in Memoir for Windows, the device of the browser whose row it is (none: the guide)
+async function pressLink(key, btn) {
+  if (!key) { if (window.memoir?.windows) openGuide(btn); return; }
   if (!linkUi.linked && !window.memoir?.windows) { askLink(); return; }
-  if (!linkUi.armed) {
-    linkUi.armed = true;
+  if (linkUi.armed !== key) {
+    linkUi.armed = key;
     renderLink();
     clearTimeout(linkUi.timer);
-    linkUi.timer = setTimeout(() => { linkUi.armed = false; renderLink(); }, 5000);
+    linkUi.timer = setTimeout(() => { linkUi.armed = ''; renderLink(); }, 5000);
     return;
   }
-  linkUi.armed = false;
+  linkUi.armed = '';
   clearTimeout(linkUi.timer);
-  if (window.memoir?.windows) await window.memoir.request('link.unlink', { device: linkUi.peer.device }).catch(() => {});
+  if (window.memoir?.windows) await window.memoir.request('link.unlink', { device: key }).catch(() => {});
   else await chrome.runtime.sendMessage({ type: 'unlink' }).catch(() => {});
   toast('Unlinked. Both keep what they have');
   loadLink();
@@ -3758,6 +3806,15 @@ function askLink() {
   $('link-pop').querySelector('[data-mode="merge"]').focus({ preventScroll: true });
 }
 function closeLink(instant = false) { if (!$('link-pop').hidden) linkPop.close({ instant }); }
+
+// Memoir for Windows: how to connect a browser, from the row's Guide (nothing linked) or Connect another browser
+let guideFrom = null;
+function openGuide(from) {
+  guideFrom = from;
+  guidePop.open(from);
+  $('guide-pop').querySelector('[data-close]').focus({ preventScroll: true });
+}
+function closeGuide(instant = false) { if (!$('guide-pop').hidden) guidePop.close({ instant }); }
 async function linkWith(mode) {
   closeLink();
   // the permission has to be asked for in this very click (the answer's)
@@ -3877,6 +3934,7 @@ function wire() {
       else if (pages.isOpen) { const back = popAnchor; closePagePop(); back?.querySelector('[role="button"]')?.focus({ preventScroll: true }); }
       else if (importAnswer) { answerImport(null); $('import').focus({ preventScroll: true }); }
       else if (linkPop.isOpen) { closeLink(); $('link-btn').focus({ preventScroll: true }); }
+      else if (guidePop.isOpen) { closeGuide(); guideFrom?.focus({ preventScroll: true }); }
       else if (authorPop.isOpen) { closeAuthor(); focusAuthor(); }
       else if ($('settings').classList.contains('open')) {
         if ($('data-row').dataset.step !== '0') setNukeStep(0);
@@ -4016,9 +4074,10 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #author-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
+    if (guidePop.isOpen && !e.target.closest('#guide-pop, .link-btn, #link-more')) closeGuide();
     if (authorPop.isOpen && !e.target.closest('#author-pop, #author')) closeAuthor();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
     if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
@@ -4330,6 +4389,7 @@ function wire() {
   $('settings-panel').addEventListener('scroll', () => {
     if (!$('import-pop').hidden) importPop.place($('import').getBoundingClientRect());
     if (!$('link-pop').hidden) linkPop.place($('link-btn').getBoundingClientRect());
+    if (!$('guide-pop').hidden && guideFrom) guidePop.place(guideFrom.getBoundingClientRect());
     if (!$('author-pop').hidden) authorPop.place($('author').getBoundingClientRect());
   }, { passive: true });
   $('nuke').addEventListener('click', async () => {
@@ -4344,7 +4404,14 @@ function wire() {
     }
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
-  $('link-btn').addEventListener('click', () => (linkPop.isOpen ? closeLink() : pressLink()));
+  $('link-rows').addEventListener('click', e => {
+    const btn = e.target.closest('.link-btn');
+    if (!btn) return;
+    if (linkPop.isOpen) closeLink();
+    else pressLink(btn.closest('.link-row').dataset.key, btn);
+  });
+  $('link-more').addEventListener('click', e => (guidePop.isOpen ? closeGuide() : openGuide(e.currentTarget)));
+  $('guide-pop').addEventListener('click', e => { if (e.target.closest('[data-close]')) { closeGuide(); guideFrom?.focus({ preventScroll: true }); } });
   $('link-pop').addEventListener('click', e => {
     const b = e.target.closest('[data-mode]');
     if (!b) return;

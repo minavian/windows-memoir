@@ -31,6 +31,10 @@ namespace Memoir {
         private readonly string pipeName;
         private readonly Dictionary<string, Dictionary<string, object>> states = new Dictionary<string, Dictionary<string, object>>();
         private readonly List<Stream> open = new List<Stream>();
+        // every browser a linked extension runs in (from its host), known or not: its tabs count as websites
+        private readonly HashSet<string> browsers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly System.Text.RegularExpressions.Regex Program = new System.Text.RegularExpressions.Regex(@"^[a-z0-9 ._-]{1,64}\.exe$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        public bool Knows(string executable) { lock (browsers) return browsers.Contains(executable); }
         private bool disposed;
         private long sequence;
         public event Action Changed;                                        // the tab in front changed
@@ -57,7 +61,10 @@ namespace Memoir {
                 while (!disposed) {
                     var message = Json.Map(Json.Decode(Encoding.UTF8.GetString(ReadFrame(pipe, PipeLimit))));
                     string type = Json.Text(Json.Get(message, "type"));
-                    if (type == "host") { string browser = Json.Text(Json.Get(message, "browser")); if (BrowserProbe.IsBrowser(browser)) peer.Browser = browser; }
+                    if (type == "host") {
+                        string browser = Json.Text(Json.Get(message, "browser"));
+                        if (BrowserProbe.IsBrowser(browser) || (Program.IsMatch(browser) && !browser.Equals("memoir.exe", StringComparison.OrdinalIgnoreCase))) { peer.Browser = browser; lock (browsers) browsers.Add(browser); }
+                    }
                     else if (type == "tab" || type.Length == 0) Tab(peer, type == "tab" ? Json.Map(Json.Get(message, "tab")) : message);
                     else { var handler = Message; if (handler != null) handler(peer, message); }
                 }

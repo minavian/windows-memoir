@@ -187,11 +187,15 @@
 
                   <div class="p-block">
                     <span class="p-label">Your data</span>
-                    <!-- the Memoir extension linked with this app: In sync (or Linked while the browser is closed); pressed again, Unlink? (recap.js renderLink) -->
-                    <div class="p-row link-row" id="link-row">
-                      <span><b id="link-title">Memoir extension</b><small id="link-desc">Link it from Memoir in your browser</small></span>
-                      <button class="btn btn-secondary btn-xs link-btn" id="link-btn" type="button" aria-describedby="link-desc" hidden><svg class="link-ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4 4.9 8.8 9.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="link-label">Link</span></button>
+                    <!-- Memoir in browser: a row for each browser linked with this app (copies of this one), In sync or Linked; pressed
+                         again, Unlink? Nothing linked, its Guide shows how to connect one (recap.js renderLink, openGuide) -->
+                    <div class="link-rows" id="link-rows">
+                      <div class="p-row link-row" id="link-row" data-key="">
+                        <span><b class="link-title" id="link-title">Memoir in browser</b><small class="link-desc" id="link-desc">Not linked yet</small></span>
+                        <button class="btn btn-secondary btn-xs link-btn" id="link-btn" type="button" aria-describedby="link-desc"><svg class="link-ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4 4.9 8.8 9.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="link-label">Guide</span></button>
+                      </div>
                     </div>
+                    <button class="link-more" id="link-more" type="button" aria-haspopup="dialog" hidden>Connect another browser</button>
                     <div class="data-row" id="data-row" data-step="0">
                       <button class="btn btn-secondary btn-sm keep-btn" id="export" type="button">Export</button>
                       <button class="btn btn-secondary btn-sm keep-btn" id="import" type="button">Import</button>
@@ -343,6 +347,19 @@
       <button class="ip-choice" type="button" data-mode="fresh" style="--d:110ms"><b>Start from today</b><small>Days from before stay where they are</small></button>
     </div>
     <button class="ip-cancel" type="button" data-mode="" style="--d:150ms">Cancel</button>
+  </div>
+  <!-- Memoir for Windows: connecting a browser (recap.js openGuide) -->
+  <div class="pop import-pop guide-pop" id="guide-pop" role="dialog" aria-labelledby="gp-title" aria-describedby="gp-text" hidden>
+    <p class="ip-title" id="gp-title">Connect a browser</p>
+    <p class="ip-text" id="gp-text">This app syncs with <span class="wordmark-plain">Memoir</span> in any browser that runs Chrome extensions: Chrome, Edge, Brave, Opera, Vivaldi, Arc and more.</p>
+    <ol class="gp-steps">
+      <li>Add <span class="wordmark-plain">Memoir</span> to that browser from the Chrome Web Store.</li>
+      <li>Open it there, then <b>Settings</b> and <b>Your data</b>.</li>
+      <li>Press <b>Link</b> next to Memoir for Windows and choose how to start.</li>
+      <li>Allow it when the browser asks. Both say <b>In&nbsp;sync</b>.</li>
+    </ol>
+    <p class="ip-text gp-note">Do the same in every browser you use. Everything stays on this computer.</p>
+    <button class="ip-cancel" type="button" data-close style="--d:150ms">Got it</button>
   </div>
   <div class="pop author-pop" id="author-pop" role="dialog" aria-labelledby="ap-title" hidden>
     <p class="ap-title" id="ap-title">Looking to report bugs?</p>
