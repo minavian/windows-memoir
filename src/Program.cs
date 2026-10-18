@@ -17,7 +17,7 @@ namespace Memoir {
             using (var mutex = new Mutex(true, mutexName, out first)) {
                 if (!first) { int value = command == "quit" ? 2 : command == "minimize" ? 1 : command == "tray-menu" ? 3 : command == "dismiss-menu" ? 7 : 0; Native.PostMessage(new IntPtr(0xffff), Native.RegisterWindowMessage(mutexName), new IntPtr(value), IntPtr.Zero); return; }
                 if (command.Length > 0) return;
-                try { Native.SetProcessDPIAware(); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); Application.Run(new MainForm(directory, data, minimized, diagnostics)); }
+                try { Native.SetProcessDPIAware(); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); Application.Run(new MainForm(directory, data, fixedData, minimized, diagnostics)); }
                 catch (Exception error) { MessageBox.Show(error.Message, "Memoir could not start", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             }
         }

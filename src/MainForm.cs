@@ -38,13 +38,15 @@ namespace Memoir {
         private readonly int restoreMessage;
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
-        public MainForm(string directory, string dataDirectory, bool minimized, string diagnostics) {
-            this.directory = directory; this.dataDirectory = dataDirectory; this.diagnostics = diagnostics; hiddenStart = minimized;
+        private readonly bool fixedData;   // started with --data-dir (a test copy): it leaves Windows' startup list alone
+        public MainForm(string directory, string dataDirectory, bool fixedData, bool minimized, string diagnostics) {
+            this.directory = directory; this.dataDirectory = dataDirectory; this.fixedData = fixedData; this.diagnostics = diagnostics; hiddenStart = minimized;
             restoreMessage = Native.RegisterWindowMessage("Local\\Memoir-" + Tracker.IconName(dataDirectory.ToLowerInvariant()).Replace(".png", ""));
             Text = "Memoir"; BackColor = Color.FromArgb(245, 245, 247); ClientSize = Scaled(1360, 850, true); MinimumSize = Scaled(680, 520); StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             if (File.Exists(Path.Combine(directory, "Memoir.ico"))) Icon = plainIcon = new Icon(Path.Combine(directory, "Memoir.ico"));
             if (File.Exists(Path.Combine(directory, "Memoir-rainbow.ico"))) rainbowIcon = new Icon(Path.Combine(directory, "Memoir-rainbow.ico"));
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
+            if (Startup.Available(fixedData)) Startup.Start(store, StartupCommand());
             ApplySavedTheme();
             tray = new NotifyIcon { Icon = Icon, Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time", Visible = true };
             ApplyIcon();
@@ -255,6 +257,9 @@ namespace Memoir {
                     case "link.open": OpenLink(Json.Text(Json.Get(data, "url"))); break;
                     case "clipboard.read": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;
                     case "clipboard.write": string text = Json.Text(Json.Get(data, "text")); if (text.Length == 0) Clipboard.Clear(); else Clipboard.SetText(text); break;
+                    // Start with Windows (Startup.cs)
+                    case "startup.get": result = Json.Object("available", Startup.Available(fixedData), "on", Startup.Available(fixedData) && Startup.IsOn()); break;
+                    case "startup.set": if (!Startup.Available(fixedData)) throw new InvalidOperationException("Not for this copy."); result = Json.Object("available", true, "on", Startup.Set(Json.Bool(Json.Get(data, "on")), StartupCommand())); break;
                     case "theme":
                         store.Set(Json.Object("windowsAppearance", data)); store.Save(); ApplySavedTheme(); break;
                     case "status": result = Json.Object("browser", tracker.BrowserStatus, "paused", engine.Paused, "uiLoaded", web != null, "dataDirectory", dataDirectory); break;
@@ -279,6 +284,7 @@ namespace Memoir {
             if (IsDisposed) return;
             try { Invoke(new Action(delegate { if (args.Mode == PowerModes.Suspend) { engine.Suspend(Engine.Now); store.Save(); } else if (args.Mode == PowerModes.Resume) tracker.Resume(); })); } catch { }
         }
+        private string StartupCommand() { return Startup.Command(directory, dataDirectory, fixedData); }
         private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "active", ActiveForm == this); }
         private void PostWindowState() { if (IsHandleCreated) Post(Json.Object("event", "window", "state", WindowFacts())); }
         protected override void OnHandleCreated(EventArgs args) { base.OnHandleCreated(args); TitleBar.Refresh(Handle); }

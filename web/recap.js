@@ -3231,6 +3231,7 @@ function renderSettings() {
   renderExcluded();
   renderReminder();
   loadLink();
+  loadStartup();
 }
 
 let exPrimed = false;   // the first fill of the list (when Settings opens) doesn't animate
@@ -3662,6 +3663,19 @@ function measureSure() {
   box.style.setProperty('--w-lo', `${(lo.getBoundingClientRect().width / 100).toFixed(3)}em`);
   box.style.setProperty('--w-up', `${(up.getBoundingClientRect().width / 100 + 0.02).toFixed(3)}em`);
   probe.remove();
+}
+
+// ----- Start with Windows (Memoir for Windows only: src/Startup.cs keeps it in Windows' startup list) -----
+const STARTUP_TEXT = { on: 'Opens in the notification area when you sign in', off: 'Starts only when you open it' };
+async function loadStartup() {
+  if (!window.memoir?.windows) return;
+  const s = await window.memoir.request('startup.get').catch(() => null);
+  $('startup-row').hidden = !(s && s.available);
+  if (s && s.available) showStartup(!!s.on);
+}
+function showStartup(on) {
+  $('set-startup').checked = on;
+  swapText($('startup-desc'), on ? STARTUP_TEXT.on : STARTUP_TEXT.off);
 }
 
 // ----- Memoir for Windows (Settings > Your data): link, see it's in sync, unlink -----
@@ -4404,6 +4418,12 @@ function wire() {
     }
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
+  $('set-startup').addEventListener('change', async e => {
+    const want = e.target.checked;
+    const s = await window.memoir?.request('startup.set', { on: want }).catch(() => null);
+    showStartup(s ? !!s.on : !want);
+    if (s) toast(s.on ? 'Memoir starts with Windows' : 'Memoir won’t start with Windows');
+  });
   $('link-rows').addEventListener('click', e => {
     const btn = e.target.closest('.link-btn');
     if (!btn) return;

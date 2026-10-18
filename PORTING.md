@@ -9,7 +9,7 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `981eba1` (minavian/memoir-browser-screen-time: Memoir in browser, a row per browser, the guide). That commit is the merge base for the next port.
+**Last synced:** 6.0.0, from the extension's commit `213b6bf` (minavian/memoir-browser-screen-time: Start with Windows' switch). That commit is the merge base for the next port.
 
 **The link** (SYNC-PLAN.md in the extension's repository): `BrowserLink.cs` (the pipe, many held-open two-way connections; the native host relaying both ways), `Registration.cs` (the host's manifest and HKCU keys at every start; trusted IDs in `extension-ids.txt`), `Sync.cs` (the exchange, per-peer pending dates, rules, markers) and `SyncData.cs` (`CleanDay`, `MergeDay`, `AnonymizeDay`: the extension's core.js in C#). `tests/merge-cases/merge.json` is a copy of the extension's: when it changes there, copy it here, and `tests/run.ps1` checks both agree.
 
@@ -52,6 +52,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - Tracking detail's text: titles on, "Saves page and window titles, like a video you watched on YouTube or a document you had open. They’re kept as long as your history."; off, "Only app and website names are saved, not titles, like Word or youtube.com."
 - `eraseTitles()`: also call `await window.memoir.request('privacy.titles');`. The native side erases titles from the backup too.
 - The tour's "Sample week, tour and data" step: "sync with the <b>Memoir extension</b>" (not "Memoir for Windows").
+- (Shared, no edit: Start with Windows, `#startup-row` under Track screen time, hidden in the extension; `loadStartup` and its switch ask `startup.get` / `startup.set` only here.)
 - (Shared since `3ff332f`, no edit: the link row's Windows side in `renderLink`/`pressLink`, from the `sync` record's peers and `link.unlink`.)
 - (Shared since `d2bb440`, no edit: `apps` in `anonymizeSites`, `clearAllData` and Import.)
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.

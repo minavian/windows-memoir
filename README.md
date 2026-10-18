@@ -16,7 +16,11 @@ Minimizing or closing the window keeps tracking in the Windows notification area
 
 The menu offers Open Memoir, Today, Pause / Resume tracking, and Quit Memoir. Arrow keys navigate, Enter selects, and Escape or clicking elsewhere closes it. Windows' reduced-animation setting is respected. System appearance follows Windows.
 
-Quit Memoir ends tracking and saves the current session. Memoir also saves on Windows shutdown, locking, sleep, and regular intervals. Opening it again starts tracking; it does not add itself to Windows startup.
+Quit Memoir ends tracking and saves the current session. Memoir also saves on Windows shutdown, locking, sleep, and regular intervals. Opening it again starts tracking.
+
+## Start with Windows
+
+Memoir starts when you sign in, in the notification area without its window (`--tray`), from one value in your account's startup list (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). It's turned on at Memoir's first start; Settings → Start with Windows turns it off and on, and Windows' Startup apps can turn it off too (Settings shows that). A moved folder takes the entry with it at the next start. Paused tracking stays paused after a restart: Memoir starts, counts nothing, and its tray icon shows it's paused. Copies started with `--data-dir` (tests) never touch the startup list; `MEMOIR_TEST_STARTUP_KEY` points them at a test key instead.
 
 ## Tracking and data
 

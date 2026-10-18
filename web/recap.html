@@ -114,6 +114,11 @@
                       <span><b>Track screen time</b><small>Pause any time from Today or the tray</small></span>
                       <label class="switch pause-switch"><input type="checkbox" id="set-tracking" aria-label="Track screen time"><span class="track"></span><span class="knob"></span><span class="sure-word" aria-hidden="true">Sure?</span></label>
                     </div>
+                    <!-- Memoir for Windows only: Start with Windows (recap.js loadStartup; its src/Startup.cs) -->
+                    <div class="p-row" id="startup-row" hidden>
+                      <span><b>Start with Windows</b><small id="startup-desc">Opens in the notification area when you sign in</small></span>
+                      <label class="switch"><input type="checkbox" id="set-startup" aria-label="Start with Windows" aria-describedby="startup-desc"><span class="track"></span><span class="knob"></span></label>
+                    </div>
                   </div>
 
                   <div class="p-block">
