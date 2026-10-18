@@ -1,16 +1,18 @@
 import {
-  CATEGORIES, CATEGORY_BY_ID, isPrivate, categorize, dayKey, addDays, getDays, normalizeDay,
+  CATEGORIES, CATEGORY_BY_ID, isPrivate, siteName, categorize, dayKey, addDays, getDays, normalizeDay,
   getSettings, updateSettings, getCategoryOverrides, getSession, unsavedMs, getOrigins,
-  formatDuration, formatClock, storageKeyForDay, dayTotal,
+  formatDuration, storageKeyForDay, dayTotal,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit,
 } from './shared/core.js';
 import {
-  animateNumber, reveal, faviconTile, tween, slicePath, initPetals, setOrigins, siteLinkHtml, replay, reducedMotion, POP, makeScroller, initSmoothScrolling,
+  animateNumber, reveal, faviconTile, tween, slicePath, setOrigins, siteLinkHtml, replay, reducedMotion, POP, EASE_OUT, makeScroller, initSmoothScrolling, disableTitleTooltips, MorphPopover,
 } from './shared/fx.js';
 import { watchTheme } from './shared/theme.js';
 import { createGoalRing, openPicker } from './shared/goal.js';
 import { initCursor } from './shared/cursor.js';
 import { initContextMenu } from './shared/context-menu.js';
+import { playLogo } from './shared/logo.js';
+import { playOverShow } from './shared/overshow.js';
 
 const $ = id => document.getElementById(id);
 const sumValues = o => Object.values(o).reduce((a, b) => a + b, 0);
@@ -19,8 +21,17 @@ const R_OUT = 56;
 const TAU = Math.PI * 2;
 const GAP = 3 / 50;
 
-const GLYPH_PAUSE = '<svg viewBox="0 0 16 16"><path d="M5.5 3.5v9M10.5 3.5v9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-const GLYPH_IDLE = '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.2l2 1.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+// The first open's soft ring, three times: it starts as the button's own pill (hidden by
+// it: the same colour) and grows 12px past it as it fades, the way a spreading shadow would
+function pulseWeek() {
+  const btn = $('open-week');
+  btn.classList.add('pulse');
+  if (reducedMotion()) return;
+  const w = btn.offsetWidth, h = btn.offsetHeight;
+  btn.animate([{ scale: `${w / (w + 24)} ${h / (h + 24)}`, opacity: 1 }, { scale: '1', opacity: 0 }],
+    { duration: 1600, delay: 900, iterations: 3, easing: EASE_OUT, fill: 'both', pseudoElement: '::after' });
+}
 
 const state = {
   todayKey: dayKey(new Date()),
@@ -30,7 +41,6 @@ const state = {
   paused: false,
   avg: 0,
   liveReady: false,
-  nowMode: '',
   goalHistory: [],
   goalKey: '',
   legendRows: 3,
@@ -43,22 +53,23 @@ main();
 async function main() {
   await window.memoir.ready;
   initSmoothScrolling();
+  disableTitleTooltips();
   initCursor({ edge: true });
   watchTheme();
-  initPetals(6, [8, 13]);
   $('today-label').textContent = `Today, ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
 
   // Nudge the tracker to save; the popup adds unsaved seconds itself, so it never waits.
   chrome.runtime.sendMessage({ type: 'sync' }).catch(() => {});
 
   const pastKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), -(i + 1))));
-  const [days, settings, overrides, session, origins, history] = await Promise.all([
+  const [days, settings, overrides, session, origins, history, { popupIntroduced }] = await Promise.all([
     getDays([state.todayKey, ...pastKeys]),
     getSettings(),
     getCategoryOverrides(),
     getSession(),
     getOrigins(),
     getGoalHistory(),
+    chrome.storage.local.get('popupIntroduced'),
   ]);
   state.today = days[state.todayKey];
   state.overrides = overrides;
@@ -70,9 +81,18 @@ async function main() {
   state.avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : 0;
 
   ring = createGoalRing($('goal-mini'), { variant: 'mini' });
+  // the first time it opens: a line and a soft pulse on the way to the week, once
+  if (!popupIntroduced) {
+    $('week-tip').hidden = false;
+    pulseWeek();
+    chrome.storage.local.set({ popupIntroduced: true }).catch(() => {});
+  }
   render();
+  // over the limit: the flame's moment, set going before anything is drawn
+  overShow();
   wire();
   reveal();
+  playLogo(document.querySelector('.top-mark'), { delay: 160, live: true });
 
   setTimeout(() => { state.liveReady = true; }, 1400);
   setInterval(tick, 1000);
@@ -124,7 +144,6 @@ function render() {
   // the private-sites line takes the third legend row's place
   state.legendRows = priv >= 60_000 ? 2 : 3;
   renderLegend(cats, total, state.legendRows);
-  renderNow(false);
   renderSites(visible);
   updateGoal(all, true);
 }
@@ -140,7 +159,7 @@ function renderCompare(all, priv) {
   } else {
     text = 'Your daily average appears after a few days';
   }
-  const privText = priv >= 60_000 ? `+ ${formatDuration(priv)} on private sites` : '';
+  const privText = priv >= 60_000 ? `+ ${formatDuration(priv)} of private activity` : '';
   if (el.dataset.text === text && el.dataset.priv === privText) return;
   el.dataset.text = text;
   el.dataset.priv = privText;
@@ -188,60 +207,50 @@ function drawRing(cats, total) {
     CATEGORIES.filter(c => cats[c.id]).map(c => `${c.label} ${formatDuration(cats[c.id])}`).join(', ');
 }
 
+// Every category of the day, most first; more than fit scroll. Rebuilt only when which
+// categories there are changes (so a scroll isn't lost); the shares update in place.
 function renderLegend(cats, total, rows = 3) {
   const ul = $('legend');
-  ul.textContent = '';
-  const top = CATEGORIES.filter(c => cats[c.id]).sort((a, b) => cats[b.id] - cats[a.id]).slice(0, rows);
-  if (!top.length) { ul.innerHTML = '<li class="none"><span class="name">No browsing yet today</span></li>'; return; }
-  for (const cat of top) {
-    const li = document.createElement('li');
-    li.dataset.cat = cat.id;
-    li.title = cat.label;
-    if (cat.id === hoverCat) li.classList.add('on');
-    li.innerHTML = `<span class="dot" style="--c:${cat.color}"></span><span class="name">${cat.short}</span><b>${Math.round((cats[cat.id] / total) * 100)}%</b>`;
-    ul.appendChild(li);
+  const present = CATEGORIES.filter(c => cats[c.id]).sort((a, b) => cats[b.id] - cats[a.id]);
+  const share = id => `${Math.round((cats[id] / total) * 100)}%`;
+  const key = present.map(c => c.id).sort().join(',');
+  if (ul.dataset.key === key && ul.dataset.rows === String(rows)) {
+    for (const li of ul.querySelectorAll('[data-cat]')) li.querySelector('b').textContent = share(li.dataset.cat);
+    return;
   }
+  ul.dataset.key = key;
+  ul.dataset.rows = String(rows);
+  ul.textContent = '';
+  if (!present.length) {
+    ul.innerHTML = '<li class="none"><span class="name">No screen time yet today</span></li>';
+  } else {
+    for (const cat of present) {
+      const li = document.createElement('li');
+      li.dataset.cat = cat.id;
+      li.title = cat.label;
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.setAttribute('aria-haspopup', 'dialog');
+      li.setAttribute('aria-expanded', String(cat.id === popCat));
+      li.classList.toggle('on', cat.id === hoverCat);
+      li.innerHTML = `<span class="dot" style="--c:${cat.color}"></span><span class="name">${cat.short}</span><b>${share(cat.id)}</b>`;
+      ul.appendChild(li);
+    }
+  }
+  // as many rows as there's room for, the rest scroll
+  const sc = makeScroller(ul);
+  const first = ul.firstElementChild;
+  const gap = parseFloat(getComputedStyle(ul).rowGap) || 0;
+  ul.parentElement.style.maxHeight = first ? `${rows * (first.offsetHeight + gap) - gap}px` : '';
+  sc.update();
 }
 
 // Only redraws when what's shown actually changes (the heartbeat updates the
 // session every minute, which must not replay the animation).
-function renderNow(animate) {
-  const s = state.session;
-  const mode = state.paused ? 'paused' : s ? `live:${s.domain}` : 'idle';
-  if (mode === state.nowMode) return;
-  if (!state.nowMode) animate = false;
-  state.nowMode = mode;
-
-  const icon = $('now-icon');
-  icon.textContent = '';
-  icon.classList.toggle('live', mode.startsWith('live'));
-  if (mode === 'paused') {
-    icon.innerHTML = `<span class="now-glyph">${GLYPH_PAUSE}</span>`;
-    $('now-eyebrow').textContent = 'Paused';
-    $('now-domain').textContent = 'Tracking is off';
-    $('now-timer').textContent = '';
-  } else if (s) {
-    const priv = isPrivate(s.domain);
-    const cat = CATEGORY_BY_ID[categorize(s.domain, state.overrides)];
-    icon.appendChild(faviconTile(s.domain, cat.color));
-    $('now-eyebrow').textContent = 'Now';
-    $('now-domain').textContent = priv ? 'Private activity' : s.domain.startsWith('app:') ? window.memoir.appName(s.domain) : s.domain;
-    $('now-timer').textContent = formatClock(Date.now() - s.since);
-  } else {
-    icon.innerHTML = `<span class="now-glyph">${GLYPH_IDLE}</span>`;
-    $('now-eyebrow').textContent = 'Now';
-    $('now-domain').textContent = 'No active app or website';
-    $('now-timer').textContent = '';
-  }
-  if (animate) {
-    for (const el of [icon, $('now-eyebrow').parentElement, $('now-timer')]) replay(el, 'swap-in');
-  }
-}
-
 function renderSites(visible) {
   const list = $('site-list');
   const entries = Object.entries(visible).filter(([, ms]) => ms >= 1000).sort((a, b) => b[1] - a[1]);
-  $('site-count').textContent = entries.length ? `${entries.length} site${entries.length === 1 ? '' : 's'}` : '';
+  $('site-count').textContent = entries.length ? `${entries.length} used` : '';
   list.textContent = '';
   $('sites-empty').hidden = entries.length > 0;
   list.hidden = entries.length === 0;
@@ -256,7 +265,7 @@ function renderSites(visible) {
     li.className = 'site-row';
     li.style.setProperty('--i', Math.min(i, 8));
     li.dataset.domain = domain;
-    li.title = `${domain} · ${cat.label}`;
+    li.title = `${siteName(domain)} · ${cat.label}`;
 
     const main = document.createElement('div');
     main.className = 'site-main';
@@ -284,6 +293,14 @@ function renderSites(visible) {
 }
 
 // ---------- daily limit ----------
+
+// Over the limit, the ring's flame takes the stage as the popup opens, then flies home.
+function overShow() {
+  const limit = limitOn(state.goalHistory, state.todayKey);
+  const used = split(liveSites()).all;
+  if (!limit || used <= limit) return;
+  playOverShow({ flame: document.querySelector('#goal-mini .gr-flame'), overMs: used - limit, limitMs: limit });
+}
 
 function updateGoal(all, initial = false) {
   const limit = limitOn(state.goalHistory, state.todayKey);
@@ -358,22 +375,21 @@ function tick() {
   }
   const { visible, priv, all } = split(liveSites());
   const total = sumValues(visible);
-  if (state.liveReady && !hoverCat) {
+  const cats = categoryTotals(visible);
+  if (state.liveReady) {
     const el = $('today-total');
-    el._value = total;
-    const text = formatDuration(total);
-    if (el.textContent !== text) el.textContent = text;
+    const id = hoverCat;
+    const v = id ? cats[id] || 0 : total;
+    el._value = v;
+    const text = formatDuration(v);
+    if (el.textContent !== text && !$('ring-center').classList.contains('swapping')) el.textContent = text;
   }
   renderCompare(all, priv);
-  const rows = priv >= 60_000 ? 2 : 3;
-  if (rows !== state.legendRows) {
-    state.legendRows = rows;
-    renderLegend(categoryTotals(visible), total, rows);
-  }
+  state.legendRows = priv >= 60_000 ? 2 : 3;
+  renderLegend(cats, total, state.legendRows);
   updateGoal(all);
   const s = state.session;
   if (s && !state.paused) {
-    $('now-timer').textContent = formatClock(Date.now() - s.since);
     if (!isPrivate(s.domain)) {
       const row = $('site-list').querySelector(`[data-domain="${CSS.escape(s.domain)}"] .site-time`);
       if (row) row.textContent = formatDuration(visible[s.domain] || 0, { seconds: true });
@@ -384,7 +400,6 @@ function tick() {
 function onStorage(changes, area) {
   if (area === 'session' && changes.session) {
     state.session = changes.session.newValue || null;
-    renderNow(true);
   }
   if (area !== 'local') return;
   const key = storageKeyForDay(state.todayKey);
@@ -398,9 +413,7 @@ function onStorage(changes, area) {
     const paused = !!(changes.settings.newValue && changes.settings.newValue.paused);
     if (paused !== state.paused) {
       state.paused = paused;
-      $('track-toggle').checked = !paused;
-      $('switch-wrap').title = paused ? 'Tracking is paused' : 'Tracking is on';
-      renderNow(true);
+      showResume(paused);
     }
   }
 }
@@ -408,7 +421,9 @@ function onStorage(changes, area) {
 // ---------- interactions ----------
 
 let swapTimer = 0;
+// under the pointer: the ring's middle shows it
 let hoverCat = null;
+let centred = null;
 function setCenter(totalText, subText) {
   const c = $('ring-center');
   clearTimeout(swapTimer);
@@ -425,39 +440,121 @@ function setCenter(totalText, subText) {
 function focusCat(id) {
   if (hoverCat === id) return;
   hoverCat = id;
+  showCat();
+}
+
+// ---------- a category's sites: grows out of the word or slice you clicked (as in the report) ----------
+
+const catPop = new MorphPopover($('cat-pop'), { radius: 16 });
+let popCat = null;
+
+function openCatPop(catId, anchor) {
+  if (popCat === catId && catPop.isOpen) { closeCatPop(); return; }
+  const cat = CATEGORY_BY_ID[catId];
+  if (!cat) return;
+  const { visible } = split(liveSites());
+  const total = sumValues(visible);
+  const sites = Object.entries(visible).filter(([d, ms]) => ms >= 1000 && categorize(d, state.overrides) === catId).sort((a, b) => b[1] - a[1]);
+  const mine = sites.reduce((n, [, ms]) => n + ms, 0);
+  const el = $('cat-pop');
+  el.innerHTML = `<div class="pop-head"><span class="pop-title"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span><span class="pop-meta num">${formatDuration(mine)} · ${total ? Math.round((mine / total) * 100) : 0}%</span></div>`;
+  const list = document.createElement('ol');
+  list.className = 'rows';
+  const max = sites.length ? sites[0][1] : 1;
+  sites.slice(0, 80).forEach(([domain, ms], i) => {
+    const li = document.createElement('li');
+    li.className = 'row';
+    li.style.setProperty('--i', Math.min(i, 12));
+    const w = Math.max(2, (ms / max) * 100).toFixed(2);
+    li.innerHTML = `<div class="row-main"><span class="row-name">${siteLinkHtml(domain)}</span><span class="row-cat"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span></div>
+      <span class="row-time">${formatDuration(ms, { seconds: true })}</span>
+      <div class="row-bar"><i style="--c:${cat.color};--d:${260 + Math.min(i, 12) * 45}ms" data-w="${w}"></i></div>`;
+    li.prepend(faviconTile(domain, cat.color));
+    list.appendChild(li);
+  });
+  el.appendChild(list);
+  makeScroller(list);
+  setExpanded(catId);
+  const wasOpen = catPop.isOpen;
+  popCat = catId;
+  const go = () => catPop.open(anchor, { fromRadius: anchor instanceof SVGElement ? 12 : 6 }).then(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      for (const i of el.querySelectorAll('.row-bar i[data-w]')) i.style.setProperty('--w', `${i.dataset.w}%`);
+    }));
+  });
+  if (wasOpen) catPop.close({ instant: true }).then(go);
+  else go();
+}
+
+function closeCatPop() {
+  if (!catPop.isOpen) return;
+  popCat = null;
+  setExpanded(null);
+  catPop.close();
+}
+
+function setExpanded(id) {
+  for (const li of $('legend').querySelectorAll('[data-cat]')) li.setAttribute('aria-expanded', String(li.dataset.cat === id));
+}
+
+// the ring, the legend and the ring's middle show the category under the pointer (or the day)
+function showCat() {
+  const id = hoverCat;
   const ringSvg = document.querySelector('.ring');
   ringSvg.classList.toggle('focus', !!id);
   for (const seg of ringSvg.querySelectorAll('.ring-seg')) seg.classList.toggle('on', seg.dataset.cat === id);
   const legend = $('legend');
   legend.classList.toggle('focus', !!id);
-  for (const li of legend.children) li.classList.toggle('on', li.dataset.cat === id);
+  for (const li of legend.querySelectorAll('[data-cat]')) li.classList.toggle('on', li.dataset.cat === id);
+  if (id === centred) return;
+  centred = id;
   const { visible } = split(liveSites());
   const totals = categoryTotals(visible);
   if (id) setCenter(formatDuration(totals[id] || 0), CATEGORY_BY_ID[id].short);
   else setCenter(formatDuration(sumValues(visible)), 'today');
 }
 
+// Tracking can be paused only from Settings in the report. While it is, the header holds a
+// Resume button (it pops in, and fades away once tracking is back on).
+function showResume(on, instant = false) {
+  const b = $('resume');
+  if (on === (!b.hidden && !b._leaving)) return;
+  b.getAnimations().forEach(a => a.cancel());
+  b._leaving = false;
+  if (on) {
+    b.hidden = false;
+    if (!instant && !reducedMotion()) b.animate([{ opacity: 0, scale: '0.85' }, { opacity: 1, scale: '1' }], { duration: 320, easing: POP });
+    return;
+  }
+  if (instant || reducedMotion()) { b.hidden = true; return; }
+  b._leaving = true;
+  b.animate([{ opacity: 1, scale: '1' }, { opacity: 0, scale: '0.85' }], { duration: 200, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => {
+    if (!b._leaving) return;
+    b._leaving = false;
+    b.hidden = true;
+    b.getAnimations().forEach(a => a.cancel());
+  }, () => {});
+}
+
 function wire() {
-  const toggle = $('track-toggle');
+  const resume = $('resume');
   initContextMenu({
     getItems: ({ target }) => target.closest('.pk-layer') ? [] : [
       { label: 'Weekly report', icon: 'report', action: () => $('open-week').click() },
-      { label: state.paused ? 'Resume tracking' : 'Pause tracking', icon: state.paused ? 'play' : 'pause', action: () => toggle.click() },
+      // no pausing here (only Settings in the report pauses); resuming is fine
+      ...(state.paused ? [{ label: 'Resume tracking', icon: 'play', action: () => resume.click() }] : []),
     ],
   });
-  toggle.checked = !state.paused;
-  $('switch-wrap').title = state.paused ? 'Tracking is paused' : 'Tracking is on';
-  toggle.addEventListener('change', async () => {
-    const on = toggle.checked;
-    state.paused = !on;
-    $('switch-wrap').title = on ? 'Tracking is on' : 'Tracking is paused';
-    if (!on) renderNow(true);
-    await updateSettings({ paused: !on });
+  showResume(state.paused, true);
+  resume.addEventListener('click', async () => {
+    if (!state.paused) return;
+    state.paused = false;
+    showResume(false);
+    await updateSettings({ paused: false });
     try { await chrome.runtime.sendMessage({ type: 'sync' }); } catch { /* ignore */ }
     const [session, days] = await Promise.all([getSession(), getDays([state.todayKey])]);
     state.session = session;
     state.today = days[state.todayKey];
-    renderNow(true);
   });
 
   const hero = document.querySelector('.hero');
@@ -466,6 +563,21 @@ function wire() {
     focusCat(el ? el.dataset.cat : null);
   });
   hero.addEventListener('pointerleave', () => focusCat(null));
+  // a category (in the legend or on the ring) opens its sites; again, or anywhere else, closes
+  hero.addEventListener('click', e => {
+    const el = e.target.closest('[data-cat]');
+    if (el) openCatPop(el.dataset.cat, el);
+  });
+  hero.addEventListener('keydown', e => {
+    const el = e.target.closest('.legend [data-cat]');
+    if (!el || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    openCatPop(el.dataset.cat, el);
+  });
+  document.addEventListener('pointerdown', e => {
+    if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('.hero [data-cat]')) closeCatPop();
+  });
+  // (Windows: its sites' links open in the browser, and Today stays open: it's a window, not a popup)
 
   $('goal-set').addEventListener('click', openGoal);
 

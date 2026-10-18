@@ -31,8 +31,8 @@ namespace Memoir {
             Title="Memoir actions"; Width=268; Height=274; WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent; ShowInTaskbar=false; Topmost=true; WindowStartupLocation=WindowStartupLocation.Manual;
             var palette=Json.Map(Json.Get(appearance,"palette"));
             string theme=Json.Text(Json.Get(appearance,"theme"),"light");
-            bool dark=theme=="dark"||theme=="pink";
-            Color surface=ColorOf(Json.Text(Json.Get(palette,"surface")),theme=="pink"?"#3a2331":dark?"#1c1c1e":"#ffffff");
+            bool dark=theme=="dark";
+            Color surface=ColorOf(Json.Text(Json.Get(palette,"surface")),dark?"#1c1c1e":"#ffffff");
             Color label=ColorOf(Json.Text(Json.Get(palette,"label")),dark?"#f5f5f7":"#1d1d1f");
             Color secondary=ColorOf(Json.Text(Json.Get(palette,"secondary")),dark?"#a1a1a6":"#6e6e73");
             Color hover=ColorOf(Json.Text(Json.Get(palette,"hover")),dark?"#26ffffff":"#14787880");

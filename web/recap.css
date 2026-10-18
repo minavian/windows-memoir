@@ -27,7 +27,8 @@ body { overflow: hidden; }
 
 .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 40px; position: relative; z-index: 50; }
 .head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.mark { border-radius: 7px; flex: none; }
+.mark { width: 40px; height: 40px; flex: none; }
+
 .head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; }
 .title-text, .title-swap { display: inline-block; }
 .title-text.swap, .title-swap.swap { animation: swap 0.4s var(--ease-out); }
@@ -40,7 +41,6 @@ body { overflow: hidden; }
 .week-range.from-left { animation: from-left 0.4s var(--ease-out) backwards; }
 @keyframes from-right { from { opacity: 0; translate: 14px 0; } to { opacity: 1; translate: 0 0; } }
 @keyframes from-left { from { opacity: 0; translate: -14px 0; } to { opacity: 1; translate: 0 0; } }
-@keyframes swap { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
 .swap { animation: swap 0.4s var(--ease-out); }
 
 .head-right { display: flex; align-items: center; gap: 10px; }
@@ -105,6 +105,10 @@ body { overflow: hidden; }
      colour and becomes the panel's on the way */
   transition: clip-path 0.7s cubic-bezier(0.7, 0, 0.12, 1), background-color 0.3s var(--ease), visibility 0s;
 }
+/* while theme waves run, layers paint the panel's surface; it takes the new colour at
+   once when they land (a fade from the old one would flash out from under them) */
+:root.waving .morph-panel { transition: clip-path 0.5s var(--sheet), visibility 0s linear 0.5s; }
+:root.waving .morph.open .morph-panel { transition: clip-path 0.7s cubic-bezier(0.7, 0, 0.12, 1), visibility 0s; }
 .panel-inner {
   padding: 18px 20px 14px;
   display: flex;
@@ -125,13 +129,45 @@ body { overflow: hidden; }
 .panel-col + .panel-col { border-left: 0.5px solid var(--sep); padding-left: 22px; }
 .panel-col > * + * { padding-top: 14px; border-top: 0.5px solid var(--sep); }
 .p-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* the line under Appearance doubles as the theme change's progress bar */
+.p-block:has(> .theme-progress) { position: relative; }
+.theme-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 13px);
+  height: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tp-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  opacity: 0;
+  will-change: transform, opacity;
+}
 .p-label { font-size: 12px; font-weight: 500; color: var(--label-2); }
+/* a block's heading with an option on the same line (Appearance: Rainbow clock) */
+.p-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.p-head-opt { display: flex; align-items: center; gap: 8px; }
+.p-head-name { font-size: 12px; font-weight: 500; color: var(--label-2); cursor: var(--cursor-hand); }
 .p-desc { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--label-2); }
 .p-desc.swap { animation: swap 0.35s var(--ease-out); }
 .p-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .p-row b { display: block; font-size: 13.5px; font-weight: 500; }
 .p-row small { display: block; font-size: 12px; color: var(--label-2); }
 .p-foot { margin: 2px 0 0; font-size: 11.5px; color: var(--label-3); text-align: center; }
+/* page titles' weeks: only while titles are saved (inside Tracking detail) */
+/* a row that follows a description inside its section */
+.p-row-gap { margin-top: 4px; }
+/* Smooth cursor only works with Custom cursor on: otherwise it fades and is locked */
+#smooth-row > * { transition: opacity 0.3s var(--ease); }
+#smooth-row.locked > * { opacity: 0.4; }
 .segmented.wide { display: grid; }
 
 /* collapsible rows (reminder details, confirmations) */
@@ -172,30 +208,62 @@ body { overflow: hidden; }
 }
 .ex-form:focus-within { box-shadow: var(--ring); }
 .ex-form.invalid { box-shadow: 0 0 0 2px var(--danger); }
-.ex-form input { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; outline: none; font-size: 12.5px; color: var(--label); }
-.ex-form input::placeholder { color: var(--label-3); }
+.ex-form input { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; outline: none; font-size: 12.5px; font-weight: 500; color: var(--label); }
+.ex-form input::placeholder { color: var(--label-3); font-weight: 400; transition: color 0.35s var(--ease); }
+/* the typed words have just lifted off: the hint comes back once they're clear of it */
+.ex-form.sent input::placeholder { color: transparent; transition: none; }
 .ex-add { gap: 4px; padding: 0 10px; opacity: 0; transform: scale(0.8); pointer-events: none; transition: opacity 0.2s var(--ease), transform 0.35s var(--pop), background-color 0.2s var(--ease); }
 .ex-add svg { width: 11px; height: 11px; }
 .ex-form.has-text .ex-add { opacity: 1; transform: none; pointer-events: auto; }
 .ex-list { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .ex-list:empty { display: none; }
 .ex-chip {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
   max-width: 100%;
   height: 26px;
-  padding: 0 3px 0 10px;
+  padding: 0 3px;
   border-radius: 999px;
   background: var(--fill-1);
   font-size: 12px;
   font-weight: 500;
   overflow: hidden;
   white-space: nowrap;
+  transition: background-color 0.25s var(--ease);
 }
 .ex-chip.adding { animation: chip-in 0.4s var(--pop) backwards; }
 @keyframes chip-in { from { opacity: 0; scale: 0.6; } to { opacity: 1; scale: 1; } }
-.ex-chip > span { overflow: hidden; text-overflow: ellipsis; }
+/* a site's name, hidden under dust until it's clicked twice (recap.js revealChip) */
+.ex-name {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 22px;
+  padding: 0 5px 0 7px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  outline: none;
+  cursor: var(--cursor-hand);
+}
+.ex-chip:has(.ex-name:focus-visible) { box-shadow: var(--ring); }
+/* the name answers anywhere on the pill: its edges, and the remove button's place while
+   that's hidden (a shown one is drawn above this and takes its own clicks) */
+.ex-name::after { content: ''; position: absolute; inset: -2px -24px -2px -3px; }
+.ex-text { overflow: hidden; text-overflow: ellipsis; }
+.ex-chip:not(.shown):not(.hiding) .ex-text, .ex-chip.awaiting .ex-text { visibility: hidden; }
+/* the dust fills the whole pill, the remove button's place too (white specks, tinted
+   to the theme's text colour) */
+.ex-dust { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; filter: var(--dust-ink); }
+.ex-chip > .ex-name, .ex-chip > .x { position: relative; }
+/* the first click: asking for the second */
+.ex-chip.armed { background: var(--fill-2); }
 .ex-chip .x {
   flex: none;
   width: 20px;
@@ -211,6 +279,11 @@ body { overflow: hidden; }
 }
 .ex-chip .x:hover, .ex-chip .x:focus-visible { background: var(--fill-2); color: var(--label); outline: none; }
 .ex-chip .x svg { width: 10px; height: 10px; }
+/* The remove button is hidden with the name: it shows only once the site is shown, half a
+   second after (so a tap too many can't remove it), and goes at once when it's hidden again.
+   Its place is kept, so the pill never changes size. */
+.ex-chip .x { visibility: hidden; opacity: 0; transform: scale(0.6); transition: background-color 0.2s var(--ease), color 0.2s var(--ease), opacity 0.15s var(--ease), transform 0.2s var(--ease-out), visibility 0s linear 0.15s; }
+.ex-chip.shown:not(.landing) .x { visibility: visible; opacity: 1; transform: none; transition: background-color 0.2s var(--ease), color 0.2s var(--ease), opacity 0.25s var(--ease) 0.5s, transform 0.35s var(--pop) 0.5s, visibility 0s linear 0.5s; }
 
 /* reminder: day chips + time */
 .rem-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 2px 0 2px; }
@@ -552,20 +625,6 @@ body { overflow: hidden; }
 
 .goal-card { contain: size; padding-bottom: 14px !important; }
 .goal-head { align-items: center; margin-bottom: 2px; }
-.goal-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--gc) 16%, transparent);
-  font-size: 11.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background-color 0.5s var(--ease);
-}
-.goal-chip .dot { width: 7px; height: 7px; background: var(--gc); transition: background-color 0.5s var(--ease); }
 .goal-host { flex: 1; min-height: 0; padding: 8px; container-type: size; display: grid; place-items: center; }
 .goal-ring { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
 .goal-ring .gr { width: 100%; height: 100%; }
@@ -858,6 +917,9 @@ body { overflow: hidden; }
 }
 .hbar.grown, .dcol .dbar.grown { transform: none; }
 .hbar i { display: block; flex: var(--f) 1 0; min-height: 1px; background: var(--c); }
+.hbar { position: relative; }
+/* stepping days: the old colours sit on top and fade while the bar morphs (reuseStrip) */
+.hbar-old { position: absolute; inset: 0; display: flex; flex-direction: column-reverse; gap: 1px; pointer-events: none; }
 .hbar i.unknown { background: var(--fill-3); }
 .hlab { grid-row: 2; padding-top: 4px; font-size: 10.5px; font-weight: 500; color: var(--label-3); white-space: nowrap; }
 
@@ -906,42 +968,8 @@ body { overflow: hidden; }
 .dcol.on .dbar { background: var(--g5); }
 .dcol.on .dl { color: var(--label); font-weight: 700; }
 
-.rows { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; }
 .dv > .scroller { flex: 1; min-height: 0; margin: 0 -10px; }
 #detail-view { position: relative; }
-.row {
-  position: relative;
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  height: 44px;
-  padding: 0 10px 6px;
-  border-radius: 10px;
-  transition: background-color 0.2s var(--ease);
-  animation: enter 0.45s var(--ease-out) backwards;
-  animation-delay: calc(var(--i, 0) * 40ms + 180ms);
-}
-.rows.soft .row { animation: none; }
-.row:hover { background: var(--fill-1); }
-.row .favicon { width: 26px; height: 26px; border-radius: 7px; }
-.row .favicon img { width: 15px; height: 15px; }
-.row-main { min-width: 0; display: flex; align-items: baseline; gap: 17px; }
-.row-name { min-width: 0; display: flex; font-size: 13.5px; font-weight: 600; flex: 0 1 auto; }
-.row-cat { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--label-2); white-space: nowrap; flex: none; }
-.row-cat .dot { width: 7px; height: 7px; }
-.row-time { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.row-bar { position: absolute; left: 46px; right: 10px; bottom: 5px; height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
-.row-bar i {
-  display: block;
-  height: 100%;
-  background: var(--c);
-  border-radius: 3px;
-  /* slides out from the left: a transform, so the compositor draws it, not a repaint per frame */
-  transform: translateX(calc(var(--w, 0%) - 100%));
-  transition: transform 0.9s var(--ease-out);
-  transition-delay: var(--d, 0ms);
-}
 .dv-note { margin: 0; flex: none; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label-3); }
 .dv-note svg { width: 12px; height: 12px; }
 .dv-empty { flex: 1; display: grid; place-items: center; text-align: center; padding: 10px 20px; color: var(--label-2); font-size: 13px; line-height: 1.5; }
@@ -1010,7 +1038,38 @@ body { overflow: hidden; }
   grid-template-rows: repeat(7, var(--s)) auto;
   gap: var(--gap);
   outline: none;
+  position: relative;
 }
+/* The cells' entrance: a veil the colour of the card covers them and slides off to the
+   right, its long soft edge slanted, so they fade in from the top-left. Transform only
+   (the compositor runs it); one animation instead of 168 per-cell fades, each of which
+   got its own layer and a page-wide layout as it began, stalling everything else
+   arriving on the page. Labels aren't covered. */
+.heat-veil {
+  grid-column: 2 / -1;
+  grid-row: 1 / 8;
+  position: absolute; /* over the cells' area, taking no grid cells */
+  inset: -3px;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+  animation: heat-veil-on 0.92s step-end backwards;
+  animation-delay: var(--intro-wait, 0ms);
+}
+.heat-veil > i {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 500%;
+  background: linear-gradient(to right, transparent 20%, var(--surface) 72%);
+  transform: translateX(8%) skewX(-30deg);
+  animation: heat-veil-off 0.72s var(--ease) backwards;
+  animation-delay: calc(200ms + var(--intro-wait, 0ms));
+}
+@keyframes heat-veil-on { from { visibility: visible; } to { visibility: visible; } }
+@keyframes heat-veil-off { from { transform: translateX(-80%) skewX(-30deg); } }
 .heat-day {
   align-self: center;
   justify-self: start;
@@ -1036,8 +1095,6 @@ body { overflow: hidden; }
   outline-offset: 1px;
   cursor: var(--cursor-hand);
   transition: background-color 0.5s var(--ease) var(--d, 0ms), outline-color 0.15s var(--ease);
-  animation: fade-in 0.5s var(--ease) backwards;
-  animation-delay: calc(var(--d, 0ms) + 200ms + var(--intro-wait, 0ms));
 }
 .cell:hover, .cell:focus-visible { outline-color: var(--label); transition-delay: 0ms; }
 .cell.future { background: transparent; box-shadow: inset 0 0 0 1px var(--sep); cursor: var(--cursor); }
@@ -1132,12 +1189,11 @@ body { overflow: hidden; }
 .board > .empty { align-items: center; justify-content: center; text-align: center; padding: 40px 24px; animation: enter 0.5s var(--ease-out) backwards; }
 /* the card arrives (250 ms, it's --i 2), then its parts one by one: the hourglass
    pops in and tips over, the title, the line and the button rise after it */
-.empty-icon { width: 40px; height: 40px; color: var(--label-3); animation: pop-in 0.55s var(--pop) 0.33s backwards, tip-over 2.4s var(--ease-in-out) 1s both; }
+.empty-icon { width: 56px; height: 56px; }
 .board > .empty > h2, .board > .empty > p, .board > .empty > .btn { animation: enter 0.55s var(--ease-out) backwards; }
 .board > .empty > h2 { animation-delay: 0.41s; }
 .board > .empty > p { animation-delay: 0.48s; }
 .board > .empty > .btn { animation-delay: 0.56s; }
-@keyframes tip-over { 0%, 40% { rotate: 0deg; } 60%, 100% { rotate: 180deg; } }
 .empty h2 { margin: 14px 0 6px; font-size: 21px; font-weight: 600; }
 .empty p { margin: 0 0 20px; max-width: 360px; color: var(--label-2); line-height: 1.5; }
 
@@ -1184,38 +1240,166 @@ body { overflow: hidden; }
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger svg { margin-left: 0; width: 13px; height: 13px; }
 
-/* ---------- category popover (grows out of the word you clicked) ---------- */
-
-.pop {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 1991;
-  width: 310px;
-  max-height: min(430px, calc(100vh - 24px));
+/* ---------- a site's pages: a second page of the Most used card ---------- */
+/* Its own surface, corners and padding, exactly over the card: the card turning into
+   the pages, not something on top of it. Cross-fading in, it moves like the views of
+   Daily activity (.view); grown out of a row, the script shapes it (.drop). */
+.sites-page {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  padding: 18px 20px 12px;
+  border-radius: inherit;
+  background: var(--surface);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.985) translateY(6px);
+  transition: opacity 0.16s var(--ease), transform 0.32s var(--ease-out), visibility 0s linear 0.32s;
+}
+/* Cross-fading, one side is all but gone before the other shows (a fade-through), so the
+   list's words and the pages' never sit on top of each other. */
+.sites-card.paged > .sites-page {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.3s var(--ease) 0.13s, transform 0.5s var(--ease-out) 0.1s, visibility 0s;
+}
+.sites-card.drop > .sites-page { opacity: 1; visibility: visible; transform: none; transition: none; }
+.sites-page.closing { pointer-events: none; }
+/* grown out of a row, the surface starts out as the row's highlight and loses it as it grows */
+.sites-page::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--fill-1); opacity: 0; pointer-events: none; }
+/* the list steps back as the pages come in (and returns the same way) */
+.sites-card > :not(.sites-page) { transition: opacity 0.3s var(--ease) 0.13s, transform 0.5s var(--ease-out) 0.1s; }
+.sites-card.paged:not(.drop) > :not(.sites-page) { opacity: 0; transform: scale(0.985) translateY(6px); transition: opacity 0.16s var(--ease), transform 0.32s var(--ease-out); }
+/* grown out of a row: the rest of the list fades away at once (the row itself becomes
+   the pages' header), and comes back as they fold into it */
+.sites-card.drop > :not(.sites-page) { transition: opacity 0.3s var(--ease) 0.04s; }
+.sites-card.drop.lifted > :not(.sites-page) { opacity: 0; transition: opacity 0.16s var(--ease); }
+/* one site's pages; another site's fade through them the same way */
+.sp-body {
+  position: relative;
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 14px 14px 10px;
-  border-radius: 16px;
-  background: var(--raised);
-  box-shadow: var(--shadow-pop);
+  transition: opacity 0.3s var(--ease) 0.13s, transform 0.5s var(--ease-out) 0.1s;
 }
-.pop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.pop-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700; }
-.pop-title .dot { width: 9px; height: 9px; }
-.pop-meta { margin-left: auto; font-size: 12px; color: var(--label-2); white-space: nowrap; }
-.pop > .scroller { flex: 0 1 auto; min-height: 0; margin: 0 -8px; }
-.pop .scroll-area { flex: 0 1 auto; }
-.pop .row { height: 42px; }
-.pop-foot { padding: 6px 2px 0; font-size: 11.5px; color: var(--label-3); }
+.sp-body.entering, .sp-body.leaving { opacity: 0; transform: scale(0.985) translateY(6px); }
+.sp-body.leaving { pointer-events: none; transition: opacity 0.16s var(--ease), transform 0.32s var(--ease-out); }
+.sp-head { align-items: center; }
+.sp-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sp-title .dot { width: 8px; height: 8px; flex: none; }
+.sp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transform-origin: 0 50%; }
+.sp-meta { flex: none; white-space: nowrap; }
+.sp-body > .scroller { flex: 1 1 auto; min-height: 0; margin: -4px -10px -8px; }
+.sp-body .scroll-area { overscroll-behavior: contain; }
+.sp-body .row { height: 42px; }
+/* grown out of a row, the pages' rows come in under the title once it has gone past them */
+.sp-body.unfold .row { animation-duration: 0.45s; animation-delay: calc(var(--i, 0) * 40ms + 210ms); }
+/* back to the list it came from */
+.pp-back {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -4px 0 -4px -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-1);
+  color: var(--label);
+  transition: background-color 0.2s var(--ease);
+}
+.pp-back svg { width: 13px; height: 13px; transition: transform 0.3s var(--ease-out); }
+.pp-back:hover { background: var(--fill-2); }
+.pp-back:hover svg { transform: translateX(-2px); }
+.pp-back:focus-visible { outline: none; box-shadow: var(--ring); }
+.page-row { grid-template-columns: minmax(0, 1fr) auto; }
+.page-row .row-bar { left: 10px; }
+/* room for the arrow after a long title */
+.page-row .row-name { padding-right: 16px; font-weight: 500; }
+/* one line, ending in … (with or without a link) */
+.page-row .row-name > .sl-text, .page-row .sl-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-row.other .row-name { color: var(--label-2); }
+.page-row[data-url] { cursor: var(--cursor-hand); }
+/* the same arrow as a site's name, on the whole row */
+.page-row[data-url]:hover .ext, .page-row[data-url]:focus-within .ext { opacity: 1; transform: none; }
+.pp-gone-box { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 4px 2px 8px; animation: context-row-in 0.32s var(--ease-out) 150ms backwards; }
+/* in the middle of the card */
+.sp-body .pp-gone-box { margin: auto 0; padding-bottom: 28px; }
+.pp-gone { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--label-2); }
+.pp-foot { padding: 6px 2px 0; font-size: 11.5px; color: var(--label-3); }
+/* a site whose pages can be seen: the row opens them */
+.site.has-pages, .row.has-pages { cursor: var(--cursor-hand); }
+.site.has-pages.active, .row.has-pages.active { background: var(--fill-1); }
+:is(.site-time, .row-time)[role="button"] { border-radius: 6px; outline: none; }
+:is(.site-time, .row-time)[role="button"]:focus-visible { box-shadow: var(--ring); }
+
+/* ---------- import: merge or replace, grown out of the Import button ---------- */
+.import-pop { width: 300px; padding: 14px 12px 8px; }
+.ip-title { margin: 0 4px 3px; font-size: 14px; font-weight: 700; animation: context-row-in 0.32s var(--ease-out) 150ms backwards; }
+.ip-text { margin: 0 4px 11px; font-size: 12px; line-height: 1.45; color: var(--label-2); animation: context-row-in 0.32s var(--ease-out) 180ms backwards; }
+.ip-text b { color: var(--label); font-weight: 600; }
+.ip-choices { display: flex; flex-direction: column; gap: 6px; }
+.ip-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--fill-1);
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: var(--cursor-hand);
+  transition: background-color 0.18s var(--ease), transform 0.25s var(--ease-out);
+  animation: context-row-in 0.32s var(--ease-out) calc(170ms + var(--d, 0ms)) backwards;
+}
+.ip-choice b { font-size: 13px; font-weight: 600; }
+.ip-choice small { font-size: 11.5px; color: var(--label-2); }
+.ip-choice:hover { background: var(--fill-2); }
+.ip-choice:focus-visible { outline: none; box-shadow: var(--ring); }
+.ip-choice:active { background: var(--fill-3); transform: scale(0.98); }
+.ip-cancel {
+  align-self: center;
+  margin-top: 6px;
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: var(--cursor-hand);
+  transition: background-color 0.18s var(--ease), color 0.18s var(--ease);
+  animation: context-row-in 0.32s var(--ease-out) calc(170ms + var(--d, 0ms)) backwards;
+}
+.ip-cancel:hover, .ip-cancel:focus-visible { background: var(--fill-1); color: var(--label); outline: none; }
+
 
 /* ---------- toast ---------- */
 
 .toast {
   position: fixed;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 22px;
   z-index: 3500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  margin: 0 auto;
+  overflow: hidden;
   padding: 10px 18px;
   border-radius: 999px;
   background: var(--glass);
@@ -1226,10 +1410,12 @@ body { overflow: hidden; }
   font-weight: 500;
   pointer-events: none;
   opacity: 0;
-  transform: translate(-50%, 14px) scale(0.96);
-  transition: transform 0.4s var(--ease-out), opacity 0.22s var(--ease);
+  transform: translateY(14px) scale(0.96);
 }
-.toast.on { opacity: 1; transform: translate(-50%, 0) scale(1); transition: transform 0.45s var(--pop), opacity 0.22s var(--ease); }
+/* the words wrap only where the finished pill would; while it's still growing they
+   overflow both sides evenly (centred) instead of wrapping */
+.toast-words { flex: none; max-width: calc(min(560px, 100vw - 32px) - 36px); text-align: center; }
+.toast-words.out { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
 
 /* short windows: the facts repeat what the highlights say, so the highlights keep the room */
 @media (min-width: 1100px) and (max-height: 840px) {
@@ -1298,10 +1484,9 @@ body { overflow: hidden; }
 .tr-note { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; padding: 0 20px; text-align: center; font-size: 13px; color: var(--label-2); pointer-events: none; animation: fade-in 0.4s var(--ease) backwards; }
 
 /* ---------- settings sits on its own layer: a calm scrim behind, a lifted surface in front ---------- */
-:root { --panel: #ffffff; --scrim: rgba(24, 24, 32, 0.22); }
+:root, [data-wave="light"] { --panel: #ffffff; --scrim: rgba(24, 24, 32, 0.22); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --panel: #2c2c2e; --scrim: rgba(0, 0, 0, 0.55); } }
-:root[data-theme="dark"] { --panel: #2c2c2e; --scrim: rgba(0, 0, 0, 0.55); }
-:root[data-theme="pink"] { --panel: #4a2c3d; --scrim: rgba(22, 6, 15, 0.52); }
+:root[data-theme="dark"], [data-wave="dark"] { --panel: #2c2c2e; --scrim: rgba(0, 0, 0, 0.55); }
 .morph-panel { background: var(--surface); }
 .morph.open .morph-panel { background: var(--panel); }
 .settings-scrim {
@@ -1313,11 +1498,23 @@ body { overflow: hidden; }
   backdrop-filter: blur(2px) saturate(0.92);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.5s var(--sheet), visibility 0s linear 0.5s;
+  transition: opacity 0.5s var(--sheet), visibility 0s linear 0.5s, background-color 0.6s var(--ease);
 }
-.settings-scrim.on { opacity: 1; visibility: visible; transition: opacity 0.62s var(--sheet), visibility 0s; }
+.settings-scrim.on { opacity: 1; visibility: visible; transition: opacity 0.62s var(--sheet), visibility 0s, background-color 0.6s var(--ease); }
 .replay-btn svg { width: 10px; height: 10px; margin-right: 5px; transition: transform 0.3s var(--ease-out); }
 .replay-btn:hover svg { transform: scale(1.2); }
+/* How Memoir works' Open: pointed at, it grows to make room for the arrow site links show,
+   which comes in the same way (from below left, small to full) */
+.open-btn .ext {
+  flex: none;
+  width: 0;
+  height: 0.8em;
+  margin-left: 0;
+  opacity: 0;
+  transform: translate(-4px, 4px) scale(0.6);
+  transition: width 0.32s var(--ease-out), margin-left 0.32s var(--ease-out), opacity 0.18s var(--ease), transform 0.32s var(--ease-out);
+}
+.open-btn:hover .ext, .open-btn:focus-visible .ext { width: 0.8em; margin-left: 4px; opacity: 1; transform: none; }
 #limit-reset:not(:disabled) { color: var(--danger); }
 
 /* ---------- reset-limit gauntlet ---------- */
@@ -1387,18 +1584,11 @@ body { overflow: hidden; }
 .gx-done-icon { width: 44px; height: 44px; margin-bottom: 10px; border-radius: 50%; display: grid; place-items: center; background: var(--fill-1); color: var(--label); animation: pop-in 0.5s var(--pop) backwards; }
 .gx-done-icon svg { width: 22px; height: 22px; }
 
-@font-face {
-  font-family: "Memoir Inter";
-  src: url("fonts/InterVariable-subset.woff") format("woff");
-  font-weight: 100 900;
-  font-display: block;
-}
 
 /* ---------- tour ---------- */
-:root { --tour-dim: rgba(12, 12, 18, 0.55); --heavy: cubic-bezier(0.16, 1, 0.3, 1); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --tour-dim: rgba(0, 0, 0, 0.68); } }
-:root[data-theme="dark"] { --tour-dim: rgba(0, 0, 0, 0.68); }
-:root[data-theme="pink"] { --tour-dim: rgba(22, 5, 14, 0.64); }
+:root, [data-wave="light"] { --tour-dim: rgba(12, 12, 18, 0.55); --heavy: cubic-bezier(0.16, 1, 0.3, 1); --dust-ink: brightness(0.12) opacity(0.82); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --tour-dim: rgba(0, 0, 0, 0.68); --dust-ink: none; } }
+:root[data-theme="dark"], [data-wave="dark"] { --tour-dim: rgba(0, 0, 0, 0.68); --dust-ink: none; }
 /* the tour layer itself lets clicks through; the blocker (with a hole over the
    light on hands-on steps) and the card take them */
 .tour { position: fixed; inset: 0; z-index: 5000; pointer-events: none; }
@@ -1410,9 +1600,11 @@ body { overflow: hidden; }
   box-shadow: 0 0 0 200vmax var(--tour-dim);
   pointer-events: none;
   opacity: 0;
-  transition: left 0.7s var(--heavy), top 0.7s var(--heavy), width 0.7s var(--heavy), height 0.7s var(--heavy), border-radius 0.7s var(--heavy), opacity 0.4s var(--ease);
+  transition: left 0.7s var(--heavy), top 0.7s var(--heavy), width 0.7s var(--heavy), height 0.7s var(--heavy), border-radius 0.7s var(--heavy), opacity 0.4s var(--ease), box-shadow 0.9s var(--ease);
 }
-.tour-spot.instant { transition: opacity 0.4s var(--ease); }
+.tour-spot.instant { transition: opacity 0.4s var(--ease), box-shadow 0.9s var(--ease); }
+/* taking over from the welcome, whose dim is the same: no fade, so there's no seam */
+.tour.handoff .tour-spot { transition: none; }
 .tour-spot::after {
   content: "";
   position: absolute;
@@ -1420,7 +1612,7 @@ body { overflow: hidden; }
   border-radius: inherit;
   border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   opacity: 0;
-  transition: opacity 0.3s var(--ease);
+  transition: opacity 0.3s var(--ease), scale 0.5s var(--heavy), border-color 0.9s var(--ease);
   animation: tour-halo 1.8s var(--ease-in-out) infinite alternate;
 }
 .tour-spot:not(.none)::after { opacity: 1; }
@@ -1430,6 +1622,8 @@ body { overflow: hidden; }
   position: fixed;
   left: 0;
   top: 0;
+  display: flex;
+  flex-direction: column;
   width: min(310px, calc(100vw - 28px));
   padding: 16px 16px 12px;
   border-radius: 18px;
@@ -1437,21 +1631,38 @@ body { overflow: hidden; }
   color: var(--label);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
   opacity: 0;
-  transition: transform 0.7s var(--heavy), opacity 0.35s var(--ease);
+  transition: transform 0.7s var(--heavy), opacity 0.35s var(--ease), scale 0.5s var(--heavy);
 }
-.tour-card.instant { transition: opacity 0.35s var(--ease); }
+.tour-card.instant { transition: opacity 0.35s var(--ease), scale 0.5s var(--heavy); }
 .tour-card .gone { display: none; }
 .tour-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -2px -6px 10px 0; }
 .tour-content.out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }
 .tour.on .tour-card { opacity: 1; }
 .tour.leaving .tour-card, .tour.leaving .tour-spot { opacity: 0; }
+/* the welcome's card is still turning into this one */
+.tour.arriving .tour-card { opacity: 0; transition: none; }
 .tour-body { position: relative; }
 .tour-kicker { margin: 0 0 3px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label-3); }
 .tour-title { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-.tour-text { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--label-2); }
+.tour-text { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--label-2); text-wrap: pretty; }
 .tour-text b { color: var(--label); font-weight: 650; }
-.tour-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.tour-foot { position: relative; z-index: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+/* under the light: Back and Next at the top, nearest the pointer, the dots at the foot */
+.tour-card.flip .tour-foot { order: -1; margin: -4px 0 12px; }
+.tour-card.flip .tour-head { order: 1; margin: 10px -6px -4px 0; }
 .tour-foot .btn { min-width: 76px; }
+/* the tour moves focus to Next itself; no focus ring on its buttons */
+.tour-card .btn:focus-visible { box-shadow: none; }
+/* a picker opened from the tour: the tour fades away while it's up, so only the
+   picker's scrim dims and blurs the page. Coming back (recap.js openGoalPicker), in
+   turn: the dim (as the clock closes), the card (once it has landed), the outline. */
+.picking .tour.on :is(.tour-spot, .tour-card),
+.tour-return .tour.on .tour-card { opacity: 0; }
+.tour-card { scale: 1; }
+.tour-return .tour-card { scale: 0.94; }
+.tour-return-ring .tour-spot::after { opacity: 0; scale: 1.04; }
+.tour-spot::after { scale: 1; }
+:is(.picking, .tour-return) .tour, :is(.picking, .tour-return) .tour * { pointer-events: none !important; }
 
 /* Next charges up with the tries (tour.js, chargeNext). The fill and the arrow
    sit on top of the button, so its size and place never change. */
@@ -1483,6 +1694,7 @@ body { overflow: hidden; }
 .tour-next.full .tn-label { transform: translateX(-6px); }
 .tour-next.full .tn-arrow { opacity: 1; transform: none; animation: tn-nudge 2.8s var(--ease-in-out) 1.4s infinite; }
 @keyframes tn-nudge { 0%, 32%, 100% { transform: none; } 16% { transform: translateX(3px); } }
+/* lives inside the tour card (position: fixed is relative to the card's transform) */
 .tour-spark {
   position: fixed;
   left: -4px;
@@ -1505,7 +1717,7 @@ body { overflow: hidden; }
 
 /* "Try …" items: the dot turns green with a tick once it's done */
 .tour-tasks { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.tour-tasks li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.4; color: var(--label-2); }
+.tour-tasks li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.4; color: var(--label-2); text-wrap: pretty; }
 .tour-tasks b { color: var(--label); font-weight: 650; }
 .tt-dot {
   flex: none;
@@ -1544,15 +1756,25 @@ body { overflow: hidden; }
 .ghost { position: fixed; z-index: 900; pointer-events: none; transform-origin: 0 0; will-change: transform, opacity; }
 
 /* the header's own words sit above the scrim, so they soften the same way */
-:root { --scrim-bright: 0.8; }
+:root, [data-wave="light"] { --scrim-bright: 0.8; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --scrim-bright: 0.45; } }
-:root[data-theme="dark"] { --scrim-bright: 0.45; }
-:root[data-theme="pink"] { --scrim-bright: 0.5; }
+:root[data-theme="dark"], [data-wave="dark"] { --scrim-bright: 0.45; }
 .head-left, .demo-pill { transition: filter 0.5s var(--sheet); }
 .head.dimmed .head-left, .head.dimmed .demo-pill { transition-duration: 0.62s; }
 .head.dimmed .head-left, .head.dimmed .demo-pill { filter: blur(2px) saturate(0.92) brightness(var(--scrim-bright)); pointer-events: none; }
 .ex-form.has-text { background: var(--fill-2); }
-.ex-bird { position: fixed; z-index: 3000; display: flex; align-items: center; font-size: 12.5px; font-weight: 500; color: var(--label); white-space: nowrap; pointer-events: none; will-change: transform; }
+
+/* Track browsing: turning it off, the switch itself becomes a "Sure?" button: it widens, goes
+   red and its knob gives way to the word. Pressed, it pauses and shrinks back into the switch,
+   off (the knob slides in from where it was); left alone, it shrinks back still on. */
+.pause-switch { transition: width 0.36s var(--ease-out); }
+.pause-switch .knob { transition: transform 0.4s var(--pop), width 0.22s var(--ease), left 0.22s var(--ease), background-color 0.3s var(--ease), opacity 0.18s var(--ease), scale 0.26s var(--ease-out); }
+.pause-switch .sure-word { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; font-size: 12px; font-weight: 650; color: var(--on-danger); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.16s var(--ease); }
+.switch.pause-switch.sure { width: 62px; }
+.switch.pause-switch.sure input + .track { background: var(--danger); }
+.switch.pause-switch.sure .knob { opacity: 0; scale: 0.4; }
+.switch.pause-switch.sure .sure-word { opacity: 1; transition-delay: 0.1s; }
+.ex-bird { position: fixed; z-index: 3000; display: flex; align-items: center; font-size: 12.5px; font-weight: 500; color: var(--label); white-space: nowrap; pointer-events: none; will-change: transform; transform-origin: 0 50%; }
 
 /* history removal, second press armed */
 #ret-remove { transition: box-shadow 0.3s var(--ease), background-color 0.2s var(--ease), transform 0.2s var(--ease-out); }
@@ -1571,32 +1793,37 @@ body { overflow: hidden; }
   color: var(--label);
   overscroll-behavior: contain;
 }
-.wel-bg { position: fixed; inset: 0; z-index: -1; background: var(--bg-art), var(--bg); overflow: hidden; }
-/* soft colour drifting slowly behind everything (transform only) */
-.wel-orb {
-  position: absolute;
-  width: 62vmax;
-  height: 62vmax;
-  border-radius: 50%;
-  opacity: 0;
-  will-change: transform;
-  transition: opacity 1.6s var(--ease);
-}
-.wel.on .wel-orb { opacity: var(--a, 0.5); }
-.wel-orb.o1 { left: -22vmax; top: -26vmax; background: radial-gradient(closest-side, color-mix(in srgb, var(--cat-work) 34%, transparent), transparent); animation: wel-drift-a 19s var(--ease-in-out) infinite alternate; }
-.wel-orb.o2 { right: -24vmax; bottom: -30vmax; background: radial-gradient(closest-side, color-mix(in srgb, var(--cat-social) 30%, transparent), transparent); animation: wel-drift-b 23s var(--ease-in-out) infinite alternate; }
-.wel-orb.o3 { left: 30%; top: 40%; width: 44vmax; height: 44vmax; --a: 0.32; background: radial-gradient(closest-side, color-mix(in srgb, var(--cat-learning) 30%, transparent), transparent); animation: wel-drift-c 17s var(--ease-in-out) infinite alternate; }
-@keyframes wel-drift-a { from { transform: translate(0, 0) scale(1); } to { transform: translate(9vmax, 7vmax) scale(1.12); } }
-@keyframes wel-drift-b { from { transform: translate(0, 0) scale(1.08); } to { transform: translate(-10vmax, -6vmax) scale(0.94); } }
-@keyframes wel-drift-c { from { transform: translate(-6vmax, 4vmax) scale(0.9); } to { transform: translate(8vmax, -8vmax) scale(1.1); } }
+/* the tour's own dim, so the welcome hands over to the tour without a seam */
+.wel-dim { position: fixed; inset: 0; z-index: -1; background: var(--tour-dim); opacity: 0; transition: opacity 0.5s var(--ease); }
+.wel.on .wel-dim { opacity: 1; }
 
-.wel-main {
+/* the card: its surface is a layer of its own (::before), so it can hand itself
+   over to the tour card while the clock inside flies off on its own */
+.wel-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: min(640px, 100%);
+  width: min(500px, 100%);
+  padding: 38px 40px 28px;
   text-align: center;
 }
+.wel-card p { text-wrap: balance; }
+.wel-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 40px;
+  background: var(--panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+}
+.wel.on .wel-card::before { animation: wel-card-in 0.7s var(--ease-out) both; }
+@keyframes wel-card-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+.wel.on .wel-card.handed::before { animation: none; opacity: 0; }
+.wel.on.closing .wel-card::before { animation: wel-card-out 0.45s var(--ease-out) 0.18s both; }
+@keyframes wel-card-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.97); } }
 
 /* entrance: everything waits for .on, then arrives in a cascade (--d = delay in ms) */
 .wel-in, .wel-title span, .wel-mark, .wel-pin { opacity: 0; }
@@ -1605,78 +1832,34 @@ body { overflow: hidden; }
 @keyframes wel-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @keyframes wel-letter { from { opacity: 0; transform: translateY(0.45em) scale(0.92); } to { opacity: 1; transform: none; } }
 
-/* the hourglass: pops up, then pours and turns over, again and again */
-.wel-mark { position: relative; width: 92px; height: 92px; margin-bottom: 22px; }
+/* the clock: pops up and sets itself (or, after the opening, it's the O that became it) */
+.wel-mark { position: relative; z-index: 2; width: 96px; height: 96px; margin-bottom: 18px; }
 .wel.on .wel-mark { animation: wel-pop 0.9s var(--pop) both; }
 @keyframes wel-pop { from { opacity: 0; transform: scale(0.5) rotate(-8deg); } to { opacity: 1; transform: none; } }
-.wel-mark::before {
-  content: "";
-  position: absolute;
-  inset: -14px;
-  border-radius: 38px;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
-  opacity: 0;
-}
-.wel.on .wel-mark::before { animation: wel-glow 2.6s var(--ease-in-out) 0.6s infinite alternate both; }
-.wel-mark.flying::before { animation: none; opacity: 0; }
-@keyframes wel-glow { from { opacity: 0.25; transform: scale(0.94); } to { opacity: 1; transform: scale(1.08); } }
-.wel-glass { position: relative; display: block; width: 100%; height: 100%; filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.22)); }
-.wg-bg { fill: #1d1d1f; }
-:root[data-theme="dark"] .wg-bg, :root[data-theme="pink"] .wg-bg { fill: #2c2c2e; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme]) .wg-bg { fill: #2c2c2e; } }
-.wg-line { fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
-.wg-bar { stroke-width: 7; }
-.wg-sand { fill: #fff; opacity: 0.88; transform-box: view-box; }
-.wg-turn { transform-box: view-box; transform-origin: 64px 64px; }
-.wg-top { transform-origin: 64px 62px; }
-.wg-bot { transform-origin: 64px 88px; transform: scaleY(0); }
-.wg-stream { opacity: 0; }
-.wel.on .wg-turn { animation: wg-turn 3.8s var(--ease-in-out) 0.9s infinite; }
-.wel.on .wg-top { animation: wg-drain 3.8s linear 0.9s infinite; }
-.wel.on .wg-bot { animation: wg-fill 3.8s linear 0.9s infinite; }
-.wel.on .wg-stream { animation: wg-stream 3.8s linear 0.9s infinite; }
-@keyframes wg-turn { 0%, 76% { transform: rotate(0deg); } 100% { transform: rotate(180deg); } }
-@keyframes wg-drain { 0% { transform: scaleY(1); } 70%, 100% { transform: scaleY(0); } }
-@keyframes wg-fill { 0% { transform: scaleY(0); } 70%, 100% { transform: scaleY(1); } }
-@keyframes wg-stream { 0% { opacity: 0; } 4%, 66% { opacity: 0.88; } 70%, 100% { opacity: 0; } }
+.wel-mark .logo { width: 100%; height: 100%; }
 
-.wel-kicker { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label-3); }
-.wel-title { margin: 2px 0 0; font-size: clamp(44px, 7vw, 68px); font-weight: 800; line-height: 1.05; letter-spacing: -0.045em; }
+/* in the opening's own type (welcome-intro.js scales it up to be the opening's WELCOME TO) */
+.wel-kicker { margin: 0; padding-left: 0.34em; font-family: "Memoir Unbounded", var(--font-display); font-size: 12px; font-weight: 500; letter-spacing: 0.34em; text-transform: uppercase; white-space: nowrap; color: var(--label-3); }
+.wel-kicker span { display: inline-block; }
+.wel-title { margin: 4px 0 2px; font-size: clamp(34px, 5.2vw, 48px); line-height: 1.15; }
 .wel-title span { display: inline-block; }
-.wel-sub { max-width: 440px; margin: 12px 0 0; font-size: 15.5px; line-height: 1.5; color: var(--label-2); }
-
-.wel-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; margin: 30px 0 0; padding: 0; list-style: none; }
-.wel-feat {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 16px 16px 15px;
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  text-align: left;
-  transition: translate 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
-}
-.wel-feat:hover { translate: 0 -3px; box-shadow: var(--shadow-hover); }
-.wel-feat b { margin-top: 6px; font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
-.wel-feat > span:last-child { font-size: 12.5px; line-height: 1.45; color: var(--label-2); }
-.wel-feat-ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--fill-1); color: var(--label); }
-.wel-feat-ico svg { width: 17px; height: 17px; }
-
-.wel-private { display: inline-flex; align-items: center; gap: 7px; margin: 18px 0 0; font-size: 12.5px; color: var(--label-2); }
-.wel-private svg { width: 14px; height: 14px; flex: none; }
-.wel-actions { display: flex; gap: 10px; margin-top: 26px; }
+.wel-tagline { margin: 4px 0 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--label-2); }
+.wel-sub { max-width: 340px; margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--label-2); }
+.wel-ask { margin: 26px 0 0; font-size: 14px; font-weight: 600; color: var(--label); }
+.wel-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
 .wel-actions .btn { min-width: 150px; }
-.wel-by { margin: 22px 0 0; font-size: 11.5px; color: var(--label-3); }
+.wel-private { margin: 24px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--label-2); }
+/* the lock rides along with the first word, wherever the line breaks */
+.wel-private svg { display: inline-block; width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px; }
+.wel-by { margin: 16px 0 0; font-size: 11.5px; color: var(--label-3); }
 
-/* pin hint, pointing up at the toolbar */
-.wel-pin { position: fixed; top: 14px; right: 64px; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
+/* pin hint: a plain arrow straight up at the toolbar's Extensions (puzzle) button */
+.wel-pin { position: fixed; top: 12px; right: 72px; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; }
 .wel.on .wel-pin { animation: wel-pin-in 0.9s var(--ease-out) 1.5s both; }
 @keyframes wel-pin-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.wel-arrow { width: 46px; height: 46px; margin-right: -18px; color: var(--label-3); }
-.wel.on .wel-arrow { animation: wel-bob 1.6s var(--ease-in-out) 2.4s infinite alternate; }
-@keyframes wel-bob { from { transform: none; } to { transform: translate(4px, -6px); } }
+.wel-arrow { width: 24px; height: 56px; margin-right: 20px; color: rgba(255, 255, 255, 0.9); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25)); }
+.wel.on .wel-arrow { animation: wel-bob 1.4s var(--ease-in-out) 2.4s infinite alternate; }
+@keyframes wel-bob { from { transform: none; } to { transform: translateY(-7px); } }
 .wel-pin-card {
   display: flex;
   flex-direction: column;
@@ -1685,7 +1868,7 @@ body { overflow: hidden; }
   margin: 4px 0 0;
   padding: 10px 13px;
   border-radius: 14px;
-  background: var(--surface);
+  background: var(--panel);
   box-shadow: var(--shadow-pop);
   font-size: 12.5px;
   line-height: 1.45;
@@ -1698,19 +1881,98 @@ body { overflow: hidden; }
 /* leaving: the page underneath takes clicks as soon as it starts */
 .wel.leaving { pointer-events: none; }
 
+/* ---------- welcome: the opening (welcome-intro.js) ---------- */
+/* Black, a light behind the word; WELCOME TO, and MEMOIR as the wordmark (theme.css).
+   The card's kicker, title and logo are where it all lands, so the card's own entrance
+   for those is off, and the rest of it waits for .cascade (added as the letters fly). */
+/* It follows the theme: on Dark black with a soft light behind the word, the words in
+   platinum; on Light a soft white, a brighter spot drifting in behind the word, the words
+   in the wordmark's graphite (welcome-intro.js picks the word's and the clock's colours). */
+:root, [data-wave="light"] {
+  --wi-bg: radial-gradient(130% 100% at 50% 46%, #f7f7f9, #eeeef1 62%, #e3e3e7);
+  --wi-light: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.45) 45%, transparent);
+  --wi-kick: rgba(60, 60, 67, 0.72);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --wi-bg: radial-gradient(130% 100% at 50% 46%, #0d0d0f, #040405 62%, #000);
+    --wi-light: radial-gradient(closest-side, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04) 45%, transparent);
+    --wi-kick: rgba(216, 216, 221, 0.9);
+  }
+}
+:root[data-theme="dark"], [data-wave="dark"] {
+  --wi-bg: radial-gradient(130% 100% at 50% 46%, #0d0d0f, #040405 62%, #000);
+  --wi-light: radial-gradient(closest-side, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04) 45%, transparent);
+  --wi-kick: rgba(216, 216, 221, 0.9);
+}
+.wi-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--wi-bg); }
+.wi-light { position: absolute; background: var(--wi-light); opacity: 0; }
+/* the word and its kicker here are only room: the card's own MEMOIR and WELCOME TO are what's seen, scaled up onto them */
+.wi-type {
+  --wi-f: min(14.2vw, 27vh, 214px);
+  visibility: hidden;
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 5vh;
+  pointer-events: none;
+  font-family: "Memoir Unbounded", var(--font-display);
+}
+.wi-kicker {
+  margin: 0 0 calc(var(--wi-f) * 0.16);
+  padding-left: 0.34em; /* balances the spacing after the last letter */
+  font-size: calc(var(--wi-f) * 0.115);
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  color: var(--wi-kick);
+  white-space: nowrap;
+}
+.wi-word { margin: 0; font-size: var(--wi-f); line-height: 1.2; white-space: nowrap; }
+.wi-kicker span, .wi-word span { display: inline-block; opacity: 0; }
+.wi-word .wordmark { text-align: center; }
+/* MEMOIR's O is the card's clock itself (welcome-intro.js), so the word keeps only its room:
+   the O's advance in Unbounded Black. Until it turns, the clock is all ring, heavy and wide,
+   in the wordmark's platinum (its ::after, the word's own gradient across it); the clock's
+   own fade (::before) comes up under it as it thins. */
+.wi-o { width: 0.976em; }
+.wel.intro .wel-mark .lg-ring::before { opacity: 0; }
+.wel.intro .wel-mark .lg-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    url("shared/grain.png") var(--wi-ox) var(--wi-oy) / var(--wi-og),
+    linear-gradient(rgba(255, 255, 255, 0.1), transparent 45%, rgba(0, 0, 0, 0.1) 80%, rgba(255, 255, 255, 0.04)) var(--wi-ox) var(--wi-oy) / var(--wi-ow) var(--wi-oh) no-repeat,
+    var(--wm-fill) var(--wi-ox) var(--wi-oy) / var(--wi-ow) var(--wi-oh) no-repeat;
+  background-blend-mode: soft-light, normal, normal;
+}
+.wel-mark.as-o .lg-min, .wel-mark.as-o .lg-hour, .wel-mark.as-o .lg-knob { opacity: 0; }
+.wel.intro .wel-mark, .wel.intro .wel-title span, .wel.intro .wel-kicker { animation: none; }
+.wel.intro .wel-mark .logo::before { opacity: 0; }
+.wel.intro.on:not(.cascade) .wel-in, .wel.intro.on:not(.cascade) .wel-card::before, .wel.intro.on:not(.cascade) .wel-pin,
+.wel.intro.on:not(.cascade) .wel-arrow { animation: none; }
+.wel.intro.cascade .wel-in { animation-delay: calc(var(--d) * 1ms + 150ms); }
+.wel.intro.cascade .wel-card::before { animation-delay: 380ms; }
+.wel.intro.cascade .wel-pin { animation-delay: 1.4s; }
+.wel.intro.cascade .wel-arrow { animation-delay: 2.4s; }
+
 @media (max-width: 760px) {
-  .wel-feats { grid-template-columns: minmax(0, 1fr); max-width: 380px; }
   .wel-pin { display: none; }
 }
 @media (max-height: 700px) {
-  .wel-mark { width: 72px; height: 72px; margin-bottom: 14px; }
-  .wel-feats { margin-top: 20px; }
-  .wel-actions { margin-top: 18px; }
+  .wel-card { padding-top: 26px; padding-bottom: 20px; }
+  .wel-mark { width: 74px; height: 74px; margin-bottom: 12px; }
+  .wel-ask { margin-top: 18px; }
+  .wel-private { margin-top: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wel-in, .wel-title span, .wel-mark, .wel-pin { opacity: 1; }
-  .wel.on *, .wel.on .wel-mark::before { animation: none !important; }
-  .wel.on .wel-orb { transition: none; }
+  .wel-in, .wel-title span, .wel-mark, .wel-pin, .wel-card::before, .wel-dim { opacity: 1; }
+  .wel.on *, .wel.on .wel-card::before { animation: none !important; }
+  .wel-dim { transition: none; }
 }
 
 /* ---------- first load: one card after another ----------

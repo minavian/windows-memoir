@@ -1,0 +1,145 @@
+/* The category popover (grows out of the word or slice you clicked: MorphPopover in
+   fx.js) and the site rows in it, in the report and the popup alike. */
+
+/* ---------- site rows ---------- */
+.rows { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; }
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 10px 6px;
+  border-radius: 10px;
+  transition: background-color 0.2s var(--ease);
+  animation: enter 0.45s var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms + 180ms);
+}
+.rows.soft .row { animation: none; }
+.row:hover { background: var(--fill-1); }
+.row .favicon { width: 26px; height: 26px; border-radius: 7px; }
+.row .favicon img { width: 15px; height: 15px; }
+.row-main { min-width: 0; display: flex; align-items: baseline; gap: 17px; }
+.row-name { min-width: 0; display: flex; font-size: 13.5px; font-weight: 600; flex: 0 1 auto; }
+.row-cat { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--label-2); white-space: nowrap; flex: none; }
+.row-cat .dot { width: 7px; height: 7px; }
+.row-time { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row-bar { position: absolute; left: 46px; right: 10px; bottom: 5px; height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.row-bar i {
+  display: block;
+  height: 100%;
+  background: var(--c);
+  border-radius: 3px;
+  /* slides out from the left: a transform, so the compositor draws it, not a repaint per frame */
+  transform: translateX(calc(var(--w, 0%) - 100%));
+  transition: transform 0.9s var(--ease-out);
+  transition-delay: var(--d, 0ms);
+}
+
+/* ---------- category popover (grows out of the word you clicked) ---------- */
+
+.pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1991;
+  width: 310px;
+  max-height: min(430px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px 10px;
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+}
+.pop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pop-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700; }
+.pop-title .dot { width: 9px; height: 9px; }
+.pop-meta { margin-left: auto; font-size: 12px; color: var(--label-2); white-space: nowrap; }
+.pop > .scroller { flex: 0 1 auto; min-height: 0; margin: 0 -8px; }
+.pop .scroll-area { flex: 0 1 auto; }
+.pop .row { height: 42px; }
+.pop-foot { padding: 6px 2px 0; font-size: 11.5px; color: var(--label-3); }
+/* popover lists stay in their popover: the page behind them never scrolls */
+.pop .scroll-area { overscroll-behavior: contain; }
+/* on its way out it's already gone for clicks: they reach what's under it */
+.pop[data-state="closing"] { pointer-events: none; }
+
+/* ---------- an email to copy (shared/mail-pop.js): the report's "Made by" name, the privacy page's address ---------- */
+.p-author {
+  position: relative;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--label-2);
+  cursor: var(--cursor-hand);
+  isolation: isolate;
+  outline: none;
+  transition: color 0.18s var(--ease);
+}
+.p-author::before {
+  content: "";
+  position: absolute;
+  inset: -2px -6px;
+  z-index: -1;
+  border-radius: 6px;
+  background: var(--fill-2);
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 0.18s var(--ease), transform 0.3s var(--ease-out);
+}
+a.p-author { text-decoration: none; }
+.p-author:hover, .p-author:focus-visible, .p-author[aria-expanded="true"] { color: var(--label); }
+.p-author:hover::before, .p-author:focus-visible::before, .p-author[aria-expanded="true"]::before { opacity: 1; transform: none; }
+.p-author:focus-visible::before { box-shadow: var(--ring); }
+.author-pop { width: auto; padding: 13px 14px 12px; align-items: center; text-align: center; }
+.ap-title { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--label); animation: context-row-in 0.32s var(--ease-out) 150ms backwards; }
+.ap-text { margin: 2px 0 10px; font-size: 12px; color: var(--label-2); animation: context-row-in 0.32s var(--ease-out) 180ms backwards; }
+.ap-mail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 3px 3px 12px;
+  border-radius: 999px;
+  background: var(--fill-1);
+  animation: context-row-in 0.32s var(--ease-out) 210ms backwards;
+}
+.ap-addr { font-size: 12.5px; font-weight: 600; color: var(--label); text-decoration: none; border-radius: 4px; outline: none; transition: color 0.18s var(--ease); }
+.ap-addr:hover, .ap-addr:focus-visible { color: var(--accent); }
+.ap-addr:focus-visible { box-shadow: var(--ring); }
+.ap-copy {
+  height: 24px;
+  min-width: 58px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  color: var(--label);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: var(--cursor-hand);
+  outline: none;
+  transition: transform 0.25s var(--ease-out), color 0.18s var(--ease);
+}
+.ap-copy:hover { color: var(--accent); }
+.ap-copy:focus-visible { box-shadow: var(--ring); }
+.ap-copy:active { transform: scale(0.95); }
+.ap-copy-label { display: inline-block; }
+.ap-copy-label.swap { animation: swap 0.35s var(--ease-out); }
+/* a title and the address alone (no line between) */
+.ap-title + .ap-mail { margin-top: 10px; }
+/* or the Copy button alone (the privacy page's address) */
+.author-pop.copy-only { padding: 0; }
+/* the popover is the button: no second pill (and no shadow) inside it */
+.copy-only .ap-copy { height: 32px; padding: 0 16px; background: none; box-shadow: none; animation: context-row-in 0.32s var(--ease-out) 150ms backwards; }
+.copy-only .ap-copy:focus-visible { box-shadow: var(--ring); }
+
+/* a word changing in place */
+@keyframes swap { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }

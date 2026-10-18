@@ -15,8 +15,11 @@ internal static class TrayMenuTests {
     [STAThread] static int Main(string[] args) {
         try {
             var app=new Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
+            // 6.0: Light and Dark only; a Pink saved by 5.x follows Windows
+            string old=Json.Text(Appearance.Resolve(Json.Object("mode","pink","theme","pink"))["theme"]);
+            Check(old=="light"||old=="dark","A saved Pink theme becomes Light or Dark");
             foreach(string action in new[]{"report","today","pause","quit"}) {
-                foreach(string theme in new[]{"light","dark","pink"}) {
+                foreach(string theme in new[]{"light","dark"}) {
                     string chosen=null;bool deliveredBeforeClose=false;
                     var appearance=Appearance.Resolve(Json.Object("mode",theme,"theme",theme));
                     var menu=new TrayMenu(args[0],appearance,action=="pause",new System.Drawing.Point(600,600),value=>chosen=value);

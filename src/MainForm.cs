@@ -27,6 +27,7 @@ namespace Memoir {
         private DateTime ignoreTrayClickUntil;
         private WebView2 web;
         private CoreWebView2Environment environment;
+        private readonly Icon plainIcon, rainbowIcon;
         private bool exiting, hiddenStart, loading, recovering;
         private int generation, recoveryAttempts;
         private string view = "recap.html";
@@ -39,17 +40,19 @@ namespace Memoir {
             this.directory = directory; this.dataDirectory = dataDirectory; this.diagnostics = diagnostics; hiddenStart = minimized;
             restoreMessage = Native.RegisterWindowMessage("Local\\Memoir-" + Tracker.IconName(dataDirectory.ToLowerInvariant()).Replace(".png", ""));
             Text = "Memoir"; BackColor = Color.FromArgb(245, 245, 247); ClientSize = new Size(1360, 850); MinimumSize = new Size(680, 520); StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
-            if (File.Exists(Path.Combine(directory, "Memoir.ico"))) Icon = new Icon(Path.Combine(directory, "Memoir.ico"));
+            if (File.Exists(Path.Combine(directory, "Memoir.ico"))) Icon = plainIcon = new Icon(Path.Combine(directory, "Memoir.ico"));
+            if (File.Exists(Path.Combine(directory, "Memoir-rainbow.ico"))) rainbowIcon = new Icon(Path.Combine(directory, "Memoir-rainbow.ico"));
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
             ApplySavedTheme();
             tray = new NotifyIcon { Icon = Icon, Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time", Visible = true };
+            ApplyIcon();
             tray.MouseClick += delegate(object sender, MouseEventArgs args) { if (DateTime.UtcNow >= ignoreTrayClickUntil && (args.Button == MouseButtons.Left || args.Button == MouseButtons.Right)) ShowTrayMenu(); };
             tray.DoubleClick += delegate { ignoreTrayClickUntil = DateTime.UtcNow.AddMilliseconds(SystemInformation.DoubleClickTime); RestoreWindow(); };
             tray.BalloonTipClicked += delegate { RestoreWindow(); };
             engine.Notification += delegate(string title, string text) { tray.ShowBalloonTip(6000, title, text, ToolTipIcon.Info); store.Save(); };
             IntPtr handle = Handle; Native.WTSRegisterSessionNotification(handle, 0);
             tracker = new Tracker(this, store, engine, dataDirectory);
-            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
+            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;
             Shown += async delegate { if (hiddenStart) { Hide(); hiddenStart = false; releaseTimer.Start(); } else await LoadView(); };
@@ -96,7 +99,11 @@ namespace Memoir {
                     if (args.Uri.StartsWith("https://memoir.example/", StringComparison.Ordinal)) return;
                     args.Cancel = true; OpenLink(args.Uri);
                 };
-                core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs args) { args.Handled = true; OpenLink(args.Uri); };
+                // Memoir's own pages (How Memoir works, the privacy policy) open in this window: there are no tabs here
+                core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs args) {
+                    args.Handled = true;
+                    if (args.Uri.StartsWith("https://memoir.example/", StringComparison.Ordinal)) core.Navigate(args.Uri); else OpenLink(args.Uri);
+                };
                 core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs args) {
                     if (web != control || exiting) return;
                     Log("WebView " + args.ProcessFailedKind + ": " + args.Reason + " (" + args.ExitCode + ")");
@@ -136,7 +143,7 @@ namespace Memoir {
                     if (await Task.WhenAny(loaded.Task, Task.Delay(10000)) == loaded.Task && loaded.Task.Result) {
                         var saved = Json.Map(Json.Decode(await core.ExecuteScriptAsync("({ theme: localStorage.getItem('bst-theme'), cursor: localStorage.getItem('bst-cursor') })")));
                         string theme = Json.Text(Json.Get(saved, "theme")), seed = "";
-                        if (theme == "light" || theme == "dark" || theme == "pink") seed += "localStorage.setItem('bst-theme', '" + theme + "');";
+                        if (theme == "light" || theme == "dark") seed +="localStorage.setItem('bst-theme', '" + theme + "');";
                         if (Json.Text(Json.Get(saved, "cursor")) == "off") seed += "localStorage.setItem('bst-cursor', 'off');";
                         if (seed.Length > 0) await core.AddScriptToExecuteOnDocumentCreatedAsync("try { if (location.host === 'memoir.example' && !localStorage.getItem('memoir-preferences-moved')) { " + seed + " localStorage.setItem('memoir-preferences-moved', '1'); } } catch {}");
                     }
@@ -172,6 +179,13 @@ namespace Memoir {
             try { menu.Start(); popupPid = menu.Id; tracker.IgnoreProcess(popupPid, true); WriteDiagnostics(); }
             catch (Exception error) { trayMenu = null; menu.Dispose(); Log("Tray menu: " + error.GetType().Name); if (!Visible) releaseTimer.Start(); }
         }
+        // the clock in the notification area and on the window, in rainbow colours with the Rainbow clock on
+        private void ApplyIcon() {
+            var icon = Json.Bool(Json.Get(engine.Settings, "rainbow")) && rainbowIcon != null ? rainbowIcon : plainIcon;
+            if (icon == null) return;
+            if (Icon != icon) Icon = icon;
+            if (tray != null && tray.Icon != icon) tray.Icon = icon;
+        }
         private void ApplySavedTheme() {
             var appearance = Appearance.Resolve(Json.Get(store.Data, "windowsAppearance"));
             ApplyTheme(Json.Text(Json.Get(appearance, "theme")), Json.Text(Json.Get(Json.Map(Json.Get(appearance, "palette")), "surface")));
@@ -180,8 +194,9 @@ namespace Memoir {
             if (page != "popup.html" && page != "recap.html") return;
             view = page; ReleaseWeb(); MinimumSize = page == "popup.html" ? new Size(380, 640) : new Size(680, 520); ClientSize = page == "popup.html" ? new Size(380, 600) : new Size(1360, 850); RestoreWindow();
         }
+        // A website opens in the default browser; a mailto: link (the bug report, the author's address) in the email app
         private static void OpenLink(string address) {
-            Uri uri; if (!Uri.TryCreate(address, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http") || uri.Host == "memoir.example") return;
+            Uri uri; if (!Uri.TryCreate(address, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http" && uri.Scheme != "mailto") || uri.Host == "memoir.example") return;
             try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); } catch { }
         }
         private void Post(object payload) { if (web == null || web.IsDisposed || web.CoreWebView2 == null) return; try { web.CoreWebView2.PostWebMessageAsJson(Json.Encode(payload)); } catch { } }

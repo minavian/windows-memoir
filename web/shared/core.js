@@ -12,10 +12,23 @@ export const SLEEP_CREDIT_MS = 60_000;   // time credited before an unexplained 
 export const PRIVATE_KEY = '~private';
 export const isPrivate = d => d === PRIVATE_KEY;
 
+// Tabs that aren't websites count too, each kind under one name, kept (like Private) under
+// a key no website can have: Memoir itself, the New Tab page, the browser's own pages
+// (settings, history, downloads…), other extensions' pages, and files on the computer.
+export const PAGE_NAMES = Object.freeze({
+  '~memoir': 'Memoir', '~newtab': 'New Tab', '~browser': 'Browser pages', '~extensions': 'Extensions', '~files': 'Files',
+});
+export const isPage = d => Object.hasOwn(PAGE_NAMES, d);
+// what a site is called on screen
+// (Windows: an app, app:name.exe, by the name Windows gives it)
+export const siteName = d => PAGE_NAMES[d] || (typeof d === 'string' && d.startsWith('app:') && window.memoir ? window.memoir.appName(d) : d);
+
 export const RETENTION_OPTIONS = [0, 365, 182, 91]; // 0 = forever
 export const GOAL_MIN_MS = 60_000;
 export const GOAL_MAX_MS = (23 * 60 + 59) * 60_000;
 export const MAX_TITLES_PER_SITE = 30;
+// The version of the export file. 1 (no number): before page links were saved.
+export const EXPORT_FORMAT = 2;
 
 export const DEFAULT_SETTINGS = Object.freeze({
   paused: false,
@@ -24,7 +37,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   reminderMinutes: 19 * 60,  // minutes after midnight
   titles: false,             // false = domains only
   excluded: [],
-  retention: 0,              // days; 0 = forever (nothing is deleted unless you choose)
+  retention: 0,              // days; 0 = forever (nothing is deleted unless you choose); page titles go with their day
+  rainbow: false,            // Rainbow clock (Appearance): the toolbar icon in rainbow colours
 });
 
 // Category colours are a colour-blind-checked set with light and dark steps
@@ -166,6 +180,24 @@ export function domainFromUrl(url) {
   return safeKey(host);
 }
 
+// What a tab counts as: a website's domain, or one of the pages above. ownId is Memoir's
+// own extension id. Null only for an address that can't be read.
+export function siteFromUrl(url, ownId = null) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  const domain = domainFromUrl(url);
+  // the New Tab page some browsers load from the web (Edge's from MSN, Chrome's from Google)
+  if (domain === 'ntp.msn.com' || (domain === 'google.com' && u.pathname.startsWith('/_/chrome/newtab'))) return '~newtab';
+  if (domain) return domain;
+  const scheme = u.protocol.slice(0, -1);
+  // a file a website made (a PDF, a picture) belongs to that website
+  if (scheme === 'blob') return domainFromUrl(u.pathname) || '~browser';
+  if (/^(chrome-)?extension$|^moz-extension$/.test(scheme)) return u.host === ownId ? '~memoir' : '~extensions';
+  if (scheme === 'file') return '~files';
+  if (scheme === 'chrome-search' || /^(newtab|new-tab-page)$/.test(u.host) || (scheme === 'about' && u.pathname === 'newtab')) return '~newtab';
+  return '~browser';
+}
+
 // Turns anything the user types ("https://www.YouTube.com/watch?v=…") into a domain.
 export function normalizeSite(input) {
   if (typeof input !== 'string') return null;
@@ -299,8 +331,33 @@ export function cleanTitle(title, domain) {
   return safeKey(t);
 }
 
+// The address a page title links to: a web page only, without any login, the part
+// after #, or the usual tracking tags; very long addresses lose their query, and
+// anything still too long isn't kept.
+const TRACKING = /^(utm_[a-z]+|fbclid|gclid|dclid|msclkid|mc_eid|mc_cid|igshid|igsh|yclid|_hsenc|_hsmi|ref_src|si)$/i;
+export function cleanUrl(url, domain = null) {
+  if (typeof url !== 'string' || url.length > 4000) return null;
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (domain) {
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    if (host !== domain && !host.endsWith(`.${domain}`)) return null;
+  }
+  u.username = '';
+  u.password = '';
+  u.hash = '';
+  for (const k of [...u.searchParams.keys()]) if (TRACKING.test(k)) u.searchParams.delete(k);
+  let out = u.href;
+  if (out.length > 500) { u.search = ''; out = u.href; }
+  return out.length > 500 ? null : out;
+}
+
 // ---------- day records ----------
-// A day: { s: {domain: ms}, h: [24 × ms], hs: {hour: {domain: ms}}, ti: {domain: {title: ms}} }
+// A day: { s: {domain: ms}, h: [24 × ms], hs: {hour: {domain: ms}}, ti: {domain: {title: ms}},
+//          th: {hour: {domain: {title: ms}}} (the same page times, hour by hour),
+//          tu: {domain: {title: url}} (the latest address of each page title),
+//          tp: [domain] (sites whose titles and links were deleted as they got old, by older versions) }
 
 export function normalizeDay(rec) {
   const ok = rec && typeof rec === 'object';
@@ -309,6 +366,9 @@ export function normalizeDay(rec) {
     h: ok && Array.isArray(rec.h) && rec.h.length === 24 ? rec.h : new Array(24).fill(0),
     hs: ok && rec.hs && typeof rec.hs === 'object' ? rec.hs : {},
     ti: ok && rec.ti && typeof rec.ti === 'object' ? rec.ti : {},
+    th: ok && rec.th && typeof rec.th === 'object' ? rec.th : {},
+    tu: ok && rec.tu && typeof rec.tu === 'object' ? rec.tu : {},
+    tp: ok && Array.isArray(rec.tp) ? rec.tp : [],
   };
 }
 
@@ -317,18 +377,30 @@ export function cloneDay(d) {
   for (const [k, v] of Object.entries(d.hs)) hs[k] = { ...v };
   const ti = {};
   for (const [k, v] of Object.entries(d.ti)) ti[k] = { ...v };
-  return { s: { ...d.s }, h: d.h.slice(), hs, ti };
+  const th = {};
+  for (const [h, slot] of Object.entries(d.th || {})) {
+    th[h] = {};
+    for (const [k, v] of Object.entries(slot)) th[h][k] = { ...v };
+  }
+  const tu = {};
+  for (const [k, v] of Object.entries(d.tu || {})) tu[k] = { ...v };
+  return { s: { ...d.s }, h: d.h.slice(), hs, ti, th, tu, tp: (d.tp || []).slice() };
 }
 
 export const dayTotal = d => Object.values(d.s).reduce((a, b) => a + b, 0);
 
 // ---------- storage ----------
 
+// Every read-then-write of tracked data holds this lock, in the tracker and in the
+// pages alike, so one save can never land between another's read and its write.
+export const withData = fn => navigator.locks.request('memoir-data', fn);
+
 export async function getSettings() {
   const { settings } = await chrome.storage.local.get('settings');
   const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
   if (!Array.isArray(merged.excluded)) merged.excluded = [];
   if (!RETENTION_OPTIONS.includes(merged.retention)) merged.retention = DEFAULT_SETTINGS.retention;
+  delete merged.titleWeeks; // page titles once had their own time to keep; now they go with their day
   return merged;
 }
 

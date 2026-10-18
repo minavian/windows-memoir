@@ -1,17 +1,19 @@
 import { reducedMotion, EASE_OUT } from './fx.js';
+import { siteName } from './core.js';
 
 const ICONS = {
-  open: '<path d="M6 3H3v10h10v-3M9 2h5v5M7 9l7-7"/>',
+  open: '<path d="M7 3H5.5A2.5 2.5 0 0 0 3 5.5v5A2.5 2.5 0 0 0 5.5 13h5a2.5 2.5 0 0 0 2.5-2.5V9M9.5 2.5h4v4M13.5 2.5 8 8"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="2"/><path d="M10.5 5.5v-2A1.5 1.5 0 0 0 9 2H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>',
   cut: '<circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><path d="m5.5 5.5 8 8m-8-3 8-8"/>',
   paste: '<path d="M5 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 12.5 3H11"/><rect x="5" y="1.5" width="6" height="3" rx="1"/><path d="M5 8h6M5 11h4"/>',
   select: '<path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4M5 6h6M5 9h6"/>',
-  refresh: '<path d="M13.5 7a5.5 5.5 0 1 0-1.3 4.6M14 2v4h-4"/>',
-  settings: '<path d="m6.5 2-.5 1.5-1.5.8-1.6-.3L1.5 6.5l1.1 1v1l-1.1 1L2.9 12l1.6-.3 1.5.8.5 1.5h3l.5-1.5 1.5-.8 1.6.3 1.4-2.5-1.1-1v-1l1.1-1L13.1 4l-1.6.3-1.5-.8L9.5 2Z"/><circle cx="8" cy="8" r="2"/>',
+  refresh: '<path d="M14 8a6 6 0 1 1-6-6c1.68 0 3.29.67 4.49 1.83L14 5.33M14 2v3.33h-3.33"/>',
+  // the same gear as the report's Settings button (i-gear): six evenly rounded teeth
+  settings: '<path d="M8 1.50L8.57 1.52L9.13 1.60L9.52 2.35L9.71 3.31L10.09 3.51L10.47 3.71L10.84 3.95L11.21 4.18L12.14 3.86L12.98 3.82L13.32 4.27L13.63 4.75L13.89 5.25L14.11 5.78L13.65 6.48L12.91 7.13L12.93 7.57L12.95 8L12.93 8.43L12.91 8.87L13.65 9.52L14.11 10.22L13.89 10.75L13.63 11.25L13.32 11.73L12.98 12.18L12.14 12.14L11.21 11.82L10.84 12.05L10.48 12.29L10.09 12.49L9.71 12.69L9.52 13.65L9.13 14.40L8.57 14.48L8 14.50L7.43 14.48L6.87 14.40L6.48 13.65L6.29 12.69L5.91 12.49L5.52 12.29L5.16 12.05L4.79 11.82L3.86 12.14L3.02 12.18L2.68 11.73L2.37 11.25L2.11 10.75L1.89 10.22L2.35 9.52L3.09 8.87L3.07 8.43L3.05 8L3.07 7.57L3.09 7.13L2.35 6.48L1.89 5.78L2.11 5.25L2.37 4.75L2.68 4.27L3.02 3.82L3.86 3.86L4.79 4.18L5.16 3.95L5.53 3.71L5.91 3.51L6.29 3.31L6.48 2.35L6.87 1.60L7.43 1.52Z"/><circle cx="8" cy="8" r="2.05"/>',
   report: '<rect x="2" y="2" width="12" height="12" rx="3"/><path d="M5 10V8m3 2V5m3 5V7"/>',
   pause: '<path d="M5.5 3v10M10.5 3v10"/>',
   play: '<path d="m5 2.5 8 5.5-8 5.5Z"/>',
-  category: '<path d="M2 2h5l7 7-5 5-7-7Z"/><circle cx="5" cy="5" r=".7"/>',
+  category: '<path d="M8.35 2.35A1.2 1.2 0 0 0 7.5 2H3.2A1.2 1.2 0 0 0 2 3.2v4.3a1.2 1.2 0 0 0 .35.85l5.22 5.22a1.46 1.46 0 0 0 2.06 0l3.94-3.94a1.46 1.46 0 0 0 0-2.06Z"/><circle cx="5.3" cy="5.3" r=".55"/>',
 };
 const glyph = name => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.copy}</svg>`;
 const shortcut = key => /Mac/.test(navigator.platform) ? `⌘${key}` : `Ctrl+${key}`;
@@ -150,19 +152,37 @@ export function initContextMenu({ getItems = () => [], beforeOpen = () => {}, on
     return result;
   }
 
+  // The rows a gliding menu is leaving: they ride along inside it while they fade.
+  function ghostOf() {
+    const ghost = document.createElement('div');
+    ghost.className = 'context-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.inert = true;
+    ghost.style.top = `${6 - menu.scrollTop}px`;
+    ghost.append(...[...menu.children].filter(child => !child.classList.contains('context-ghost')));
+    return ghost;
+  }
+
   function open(event) {
     event.preventDefault();
     if (menu.contains(event.target)) return;
-    ++token;
+    const current = ++token;
+    // Already open: the same surface glides to the new spot instead of starting over.
+    const glide = !menu.hidden && !menu.classList.contains('closing') && !reducedMotion();
+    const from = glide ? menu.getBoundingClientRect() : null;
+    const ghost = glide ? ghostOf() : null;
+    const previousFocus = glide ? context?.previousFocus : null;
     context = contextFor(event);
+    if (previousFocus) context.previousFocus = previousFocus;
     items = baseItems(context);
     beforeOpen(context);
     menu.getAnimations().forEach(a => a.cancel());
-    menu.classList.remove('closing');
+    menu.classList.remove('closing', 'gliding');
     menu.replaceChildren();
     const title = document.createElement('p');
     title.className = 'context-title';
-    title.textContent = context.editable ? 'Edit text' : context.domain && context.domain !== '~private' ? context.domain.startsWith('app:') ? window.memoir.appName(context.domain) : context.domain : context.text.trim() ? 'Selected text' : 'Memoir';
+    title.textContent = context.editable ? 'Edit text' : context.domain && context.domain !== '~private' ? siteName(context.domain) : context.text.trim() ? 'Selected text' : '';
+    if (!title.textContent) title.innerHTML = '<span class="wordmark">Memoir</span>';
     menu.appendChild(title);
     items.forEach((item, index) => {
       const el = document.createElement(item.separator ? 'div' : item.href ? 'a' : 'button');
@@ -193,7 +213,21 @@ export function initContextMenu({ getItems = () => [], beforeOpen = () => {}, on
     menu.style.top = `${top}px`;
     menu.style.transformOrigin = `${Math.max(0, Math.min(w, x - left))}px ${Math.max(0, Math.min(h, y - top))}px`;
     menu.querySelector('.context-item:not(:disabled)')?.focus({ preventScroll: true });
-    if (!reducedMotion()) menu.animate([{ opacity: 0, transform: 'translateY(6px) scale(0.9)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE_OUT });
+    if (glide) {
+      // position and height travel together; the old rows fade as the new ones arrive
+      menu.classList.add('gliding');
+      menu.appendChild(ghost);
+      const to = menu.getBoundingClientRect();
+      const done = () => { if (current === token) menu.classList.remove('gliding'); ghost.remove(); };
+      menu.animate([
+        { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)`, height: `${from.height}px` },
+        { transform: 'none', height: `${to.height}px` },
+      ], { duration: 420, easing: EASE_OUT }).finished.then(done, done);
+      ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out', fill: 'forwards' });
+      for (const el of menu.querySelectorAll(':scope > .context-title, :scope > .context-separator')) {
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 80, easing: 'ease-out', fill: 'backwards' });
+      }
+    } else if (!reducedMotion()) menu.animate([{ opacity: 0, transform: 'translateY(6px) scale(0.9)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE_OUT });
   }
 
   document.addEventListener('contextmenu', open, true);

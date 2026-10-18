@@ -14,6 +14,12 @@ body { background: var(--bg-art), var(--bg); }
 .top { display: flex; align-items: flex-start; justify-content: space-between; flex: none; }
 h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
 .top .caption { margin: 2px 0 0; }
+/* the clock beside the name: live, like the report's (shared/logo.js) */
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.top-mark { width: 40px; height: 40px; flex: none; }
+/* tracking can be paused only in the report's Settings; while it is, this brings it back */
+.resume { align-self: center; gap: 5px; padding: 0 11px 0 9px; }
+.resume svg { width: 10px; height: 10px; }
 
 /* today: the ring from the pink design */
 .hero { margin-top: 14px; flex: none; height: 126px; display: flex; align-items: center; gap: 16px; padding: 10px 16px 10px 10px; border-radius: 18px; }
@@ -29,25 +35,29 @@ h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
 .ring-sub { margin-top: 2px; font-size: 11px; font-weight: 500; color: var(--label-2); max-width: 70px; line-height: 1.2; }
 .hero-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+/* every category of the day; when there are more than fit (three rows, two when the
+   private line takes the third's room) they scroll. Each one opens its sites (as in the
+   report: shared/pop.css) */
+.hero-side > .scroller { margin: 0 -6px; }
 .legend li {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 3px 6px;
-  margin: 0 -6px;
   border-radius: 7px;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--label-2);
-  cursor: default;
+  cursor: var(--cursor-hand);
   transition: background-color 0.2s var(--ease), opacity 0.2s var(--ease);
 }
-.legend li:hover, .legend li.on { background: var(--fill-1); }
+.legend li:hover, .legend li.on, .legend li[aria-expanded="true"] { background: var(--fill-1); }
+.legend li:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .legend.focus li:not(.on) { opacity: 0.4; }
 .legend b { color: var(--label); font-weight: 600; font-variant-numeric: tabular-nums; }
 .legend .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.legend li.none { display: block; margin: 0; padding: 0; background: none; }
+.legend li.none { display: block; margin: 0 6px; padding: 0; background: none; cursor: default; }
 .compare { margin: 0; line-height: 1.35; }
 .compare .priv { display: block; color: var(--label-3); }
 .hero-side { justify-content: center; }
@@ -101,53 +111,6 @@ h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
 }
 .goal-lock svg { width: 12px; height: 12px; }
 
-/* now row */
-.now {
-  margin-top: 10px;
-  flex: none;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 14px 0 12px;
-  border-radius: 14px;
-}
-.now-icon { position: relative; flex: none; display: grid; place-items: center; }
-.now-icon .favicon { width: 30px; height: 30px; border-radius: 8px; }
-.now-icon.live::after {
-  content: "";
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--label);
-  box-shadow: 0 0 0 2px var(--surface);
-  animation: breathe 2.4s var(--ease-in-out) infinite;
-}
-@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-.now-glyph {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: var(--fill-1);
-  color: var(--label-2);
-}
-.now-glyph svg { width: 16px; height: 16px; }
-.now-text { flex: 1; min-width: 0; }
-.now-domain {
-  margin: 1px 0 0;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.now-timer { font-size: 14px; font-weight: 500; color: var(--label-2); }
-.now .swap-in { animation: swap-in 0.35s var(--ease-out) backwards; }
 @keyframes swap-in { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
 
 /* most used */
@@ -213,11 +176,32 @@ h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   color: var(--label-2);
   font-size: 13px;
+  text-align: center;
 }
-.empty svg { width: 26px; height: 26px; color: var(--label-3); }
 .empty p { margin: 0; }
+/* nothing listed: the (empty) scroller keeps out of the way, so the words sit in the middle */
+.list-card:has(> .empty:not([hidden])) > .scroller { display: none; }
 
 .week-btn { margin-top: 12px; flex: none; width: 100%; }
+/* the first time the popup opens, once: a line, and a soft ring going out from the
+   button a few times once the popup is in (a layer of its own, so the button keeps its
+   entrance). The ring is a pill as big as it gets, under the label, scaled up from the
+   button's own size (popup.js): only its scale and opacity change, so the compositor draws
+   it (a growing box-shadow repainted every frame) */
+.week-tip { margin: 12px 0 0; flex: none; text-align: center; font-size: 12.5px; font-weight: 550; color: var(--label-2); }
+.week-tip:not([hidden]) + .week-btn { margin-top: 8px; }
+.week-btn.pulse::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* the category popover in the popup's room: as wide as fits, never past its edges */
+.pop { width: min(310px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }

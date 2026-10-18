@@ -35,7 +35,7 @@ namespace Memoir {
             callback = delegate(IntPtr hook, uint eventId, IntPtr hwnd, int objectId, int childId, uint threadId, uint time) {
                 if (disposed || hwnd == IntPtr.Zero) return;
                 if (eventId == 3 || (eventId == 0x800C && objectId == 0 && hwnd == Native.GetForegroundWindow())) {
-                    try { owner.BeginInvoke(new Action(delegate { if (!disposed) { RefreshForeground(); if (app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4))) PollBrowser(true); else if (target != null && Json.Bool(Json.Get(engine.Settings, "titles"))) { target.Title = Native.Title(foreground); engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); } } })); } catch { }
+                    try { owner.BeginInvoke(new Action(delegate { if (!disposed) { RefreshForeground(); if (app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4))) PollBrowser(true); else if (target != null && app != null && Json.Bool(Json.Get(engine.Settings, "titles"))) { target.Title = Native.Title(foreground); engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); } } })); } catch { }
                 }
             };
             foregroundHook = Native.SetWinEventHook(3, 3, IntPtr.Zero, callback, 0, 0, 2);
@@ -48,7 +48,7 @@ namespace Memoir {
                     long idle = Native.IdleMilliseconds(), now = Engine.Now;
                     if (app != null && BrowserProbe.IsBrowser(app.Domain.Substring(4)) && !locked && !engine.Paused) PollBrowser(false);
                     var exact = app == null ? null : link.Current(app.Domain.Substring(4));
-                    if (!locked && !engine.Paused && target != null && exact == null && idle >= Engine.IdleLimit - 2000 && now - lastAudioPoll >= 2000) {
+                    if (!locked && !engine.Paused && target != null && app != null && exact == null && idle >= Engine.IdleLimit - 2000 && now - lastAudioPoll >= 2000) {
                         lastAudioPoll = now;
                         if (AudioProbe.Audible(target.ProcessId, app.Domain.Substring(4))) audibleUntil = now + 5000;
                         target.Audible = now < audibleUntil;
@@ -75,7 +75,10 @@ namespace Memoir {
                 Native.EnumChildWindows(next, delegate(IntPtr child, IntPtr unused) { uint childPid; Native.GetWindowThreadProcessId(child, out childPid); if (childPid != framePid && childPid != 0) contentPid = childPid; return true; }, IntPtr.Zero);
                 if (contentPid != 0) pid = contentPid;
             } } catch { }
-            if (pid == Process.GetCurrentProcess().Id || pid == 0 || ignoredProcesses.Contains((int)pid)) return;
+            if (pid == 0 || ignoredProcesses.Contains((int)pid)) return;
+            // Memoir's own window counts too, as Memoir (the extension's ~memoir), with no title (the tray
+            // menu runs in a process of its own, which stays ignored)
+            if (pid == Process.GetCurrentProcess().Id) { target = new Target { Domain = "~memoir", Name = "Memoir", Category = "other" }; engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); return; }
             app = Describe((int)pid);
             if (app == null) return;
             target = app.Copy(); target.Title = Json.Bool(Json.Get(engine.Settings, "titles")) ? Native.Title(next) : null;

@@ -1,9 +1,10 @@
-/* Browser Screen Time — one design, three themes.
-   Light and Dark follow the system by default; Pink is only ever chosen by you.
+/* Browser Screen Time — one design, two themes.
+   Light and Dark follow the system by default; you can also pick one.
    Colour is reserved for data. Hover motion never overshoots, so nothing
    wobbles when the pointer leaves; bounce is kept for deliberate pops only. */
 
-:root {
+:root,
+[data-wave="light"] {
   color-scheme: light;
 
   --bg: #f5f5f7;
@@ -68,8 +69,12 @@
   --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2728%27 viewBox=%270 0 28 28%27%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27rgba%28255%2C255%2C255%2C0.92%29%27 stroke=%27rgba%28255%2C255%2C255%2C0.92%29%27 stroke-width=%274.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27%23ffffff%27 stroke=%27%231d1d1f%27 stroke-width=%272%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 4, default;
   --cursor-hand: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2728%27 viewBox=%270 0 28 28%27%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27rgba%28255%2C255%2C255%2C0.92%29%27 stroke=%27rgba%28255%2C255%2C255%2C0.92%29%27 stroke-width=%274.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27%23ffffff%27 stroke=%27%231d1d1f%27 stroke-width=%272%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 4, pointer;
 
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI Variable Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* SF Pro on a Mac (its own system font: -apple-system, which only a Mac has), Inter everywhere else
+     (bundled, below), so Windows looks the same on every PC. SF Pro is never named: a PC with it
+     installed still gets Inter (its licence covers Apple platforms only). What Inter lacks falls back
+     to the system's own sans */
+  --font: -apple-system, BlinkMacSystemFont, "Memoir Inter", "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Memoir Inter", "Segoe UI Variable Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);   /* smooth settle, never overshoots */
@@ -79,8 +84,6 @@
 
   --r-card: 20px;
 
-  --petal-a: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffc2da'/%3E%3Cstop offset='1' stop-color='%23e9709f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M16 30C8 26 3 17 6 9c2-5 6-6 8-3l2 3 2-3c2-3 6-2 8 3 3 8-2 17-10 21z' fill='url(%23g)'/%3E%3C/svg%3E");
-  --petal-b: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffadcb'/%3E%3Cstop offset='1' stop-color='%23cf4b83'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M16 30C8 26 3 17 6 9c2-5 6-6 8-3l2 3 2-3c2-3 6-2 8 3 3 8-2 17-10 21z' fill='url(%23g)'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
@@ -147,7 +150,8 @@
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-wave="dark"] {
   color-scheme: dark;
   --bg: #000000;
   --surface: #1c1c1e;
@@ -209,72 +213,6 @@
   --cursor-hand: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2728%27 viewBox=%270 0 28 28%27%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27rgba%280%2C0%2C0%2C0.85%29%27 stroke=%27rgba%280%2C0%2C0%2C0.85%29%27 stroke-width=%274.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27%231c1c1e%27 stroke=%27%23f5f5f7%27 stroke-width=%272%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 4, pointer;
 }
 
-/* Pink: the dusky rose from the cute version — soft on the eyes */
-:root[data-theme="pink"] {
-  color-scheme: dark;
-  --bg: #2b1521;
-  --bg-art:
-    radial-gradient(900px 600px at 100% 0%, rgba(201, 58, 116, 0.18), transparent 70%),
-    radial-gradient(700px 500px at 0% 100%, rgba(247, 103, 157, 0.1), transparent 70%);
-  --surface: #3a2331;
-  --surface-2: #4a2c3d;
-  --raised: #4a2c3d;
-  --fill-1: rgba(255, 143, 184, 0.09);
-  --fill-2: rgba(255, 143, 184, 0.16);
-  --fill-3: rgba(255, 143, 184, 0.26);
-  --label: #fbe7f0;
-  --label-2: #e0b3c7;
-  --label-3: #c592a9;
-  --sep: rgba(255, 170, 205, 0.14);
-  --accent: #f58bb5;
-  --on-accent: #3a1628;
-  --track: #4d2e40;
-  --knob: #fbe7f0;
-  --knob-on: #3a1628;
-  --thumb: #6a3d55;
-  --glass: rgba(58, 35, 49, 0.86);
-  --shadow: 0 16px 36px -18px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 190, 220, 0.07);
-  --shadow-hover: 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 190, 220, 0.12);
-  --shadow-pop: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 170, 205, 0.14);
-  --drop: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 0.5px rgba(255, 170, 205, 0.4));
-  --ring: 0 0 0 3px rgba(245, 139, 181, 0.4);
-  --cat-social: #d55181;
-  --cat-video: #9085e9;
-  --cat-games: #e66767;
-  --cat-work: #3987e5;
-  --cat-shopping: #d95926;
-  --cat-learning: #199e70;
-  --cat-news: #c98500;
-  --cat-other: #e3d0d9;
-  --g0: #452a3b;
-  --g1: #6b2f4c;
-  --g2: #963a61;
-  --g3: #c64a7c;
-  --g4: #ee6d9f;
-  --g5: #ffa8c8;
-
-  --goal-ok: #30d158;
-  --goal-warn: #ffd60a;
-  --goal-high: #ff9f0a;
-  --goal-critical: #ff453a;
-  --goal-over: #ff2d45;
-  --danger: #ff5c7a;
-  --danger-soft: rgba(255, 92, 122, 0.16);
-  --danger-glow: rgba(255, 92, 122, 0.6);
-  --on-danger: #ffffff;
-  --pk-bg: #3a2331;
-  --pk-fg: #fbe7f0;
-  --pk-dim: rgba(251, 231, 240, 0.58);
-  --pk-track: rgba(255, 143, 184, 0.14);
-  --pk-field: rgba(255, 143, 184, 0.12);
-  --pk-accent: #f58bb5;
-  --pk-on-accent: #3a1628;
-  --pk-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 190, 220, 0.08);
-  --pk-scrim: rgba(22, 6, 15, 0.52);
-  --cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2728%27 viewBox=%270 0 28 28%27%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27rgba%2843%2C21%2C33%2C0.9%29%27 stroke=%27rgba%2843%2C21%2C33%2C0.9%29%27 stroke-width=%274.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27%233a1628%27 stroke=%27%23f58bb5%27 stroke-width=%272%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 4, default;
-  --cursor-hand: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2728%27 viewBox=%270 0 28 28%27%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27rgba%2843%2C21%2C33%2C0.9%29%27 stroke=%27rgba%2843%2C21%2C33%2C0.9%29%27 stroke-width=%274.6%27 stroke-linejoin=%27round%27/%3E%3Cpath d=%27M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z%27 fill=%27%233a1628%27 stroke=%27%23f58bb5%27 stroke-width=%272%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 5 4, pointer;
-}
-
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 .no-anim > * { animation: none !important; }
@@ -303,8 +241,131 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .display { font-family: var(--font-display); letter-spacing: -0.022em; }
 
-::view-transition-old(root),
-::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* ---------- the MEMOIR wordmark ---------- */
+/* As in the trailer: Unbounded at its heaviest, platinum (graphite on Light), a fine
+   grain, a tight glow. It's all painted once and never again: the grain is a small tile,
+   the glow a text-shadow on the word itself, the platinum a copy on top (::after), no
+   filters, so it costs nothing on a slow device. <span class="wordmark">Memoir</span>
+   reads "Memoir"; a slice of the word (one letter, for animation) sets data-t to its
+   letters and --wm-w/--wm-x to the whole word's width and its own offset in it.
+   In Settings it's plain: .wordmark-plain, the face and capitals only. */
+@font-face {
+  font-family: "Memoir Unbounded";
+  src: url("../fonts/Unbounded-subset.woff2") format("woff2");
+  font-weight: 200 900;
+  font-display: block;
+}
+/* Inter 4.1 (rsms/inter, Open Font License), every weight and its optical sizes (opsz: the larger the
+   text, the tighter its Display cut), cut down to Latin, Greek, Cyrillic, punctuation and arrows, and
+   with the plain 1 in tabular digits too (Inter's own has a foot there).
+   theme-boot.js starts loading it before first paint, except on a Mac, which uses SF Pro */
+@font-face {
+  font-family: "Memoir Inter";
+  src: url("../fonts/InterVariable-memoir.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+:root, [data-wave="light"] {
+  --wm-fill: linear-gradient(76deg, #5e5e64, #2c2c30 30%, #0e0e10 55%, #232327 78%, #0e0e10);
+  --wm-glow: 0 0.02em 0.06em rgba(0, 0, 0, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --wm-fill: linear-gradient(76deg, #a4a4ac, #dedee3 30%, #fff 55%, #e9e9ee 78%, #fff);
+    --wm-glow: 0 0 0.045em rgba(255, 255, 255, 0.32), 0 0 0.16em rgba(255, 255, 255, 0.12);
+  }
+}
+:root[data-theme="dark"], [data-wave="dark"], .wm-dark {
+  --wm-fill: linear-gradient(76deg, #a4a4ac, #dedee3 30%, #fff 55%, #e9e9ee 78%, #fff);
+  --wm-glow: 0 0 0.045em rgba(255, 255, 255, 0.32), 0 0 0.16em rgba(255, 255, 255, 0.12);
+}
+/* Rainbow clock (Appearance): the wordmark in the rainbow too, a colour to each letter; deeper
+   on Light so it reads on white, brighter on Dark */
+:root[data-rainbow="on"], :root[data-rainbow="on"] [data-wave="light"] {
+  --wm-fill: linear-gradient(90deg, #e5484d 4%, #ef8a26 22%, #d9a800 40%, #2fae66 58%, #2f86e0 76%, #8a5cdb 94%);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-rainbow="on"]:not([data-theme]) {
+    --wm-fill: linear-gradient(90deg, #ff6b7a 4%, #ffa45c 22%, #ffd75e 40%, #5fd38d 58%, #5aaef2 76%, #b18cf2 94%);
+  }
+}
+:root[data-rainbow="on"][data-theme="dark"], :root[data-rainbow="on"] [data-wave="dark"], :root[data-rainbow="on"] .wm-dark {
+  --wm-fill: linear-gradient(90deg, #ff6b7a 4%, #ffa45c 22%, #ffd75e 40%, #5fd38d 58%, #5aaef2 76%, #b18cf2 94%);
+}
+.wordmark {
+  position: relative;
+  display: inline-block;
+  font-family: "Memoir Unbounded", var(--font-display);
+  font-weight: 900;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  text-shadow: var(--wm-glow);
+}
+.wordmark::after {
+  content: "MEMOIR" / "";
+  position: absolute;
+  inset: 0;
+  text-shadow: none;
+  background:
+    url("grain.png") var(--wm-x, 0px) 0 / var(--wm-g, 96px) var(--wm-g, 96px),
+    linear-gradient(rgba(255, 255, 255, 0.1), transparent 45%, rgba(0, 0, 0, 0.1) 80%, rgba(255, 255, 255, 0.04)),
+    var(--wm-fill) var(--wm-x, 0px) 0 / var(--wm-w, 100%) 100% no-repeat;
+  background-blend-mode: soft-light, normal, normal;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.wordmark[data-t]::after { content: attr(data-t) / ""; }
+/* in a line of text, so its capitals sit with the words around them */
+.wm-in { font-size: 0.86em; }
+.wordmark-plain { font-family: "Memoir Unbounded", var(--font-display); font-weight: 600; letter-spacing: 0.01em; text-transform: uppercase; }
+
+/* ---------- theme change: waves (theme.js setThemePref) ---------- */
+/* A block a wave has passed carries that wave's theme (blocks switch as the middle of a
+   wave's soft edge passes them); its text colour is the theme's label colour, as the
+   page's is (its parent's resolved colour would be stale). */
+:where([data-wave]:not([data-wave-keep])) { color: var(--label); }
+/* the frame a block switches, its own transitions wait (they come back the next frame;
+   only the block's own: holding its whole subtree would restyle it all a second time) */
+[data-wave-now], [data-wave-now]::before, [data-wave-now]::after { transition: none !important; }
+/* on a floating surface (Settings, the tour card) its few descendants too; a separate
+   attribute, so the board's blocks never invalidate their subtrees */
+[data-wave-deep] *, [data-wave-deep] *::before, [data-wave-deep] *::after { transition: none !important; }
+/* the layers that paint the page and the cards' surfaces, one per wave, under the board */
+@property --wave-p { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+@property --wave-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.wave-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg-art), var(--bg);
+  background-attachment: fixed;
+}
+.wave-shapes > i { position: absolute; border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow); }
+/* a wave: a soft edge sweeping from the top-right corner */
+.wave-layer.sweeping {
+  -webkit-mask-image: linear-gradient(to bottom left, #000 calc(var(--wave-p) - 30%), transparent var(--wave-p));
+  mask-image: linear-gradient(to bottom left, #000 calc(var(--wave-p) - 30%), transparent var(--wave-p));
+}
+/* in the Settings panel: a soft circle from the button */
+.wave-panel {
+  position: absolute;
+  border-radius: inherit;
+  left: 0;
+  top: 0;
+  right: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--panel);
+  -webkit-mask-image: radial-gradient(circle at var(--wave-cx) var(--wave-cy), #000 calc(var(--wave-r) - 90px), transparent var(--wave-r));
+  mask-image: radial-gradient(circle at var(--wave-cx) var(--wave-cy), #000 calc(var(--wave-r) - 90px), transparent var(--wave-r));
+}
+/* while waves run, the layers paint the cards' surfaces */
+:root.waving .board > .card { background: transparent !important; box-shadow: none !important; }
+:root:is(.waving, .wave-done) .board > .card { transition: none !important; }
 
 /* ---------- entrance ---------- */
 
@@ -317,33 +378,6 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 @keyframes enter { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
-
-/* ---------- pink-only falling petals ---------- */
-
-.ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
-:root[data-theme="pink"] .ambient { display: block; }
-.petal {
-  position: absolute;
-  top: 0;
-  left: var(--x);
-  width: var(--size);
-  height: var(--size);
-  animation: petal-fall var(--dur) linear var(--delay) infinite;
-}
-.petal i {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--img, var(--petal-a)) center / contain no-repeat;
-  opacity: var(--alpha, 0.4);
-  animation: petal-flutter var(--flutter) var(--ease-in-out) var(--delay) infinite alternate;
-}
-@keyframes petal-fall { from { transform: translate3d(0, -40px, 0); } to { transform: translate3d(var(--drift), calc(100vh + 40px), 0); } }
-@keyframes petal-flutter {
-  0%   { transform: translateX(-12px) rotate(-30deg) rotateY(0deg); }
-  50%  { transform: translateX(5px) rotate(10deg) rotateY(70deg); }
-  100% { transform: translateX(12px) rotate(40deg) rotateY(160deg); }
-}
 
 /* ---------- surfaces ---------- */
 
@@ -404,6 +438,7 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .btn:active { --press: 0.96; transition-duration: 0.08s, 0.2s, 0.2s, 0.2s, 0.2s; }
 .btn:focus-visible { outline: none; box-shadow: var(--ring); }
 .btn[disabled] { opacity: 0.4; cursor: var(--cursor); --press: 1; }
+a.btn { text-decoration: none; } /* a link that looks like a button (Settings: How Memoir works) */
 .btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--bg)); }
 .btn-secondary { background: var(--fill-1); color: var(--label); }
@@ -458,7 +493,15 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .switch input:checked + .track + .knob { transform: translateX(18px); background: var(--knob-on); }
 .switch input:active + .track + .knob { width: 27px; }
 .switch input:checked:active + .track + .knob { left: -3px; }
+/* a smaller one, for a heading's line */
+.switch-sm { width: 36px; height: 20px; }
+.switch-sm .knob { width: 16px; height: 16px; }
+.switch-sm input:checked + .track + .knob { transform: translateX(16px); }
+.switch-sm input:active + .track + .knob { width: 20px; }
 .switch input:focus-visible + .track { box-shadow: var(--ring); }
+/* locked (aria-disabled): it doesn't give under a press; the row says why (recap.js) */
+.switch:has(input[aria-disabled="true"]), .switch input[aria-disabled="true"] { cursor: var(--cursor); }
+.switch input[aria-disabled="true"]:active + .track + .knob { width: 22px; left: 2px; }
 
 /* ---------- segmented control ---------- */
 
@@ -639,6 +682,8 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .btn-xs { height: 26px; padding: 0 11px; font-size: 12px; }
 
 .favicon.is-private { color: var(--label-2); }
+/* Memoir, New Tab, browser pages…: a name, not a link */
+.page-name { color: inherit; }
 .favicon.is-private svg { width: 15px; height: 15px; }
 
 .sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -674,6 +719,10 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
   color: var(--label);
 }
 .context-menu.closing { pointer-events: none; }
+/* right-clicking again: the menu glides to the new spot, carrying its old rows as they fade */
+.context-menu.gliding { overflow: hidden; }
+.context-ghost { position: absolute; left: 6px; right: 6px; pointer-events: none; }
+.context-menu .context-ghost > * { animation: none; }
 .context-title { margin: 5px 10px 7px; color: var(--label-2); font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-separator { height: 0.5px; margin: 5px 8px; background: var(--sep); }
 .context-item {
@@ -731,7 +780,7 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* no containment: a list with nothing left to scroll hands the wheel to the page */
   scrollbar-width: none;
   --ft: 0px;
   --fb: 0px;
@@ -767,12 +816,13 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .sb:hover i, .scroller.dragging .sb i { width: 7px; right: 1.5px; opacity: 0.85; }
 
 /* ---------- animated cursor (see cursor.js); "off" falls back to the system's ---------- */
-:root { --cur-fill: #ffffff; --cur-stroke: #1d1d1f; --cur-halo: rgba(255, 255, 255, 0.92); }
+:root, [data-wave="light"] { --cur-fill: #ffffff; --cur-stroke: #1d1d1f; --cur-halo: rgba(255, 255, 255, 0.92); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --cur-fill: #1c1c1e; --cur-stroke: #f5f5f7; --cur-halo: rgba(0, 0, 0, 0.85); } }
-:root[data-theme="dark"] { --cur-fill: #1c1c1e; --cur-stroke: #f5f5f7; --cur-halo: rgba(0, 0, 0, 0.85); }
-:root[data-theme="pink"] { --cur-fill: #3a1628; --cur-stroke: #f58bb5; --cur-halo: rgba(43, 21, 33, 0.9); }
-/* !important: the dark and pink themes set their own arrow with a stronger selector */
-html[data-cursor="off"] { --cursor: auto !important; --cursor-hand: pointer !important; }
+:root[data-theme="dark"], [data-wave="dark"] { --cur-fill: #1c1c1e; --cur-stroke: #f5f5f7; --cur-halo: rgba(0, 0, 0, 0.85); }
+/* !important: the dark theme sets its own arrow with a stronger selector */
+/* (also on blocks a theme wave has passed: they carry their own theme's --cursor) */
+html[data-cursor="off"],
+html[data-cursor="off"] [data-wave] { --cursor: auto !important; --cursor-hand: pointer !important; }
 html.cc-live, html.cc-live * { cursor: none !important; }
 html.cc-live :is(input[type="text"], input[type="search"], input:not([type]), input[inputmode], textarea) { cursor: text !important; }
 .cc { position: fixed; left: 0; top: 0; z-index: 2147483647; width: 0; height: 0; pointer-events: none; will-change: transform; }
@@ -793,4 +843,6 @@ html.cc-live :is(input[type="text"], input[type="search"], input:not([type]), in
 .cc-arrow .body { fill: var(--cur-fill); stroke: var(--cur-stroke); stroke-width: 2; stroke-linejoin: round; transition: fill 0.35s var(--ease), stroke 0.35s var(--ease); }
 .cc.is-hover .cc-inner { transform: scale(0.86) rotate(-12deg); }
 .cc.is-text .cc-inner, .cc.is-out .cc-inner { opacity: 0; }
+/* the system draws the arrow meanwhile (cursor.js): gone at once, no fade */
+.cc.is-native { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .cc-inner { transition: opacity 0.1s linear; } .cc-arrow { transition: none; } }

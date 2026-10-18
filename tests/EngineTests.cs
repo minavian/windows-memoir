@@ -99,6 +99,29 @@ namespace Memoir {
             }
             s=Fresh();e=UTC(s);e.Commit(App("example.com","Erase this title"),t,t+1000,Json.Object("titles",true));s.Save();s.Set(Json.Object("probe",1));s.Save();e.EraseTitles();s.Save();
             True(!File.ReadAllText(s.FilePath).Contains("Erase this title") && !File.ReadAllText(s.FilePath+".backup").Contains("Erase this title"),"Erase titles includes the recovery backup");
+
+            // 6.0: the day record as the extension keeps it (th, tu, tp), and its cleanTitle
+            s=Fresh();e=UTC(s);
+            s.Set(Json.Object("day:2026-10-03",Json.Object("s",Json.Object("example.com",5000.0),"h",Enumerable.Repeat<object>(0.0,24).ToArray(),"hs",Json.Object(),
+                "ti",Json.Object("example.com",Json.Object("Old page",5000.0)),"th",Json.Object("9",Json.Object("example.com",Json.Object("Old page",5000.0))),
+                "tu",Json.Object("example.com",Json.Object("Old page","https://example.com/old")),"tp",new object[]{"gone.example"})));
+            e.Commit(App("app:notepad.exe","Draft.txt - Notepad"),t,t+90000,Json.Object("titles",true));
+            var kept=Engine.Normalize(s.Data["day:2026-10-03"]);
+            True(Json.Text(Json.Get(Json.Map(Json.Get(Json.Map(kept["tu"]),"example.com")),"Old page"))=="https://example.com/old","A Windows save keeps the extension's page links");
+            True(Json.Array(kept["tp"]).Length==1 && Json.Map(Json.Get(Json.Map(kept["th"]),"9")).ContainsKey("example.com"),"A Windows save keeps older hour titles and the deleted-titles list");
+            Eq(Json.Number(Json.Get(Json.Map(Json.Get(Json.Map(Json.Get(Json.Map(kept["th"]),"12")),"app:notepad.exe")),"Draft.txt - Notepad")),90000,"Window titles are kept hour by hour");
+            e.Commit(App("app:notepad.exe","Late.txt - Notepad"),At("2026-10-03T12:59:00Z"),At("2026-10-03T13:01:00Z"),Json.Object("titles",true));
+            kept=Engine.Normalize(s.Data["day:2026-10-03"]);
+            Eq(Json.Number(Json.Get(Json.Map(Json.Get(Json.Map(Json.Get(Json.Map(kept["th"]),"13")),"app:notepad.exe")),"Late.txt - Notepad")),60000,"An hour title splits at the hour like its time");
+            s.Set(Json.Object("settings",Json.Object("excluded",new object[]{"example.com"})));e.EnforcePrivacy();
+            kept=Engine.Normalize(s.Data["day:2026-10-03"]);
+            True(!Json.Map(kept["tu"]).ContainsKey("example.com") && !Json.Map(Json.Get(Json.Map(kept["th"]),"9")).ContainsKey("example.com"),"Never track removes a name from hour titles and links too");
+            True(Json.Map(Json.Get(Json.Map(kept["th"]),"12")).ContainsKey("app:notepad.exe"),"Never track leaves other names' hour titles");
+            e.EraseTitles(); kept=Engine.Normalize(s.Data["day:2026-10-03"]);
+            True(Json.Map(kept["ti"]).Count==0 && Json.Map(kept["th"]).Count==0 && Json.Map(kept["tu"]).Count==0 && Json.Array(kept["tp"]).Length==0,"Erase titles clears titles, hour titles, links and the deleted list");
+            True(Engine.CleanTitle("(3) Inbox",null)=="Inbox" && Engine.CleanTitle("https://example.com/x","example.com")==null,"Titles lose unread counts, and addresses aren't titles");
+            True(Engine.CleanTitle("www.example.com/path","example.com")==null && Engine.CleanTitle("docs.example.com","example.com")==null,"A site's own address while loading isn't a title");
+            True(Engine.CleanTitle("constructor","example.com")==null && Engine.CleanTitle("Example Domain","example.com")=="Example Domain","Reserved names aren't titles; real ones are");
             Console.WriteLine("PASS: " + checks + " tracking, privacy, time, notification, and durability checks.");
         }
     }

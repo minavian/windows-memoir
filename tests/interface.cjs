@@ -4,11 +4,11 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../web');
 const today = new Date().toLocaleDateString('en-CA');
-const hours = Array(24).fill(0); hours[12] = 2700000;
+const hours = Array(24).fill(0); hours[12] = 2940000;
 const fixture = {
   onboarded: true,
   apps: {'app:notepad.exe': {name:'Notepad', category:'work'}, 'app:spotify.exe':{name:'Spotify',category:'video'}},
-  [`day:${today}`]: {s:{'app:notepad.exe':1800000,'example.com':600000,'app:spotify.exe':300000},h:hours,hs:{12:{'app:notepad.exe':1800000,'example.com':600000,'app:spotify.exe':300000}},ti:{}},
+  [`day:${today}`]: {s:{'app:notepad.exe':1800000,'example.com':600000,'app:spotify.exe':300000,'~memoir':240000},h:hours,hs:{12:{'app:notepad.exe':1800000,'example.com':600000,'app:spotify.exe':300000,'~memoir':240000}},ti:{}},
   settings:{paused:false,weeklyReminder:true,reminderDay:0,reminderMinutes:1140,titles:false,excluded:[],retention:0},
 };
 let checks=0;
@@ -52,9 +52,13 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.locator('.desktop-today').count()===0,'Report header has no Today button');
     verify(await page.locator('#scope [data-scope="day"]').getAttribute('aria-pressed')==='true','Categories starts on Day');
     verify(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+2),'Large report fits in one screen');
-    for(const theme of ['light','dark','pink']) {
+    verify(await page.locator('#sites li[data-domain="~memoir"]').count()===1 && (await page.locator('#sites li[data-domain="~memoir"]').innerText()).includes('Memoir'),'Memoir’s own time shows as Memoir');
+    verify(await page.evaluate(()=>/for Windows/.test(chrome.runtime.getManifest().version)),'The report reads the Windows version');
+    for(const theme of ['light','dark']) {
       await page.evaluate(async theme=>{const m=await import('./shared/theme.js');m.setThemePref(theme);},theme);
-      await page.waitForTimeout(800);
+      // the new theme lands once its wave has swept the page
+      await page.waitForFunction(theme=>window.testAppearance?.theme===theme&&window.testAppearance?.mode===theme,theme,{timeout:6000}).catch(()=>{});
+      await page.waitForTimeout(300);
       verify(await page.evaluate(theme=>window.testAppearance?.theme===theme&&window.testAppearance?.mode===theme,theme),`${theme} tray theme reaches the native host`);
       verify(await page.evaluate(()=>testAppearance.palette.surface===getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()&&testAppearance.palette.label===getComputedStyle(document.documentElement).getPropertyValue('--label').trim()),`${theme} tray palette matches the interface`);
       await page.locator('#sites li[data-domain="app:notepad.exe"]').click({button:'right'});
@@ -68,11 +72,16 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     await page.locator('#settings-btn').click(); await page.waitForTimeout(750);
     verify(await page.locator('#settings-panel').isVisible(),'Settings opens');
     await page.locator('#set-tracking').evaluate(el=>el.scrollIntoView());
+    // pausing asks "Sure?" first, then pauses on the second press
+    await page.locator('#set-tracking').click(); await page.waitForTimeout(300);
+    verify(!(await page.evaluate(()=>testData.settings.paused)),'The first press only asks to be sure');
     await page.locator('#set-tracking').click(); await page.waitForTimeout(300);
     verify(await page.evaluate(()=>testData.settings.paused),'Pause reaches native storage bridge');
     await page.locator('#set-tracking').click(); await page.waitForTimeout(300);
     verify(!(await page.evaluate(()=>testData.settings.paused)),'Resume reaches native storage bridge');
     await page.screenshot({path:path.join(__dirname,'report-settings.png')});
+    verify((await page.locator('#settings-panel').innerText()).includes('Your data never leaves this computer'),'Settings says this computer, not this browser');
+    verify(await page.locator('.desktop-status').count()===0,'No extra note under Settings');
     await page.keyboard.press('Escape'); await page.waitForTimeout(600);
     await page.setViewportSize({width:780,height:600}); await page.waitForTimeout(500);
     verify(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight),'Narrow report scrolls');
@@ -87,13 +96,25 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.evaluate(()=>window.testView==='window.report'),'Today opens native report');
     verify(!page.isClosed(),'Today no longer closes the desktop host');
     await page.screenshot({path:path.join(__dirname,'today.png')});
+    // How Memoir works and the privacy policy: Windows' own words, and a way back to the report
+    for(const [file,words] of [['how-it-works.html','Memoir itself'],['privacy.html','Data folder next to Memoir']]) {
+      await page.setViewportSize({width:1360,height:850}); await page.goto(`https://memoir.example/${file}`); await page.waitForTimeout(1500);
+      const text=await page.locator('main').innerText();
+      verify(text.includes(words) && !/\bthis browser\b|chrome:\/\/|extension/i.test(text),`${file} speaks for Windows`);
+      verify(await page.locator('.desktop-back').isVisible(),`${file} has a way back`);
+      await page.locator('.desktop-back').click(); await page.waitForURL('**/recap.html');
+      verify(page.url().endsWith('/recap.html'),`${file} goes back to the report`);
+      await page.goto('https://memoir.example/popup.html'); await page.setViewportSize({width:380,height:650});
+    }
     await page.evaluate(()=>{testData.onboarded=false;});
     await page.setViewportSize({width:1360,height:850});
     // A new document receives the fixture again, so use a separate first-run context.
     await context.addInitScript(()=>{setTimeout(()=>{if(window.testData)window.testData.onboarded=false;},0);});
     await page.goto('https://memoir.example/recap.html'); await page.locator('.wel.on').waitFor();
     verify((await page.locator('.wel').innerText()).includes('notification area'),'Windows welcome keeps animated first-run screen');
-    await page.locator('.wel-skip').click(); await page.locator('.wel').waitFor({state:'detached'});
+    // the opening holds every click until it has landed, so nothing unseen gets pressed
+    await page.locator('.wel.landed').waitFor({timeout:20000}); await page.waitForTimeout(500);
+    await page.locator('.wel-skip').click(); await page.locator('.wel').waitFor({state:'detached',timeout:20000});
     verify(await page.evaluate(()=>testData.onboarded),'Welcome choice persists');
     verify(errors.length===0,`No JavaScript errors: ${errors.join('; ')}`);
     verify(await page.evaluate(()=>!window.testLogs?.length),'No desktop bridge error logs');

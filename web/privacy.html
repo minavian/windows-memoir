@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" class="pv-pop">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memoir · Privacy</title>
+  <link rel="icon" href="icons/icon32.png">
+  <script src="shared/theme-boot.js"></script>
+  <script src="desktop-bridge.js"></script>
+  <link rel="preload" href="fonts/Unbounded-subset.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="shared/theme.css">
+  <link rel="stylesheet" href="shared/logo.css">
+  <link rel="stylesheet" href="shared/pop.css">
+  <link rel="stylesheet" href="privacy.css">
+  <script type="module" src="privacy.js"></script>
+</head>
+<body>
+  <main>
+    <!-- Memoir for Windows' privacy policy (the extension has its own). Keep it true to src/ and to the
+         README: when what Memoir keeps, reads or sends changes, change this page with it. -->
+    <header class="brand">
+      <span class="logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
+      <span class="wordmark">Memoir</span>
+    </header>
+
+    <p class="kicker">Privacy policy</p>
+    <h1>Everything stays on your computer.</h1>
+    <p class="lead">Memoir for Windows has no servers, no accounts, no analytics and no ads. It never sends your data anywhere, so nobody else can see it, including the developer.</p>
+    <p class="when">Effective 18 October 2026</p>
+
+    <h2>What Memoir records</h2>
+    <p>To show where your time goes, Memoir keeps these on your computer:</p>
+    <ul>
+      <li><b>Which app or website is in front, and for how long.</b> It keeps the app’s name and icon (for example Word), or the website’s name (for example <code>youtube.com</code>), the time you spent there and the hours of the day it was in. A website’s name is read from your browser’s address bar, using Windows’ accessibility features. Memoir doesn’t keep the addresses of the pages you visit, or anything on them.</li>
+      <li><b>Page and window titles, only if you turn on “Page titles”</b> in Settings (it’s off unless you turn it on). They are kept as long as the rest of your history, and deleted with it.</li>
+      <li><b>Each site’s home address</b> (for example <code>https://www.youtube.com</code>), so its link works.</li>
+      <li><b>Your settings</b>: your daily limit and when it changed, your reminder day and time, categories you changed, what you never track, and your theme and cursor choices.</li>
+    </ul>
+    <p>To know when to stop counting, Memoir checks how long it’s been since you last used the mouse or keyboard, and whether the app in front is playing sound. It only learns those, never what you type or click.</p>
+    <p><b>What Memoir never records:</b> what you type or click, what’s on your screen, passwords, form entries, cookies or your location.</p>
+    <p>Apps and websites on your <b>Never track</b> list count only towards one combined “Private” total, with no names, titles or addresses. With the optional browser connector, private (Incognito) browser windows are counted the same way.</p>
+
+    <h2>Where it’s kept</h2>
+    <ul>
+      <li><b>On this computer only</b>, in the Data folder next to Memoir: your history, a backup copy of it, app icons and the window’s own settings. It is not synced to any account.</li>
+      <li><b>Memoir makes no network requests.</b> Websites show their first letter instead of an icon, so the sites themselves aren’t contacted. Memoir’s window uses Microsoft Edge WebView2, part of Windows, with its background networking turned off; Windows keeps WebView2 up to date, under Microsoft’s privacy statement.</li>
+      <li><b>The optional browser connector</b> passes the tab in front to Memoir over a channel that only your Windows account can open. No local web server is opened.</li>
+      <li><b>Notifications</b> (your daily limit, the weekly reminder) are made on your computer.</li>
+    </ul>
+
+    <h2>How it’s used</h2>
+    <p>Your data is used only to show you your own time: in Today, the weekly report, the limit warnings and the weekly reminder.</p>
+    <p>It is never sold or shared. It is never used for advertising, and never used to decide creditworthiness or for lending. The developer never receives it.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li><b>Pause tracking</b> at any time, with Track screen time in Settings, or Pause in Memoir’s menu in the notification area.</li>
+      <li><b>Never track</b> particular apps or websites.</li>
+      <li><b>Choose how long to keep history</b>: forever, 1 year, 6 months or 3 months. Older days are deleted automatically, page titles included.</li>
+      <li><b>Export</b> everything as a file, or <b>import</b> a file you exported earlier. The file goes wherever you save it; Memoir doesn’t upload it.</li>
+      <li><b>Clear all</b> deletes everything at once. To remove Memoir, quit it and delete its folder; that deletes everything too, Data included.</li>
+    </ul>
+
+    <h2>Links and email</h2>
+    <ul>
+      <li>Links in the report, to a site or a page, open in your own browser, and only when you click them. Those sites’ own privacy policies then apply.</li>
+      <li>The “bug report” link in Settings opens your own email app with a new message. The message’s subject is Memoir’s version number and nothing else is filled in. Nothing is sent until you send it yourself.</li>
+    </ul>
+
+    <h2>Updates</h2>
+    <p>Memoir for Windows doesn’t check for updates or download anything. New versions come from Memoir’s website, when you choose to download them. Your records and settings stay as they are after an update.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will appear here with a new date. If Memoir ever needed to send any data off your computer, it would ask you first.</p>
+
+    <h2>Contact</h2>
+    <p>Mina Vian · <button class="p-author" id="mail" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="mail-pop">iamminavian@gmail.com</button></p>
+  </main>
+
+  <!-- your address, to copy: just the button (shared/mail-pop.js, as the report's "Made by" name) -->
+  <div class="pop author-pop copy-only" id="mail-pop" role="dialog" aria-label="Copy my email" hidden>
+    <button class="ap-copy" type="button" aria-label="Copy my email"><span class="ap-copy-label">Copy</span></button>
+  </div>
+</body>
+</html>

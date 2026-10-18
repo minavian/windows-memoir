@@ -38,6 +38,8 @@
   };
   window.chrome.runtime = {
     getURL: path => new URL(path.replace(/^\//, ''), `${host}/`).href,
+    // the report reads the version (the bug report's subject); keep it with src/AssemblyInfo.cs
+    getManifest: () => ({ name: 'Memoir for Windows', version: '6.0.0 for Windows', version_name: '6.0.0' }),
     sendMessage: msg => request(msg.type === 'openRecap' ? 'window.report' : 'runtime.sync', msg),
   };
   window.chrome.tabs = { create: ({ url }) => request('link.open', { url }) };
@@ -62,10 +64,17 @@
   addEventListener('DOMContentLoaded', () => {
     theme(); new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
-    const panel = document.querySelector('.panel-inner');
-    if (panel) {
-      const note = document.createElement('p'); note.className = 'p-desc desktop-status'; note.textContent = 'Tracks the active Windows app and websites in supported browsers. Minimizing unloads the interface; tracking continues in the notification area.';
-      panel.appendChild(note);
+    // How Memoir works and the privacy policy open in this same window (there are no tabs here):
+    // a way back to the report above their name, and Esc
+    const brand = document.querySelector('main > .brand');
+    if (brand) {
+      const back = document.createElement('a');
+      back.className = 'btn btn-secondary btn-xs desktop-back';
+      back.href = 'recap.html';
+      back.textContent = '‹ Back to Memoir';
+      back.style.marginBottom = '28px';
+      brand.before(back);
+      addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) location.href = 'recap.html'; });
     }
   });
   addEventListener('error', e => request('log', { message: `JavaScript ${e.error?.name || 'Error'} at ${e.filename?.split('/').pop()}:${e.lineno}` }).catch(() => {}));

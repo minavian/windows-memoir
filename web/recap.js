@@ -1,22 +1,28 @@
 import {
-  CATEGORIES, CATEGORY_BY_ID, PRIVATE_KEY, isPrivate, categorize, dayKey, dateFromKey, addDays, startOfWeek,
+  CATEGORIES, CATEGORY_BY_ID, PRIVATE_KEY, isPrivate, isPage, siteName, categorize, dayKey, dateFromKey, addDays, startOfWeek,
   weekDayKeys, getDays, getSession, unsavedMs, getSettings, updateSettings, getCategoryOverrides,
   setCategoryOverride, getOrigins, formatDuration, formatBytes, formatTimeOfDay, hourLabel, hourRange, escapeHtml,
   storageKeyForDay, normalizeDay, cloneDay, dayTotal, listDayKeys, normalizeSite, isExcluded, uses24h,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, goalLevel, retentionCutoffKey, resetLimit,
+  withData, domainFromUrl, safeKey, cleanUrl, EXPORT_FORMAT,
 } from './shared/core.js';
 import {
-  animateNumber, tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath, initPetals,
-  setOrigins, siteLinkHtml, morph, MorphPopover, replay, EASE_OUT, animateHeight, makeScroller, initSmoothScrolling,
+  animateNumber, tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath,
+  setOrigins, siteLinkHtml, morph, MorphPopover, replay, EASE_OUT, animateHeight, makeScroller, initSmoothScrolling, disableTitleTooltips,
+  ARROW_SVG, POP,
 } from './shared/fx.js';
-import { getThemePref, setThemePref, watchTheme } from './shared/theme.js';
+import { getThemePref, setThemePref, watchTheme, THEME_SWITCH_MS, rainbowOn, setRainbow } from './shared/theme.js';
 import { createGoalRing, openPicker } from './shared/goal.js';
 import { TrendChart } from './trend.js';
 import { runGauntlet } from './gauntlet.js';
-import { runTour } from './tour.js';
+import { runTour, relight } from './tour.js';
 import { createWelcome } from './welcome.js';
-import { initCursor, setCursorPref, cursorEnabled } from './shared/cursor.js';
+import { playLogo } from './shared/logo.js';
+import { initCursor, setCursorPref, cursorEnabled, cursorSmooth, setCursorSmooth } from './shared/cursor.js';
+import { createDust } from './shared/dust.js';
 import { initContextMenu } from './shared/context-menu.js';
+import { mailPop } from './shared/mail-pop.js';
+import { playOverShow } from './shared/overshow.js';
 
 const $ = id => document.getElementById(id);
 const sum = arr => arr.reduce((a, b) => a + b, 0);
@@ -63,6 +69,24 @@ const state = {
 
 const tip = createTooltip();
 const catPop = new MorphPopover($('cat-pop'), { radius: 16 });
+// A site's pages, as a second page of the Most used card (see openPagePop)
+const pages = {
+  state: 'closed', // opening · open · closing · closed
+  mode: null,      // 'drop': grown out of its row in the card · 'fade': cross-faded in
+  anim: null,      // the surface (drop)
+  tint: null,      // its row highlight (drop)
+  head: null,      // the title riding between the row and its place (drop)
+  fade: null,      // the surface letting the row through as it lands (drop, closing)
+  get isOpen() { return this.state === 'opening' || this.state === 'open'; },
+};
+const importPop = new MorphPopover($('import-pop'), { radius: 16 });
+// the author's name in Settings: where bug reports go (shared/mail-pop.js)
+const author = mailPop($('author'), $('author-pop'), {
+  address: 'iamminavian@gmail.com',
+  mailto: `mailto:iamminavian@gmail.com?subject=${encodeURIComponent(`Memoir ${chrome.runtime.getManifest().version} bug report`)}`,
+  onCopyFail: address => toast(`Couldn’t copy. The address is ${address}`),
+});
+const authorPop = author.popover;
 
 // On the first load (and when the board switches between an empty week and a
 // full one) the cards come in 110 ms apart (see the end of recap.css) and what's
@@ -88,22 +112,26 @@ init();
 async function init() {
   await window.memoir.ready;
   initSmoothScrolling();
+  disableTitleTooltips();
   initCursor();
-  initPetals(10);
   document.fonts.load('600 14px "Memoir Inter"').then(() => document.fonts.load('900 14px "Memoir Inter"')).then(measureSure, measureSure);
   const m = location.hash.match(/week=(\d{4}-\d{2}-\d{2})/);
   if (m) state.weekStart = startOfWeek(dateFromKey(m[1]));
   if (state.weekStart > startOfWeek(new Date())) state.weekStart = startOfWeek(new Date());
 
-  const [settings, overrides, origins, history, keys, session, today, { onboarded }] = await Promise.all([
+  const [settings, overrides, origins, history, keys, session, today, { onboarded, goalTrial }] = await Promise.all([
     getSettings(), getCategoryOverrides(), getOrigins(), getGoalHistory(), listDayKeys(), getSession(),
-    getDays([state.todayKey]), chrome.storage.local.get('onboarded'),
+    getDays([state.todayKey]), chrome.storage.local.get(['onboarded', 'goalTrial']),
   ]);
   // first visit: the welcome covers the page while it gets ready
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
+  // the Rainbow clock lives in this browser's storage (first paint); the tracker's copy (the
+  // toolbar icon) catches up if it was turned on before the setting existed
+  if (!!settings.rainbow !== rainbowOn()) updateSettings({ rainbow: rainbowOn() }).then(s => { state.settings = s; });
   state.overrides = overrides;
   state.goalHistory = history;
+  state.goalTrial = goalTrial || null;
   state.earliestKey = keys[0] || null;
   state.session = session;
   state.todayRec = today[state.todayKey];
@@ -111,22 +139,50 @@ async function init() {
 
   goalRing = createGoalRing($('goal-ring'), { onSet: btn => openGoalPicker(btn) });
   wire();
+  // the header's clock (it tells the time) plays its entrance with the page, or (first
+  // visit) as the welcome's clock flies into it
+  const headMark = document.querySelector('.head .mark');
+  if (welcome) headMark.classList.add('hold');
   // the first render starts every entrance, so it happens right when the page is
-  // shown: straight away, or (first visit) as the welcome leaves, not behind it.
-  // Heading for the tour, the first thing rendered is the tour's sample week, so
-  // the tour doesn't swap the whole board out the moment it starts.
-  const show = async choice => {
-    if (choice === 'tour') useTourWeek();
+  // shown: straight away, or (first visit) behind the welcome. On a first visit the
+  // board is the tour's sample week (a new week is empty): the tour walks it, and Skip
+  // goes from it to your own week, as the tour's end does.
+  const show = async () => {
+    if (welcome) useTourWeek();
     startQueue();
     await render({});
     updateGoal();
+    boardShown = true;
+    // opened from the over-the-limit notification: the flame's moment, before it's drawn
+    if (overPending) { overPending = false; overShow(false); }
     reveal();
+    if (!welcome) playLogo(headMark, { delay: 160, live: true });
   };
+  // the board's first render happens once, whichever moment asks for it first
+  let shown = null;
+  const showOnce = () => shown || (shown = show());
   if (welcome) {
-    welcome.play({ markTarget: document.querySelector('.head .mark'), onLeave: show }).then(choice => {
-      // the tour waits for the board to finish filling in
-      if (choice === 'tour') setTimeout(() => startTour({ prepared: true }), reducedMotion() ? 0 : 900);
-      else chrome.storage.local.set({ onboarded: true });
+    // The board fills in behind the welcome's dim as the welcome plays in (or as it
+    // leaves, if a choice comes first). Heading for the tour, the welcome card
+    // becomes the tour's first card (handoff); the sample week is drawn once it has
+    // landed, so no render ever competes with that animation.
+    welcome.play({
+      markTarget: headMark,
+      // behind the opening: the week drawn, then the tour's sample weeks made
+      load: [{ weight: 5, run: showOnce }, { weight: 3, run: warmSamples }],
+      onLeave: () => showOnce(),
+      // the board already shows the tour's week
+      onHanded: () => showOnce(),
+    }).then(async ({ choice, handoff }) => {
+      if (choice === 'tour') { startTour({ prepared: true, handoff }); return; }
+      chrome.storage.local.set({ onboarded: true });
+      // Skip: from the sample week to your own, the way the tour's end goes there
+      await showOnce();
+      state.demo = false;
+      state.demoOverrides = {};
+      state.weekStart = startOfWeek(new Date());
+      resetView({ instant: true });
+      await render({});
     });
   } else {
     await show();
@@ -134,11 +190,20 @@ async function init() {
 
   watchTheme(updateAppearanceUI);
   chrome.storage.onChanged.addListener(onStorageChanged);
+  document.addEventListener('visibilitychange', applyHiddenChanges);
   setInterval(() => {
     if (isCurrentWeek() && !state.demo && !document.hidden) render({ soft: true });
   }, 60_000);
   setInterval(goalTick, 5000);
   window.addEventListener('hashchange', () => {
+    // the over-the-limit notification, with the report already open: the flame rises out of its ring
+    if (takeOverHash()) {
+      if (!boardShown) { overPending = true; return; }
+      const was = goalRing.el.dataset.level === 'over';
+      updateGoal();
+      overShow(was);
+      return;
+    }
     const mm = location.hash.match(/week=(\d{4}-\d{2}-\d{2})/);
     if (!mm) return;
     const ws = startOfWeek(dateFromKey(mm[1]));
@@ -345,8 +410,8 @@ function storyLines(s) {
     const t = b(fmt(topSite[1]));
     lines.push({
       icon: 'i-grid',
-      html: top.id === 'other' ? `${t} went to your top site, ${link}.`
-        : `Most of it went to ${hlCat(top.id)} (${pv(s.cats[top.id])}%), and ${t} to your top site, ${link}.`,
+      html: top.id === 'other' ? `${t} went to your top app or website, ${link}.`
+        : `Most of it went to ${hlCat(top.id)} (${pv(s.cats[top.id])}%), and ${t} to your top app or website, ${link}.`,
     });
   }
 
@@ -663,6 +728,11 @@ function toggleEmpty(empty) {
       clearLeave([card]);
       card.hidden = false;
       clearLeave(cards());
+      // the clock sets itself to the time as the card comes in (on the first render, once
+      // the page shows), then keeps it, the knob going round once a minute
+      const logo = card.querySelector('.logo');
+      logo.getAnimations({ subtree: true }).forEach(a => a.cancel());
+      playLogo(logo, { delay: still ? 300 : 600, live: true });
     };
     if (!still || wasEmpty) { show(); return; }
     Promise.all(cards().map(leave)).then(show);
@@ -1019,7 +1089,9 @@ function ghost(fromEl, toEl, { reverse = false } = {}) {
   const b = toEl.getBoundingClientRect();
   if (!a.width || !b.width || !a.height || !b.height) return;
   let bg = getComputedStyle(fromEl).backgroundColor;
-  if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') bg = 'var(--fill-2)';
+  // a square of the hour grid has its own colour; other things get a neutral tint
+  const solid = !(!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent');
+  if (!solid) bg = 'var(--fill-2)';
   const src = reverse ? b : a;
   const dst = reverse ? a : b;
   const shell = document.createElement('div');
@@ -1032,7 +1104,16 @@ function ghost(fromEl, toEl, { reverse = false } = {}) {
   ghostShell = shell;
   const from = `translate(${(src.left - dst.left).toFixed(1)}px, ${(src.top - dst.top).toFixed(1)}px) scale(${(src.width / dst.width).toFixed(4)}, ${(src.height / dst.height).toFixed(4)})`;
   const end = () => { if (ghostShell === shell) ghostShell = null; shell.remove(); };
-  shell.animate([{ transform: from, opacity: 0.9 }, { transform: 'none', opacity: 0 }], { duration: reverse ? VIEW_BACK_MS : VIEW_OPEN_MS, easing: EASE_OUT })
+  if (!reverse) {
+    shell.animate([{ transform: from, opacity: 0.9 }, { transform: 'none', opacity: 0 }], { duration: VIEW_OPEN_MS, easing: EASE_OUT })
+      .finished.then(end, end);
+    return;
+  }
+  // Going back is the opening's mirror: it starts out faint while it's big (never a solid
+  // block over the chart), gathers as it shrinks, and settles into what opened it; on a
+  // square of its own colour it lands solid and simply becomes the square, otherwise it fades.
+  shell.animate([{ transform: from }, { transform: 'none' }], { duration: VIEW_BACK_MS, easing: EASE_OUT });
+  shell.animate([{ opacity: 0 }, { opacity: 0.6, offset: 0.3 }, { opacity: solid ? 0.9 : 0 }], { duration: VIEW_BACK_MS, easing: 'linear', fill: 'forwards' })
     .finished.then(end, end);
 }
 
@@ -1196,6 +1277,7 @@ function showDetail(after = null, dir = null, { back = false } = {}) {
 
 let detailSeq = 0;
 function buildDetailWrap(soft) {
+  if (pages.isOpen && popAnchor && popAnchor.closest('#detail-view')) closePagePop();
   const v = state.view;
   const wrap = document.createElement('div');
   wrap.className = `dv dv-${v.type}${soft ? ' soft' : ''}`;
@@ -1273,7 +1355,19 @@ function reuseStrip(cur, wrap) {
       else o.removeAttribute('aria-current');
       const ob = o.querySelector('.dbar, .hbar');
       const nb = n.querySelector('.dbar, .hbar');
-      if (sel === '.hstrip') ob.innerHTML = nb.innerHTML;
+      if (sel === '.hstrip') {
+        const before = [...ob.children].filter(c => c.tagName === 'I').map(c => c.outerHTML).join('');
+        ob.innerHTML = nb.innerHTML;
+        // the colours cross-fade too: the old stack rides on top (scaled with the bar) and fades away
+        if (before && before !== ob.innerHTML && !reducedMotion()) {
+          const ghost = document.createElement('span');
+          ghost.className = 'hbar-old';
+          ghost.innerHTML = before;
+          ob.appendChild(ghost);
+          ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, delay: i * 12, easing: 'ease-in-out', fill: 'both' })
+            .finished.then(() => ghost.remove(), () => ghost.remove());
+        }
+      }
       morphBar(ob, parseFloat(ob.dataset.hh) || 0, parseFloat(nb.dataset.hh) || 0, i);
       ob.dataset.hh = nb.dataset.hh;
       const ot = o.querySelector('.dt');
@@ -1406,7 +1500,7 @@ function buildDayView(wrap, i, soft) {
     strip.appendChild(l);
   }
 
-  const list = siteRows(Object.entries(d.s), soft, [i]);
+  const list = siteRows(Object.entries(d.s), soft, [i], { hour: null });
   list.style.setProperty('--i', 2);
   wrap.append(top, strip, list);
   if (!list.children.length) wrap.appendChild(emptyNote(total > 0 ? 'Only private activity on this day.' : 'No screen time on this day.'));
@@ -1474,7 +1568,7 @@ function buildHourView(wrap, dayIdx, h, soft) {
     wrap.appendChild(strip);
   }
 
-  const list = siteRows(Object.entries(agg), soft, idxs);
+  const list = siteRows(Object.entries(agg), soft, idxs, { hour: h });
   list.style.setProperty('--i', 2);
   wrap.appendChild(list);
   if (!list.children.length) {
@@ -1483,7 +1577,7 @@ function buildHourView(wrap, dayIdx, h, soft) {
     else if (total > 0) msg = 'Site details weren’t recorded for this hour — it was tracked before this update.';
     wrap.appendChild(emptyNote(msg));
   } else if (total - known > 60_000) {
-    wrap.appendChild(emptyNote(`${fmt(total - known)} of this was tracked before site details were saved.`, true));
+    wrap.appendChild(emptyNote(`${fmt(total - known)} of this was tracked before app and website details were saved.`, true));
   }
   if (priv >= 60_000 && list.children.length) wrap.appendChild(privateNote(priv));
 }
@@ -1540,7 +1634,7 @@ function buildTrendView(wrap, soft) {
       tip.show(`<div class="tip-title">${span}</div>
         <div class="tip-row"><span>Daily average</span><b>${fmt(d.avg)}</b></div>
         <div class="tip-row"><span>Total</span><b>${fmt(d.total)}</b></div>
-        <div class="tip-row"><span>Days browsed</span><b>${d.days}</b></div>
+        <div class="tip-row"><span>Days used</span><b>${d.days}</b></div>
         <div class="tip-note">${who}</div>`, x, y);
     },
     onLeave: () => tip.hide(),
@@ -1626,13 +1720,25 @@ function privateNote(ms) {
 }
 
 // Horizontal bars, one per site; the list scrolls when there are many.
-function siteRows(entries, soft, dayIdxs) {
+// pages: { hour } when a click on a row shows its pages (the day and hour views)
+function siteRows(entries, soft, dayIdxs, pages = null) {
   const ol = document.createElement('ol');
   ol.className = `rows${soft ? ' soft' : ''}`;
   ol._days = dayIdxs;
+  ol._hour = pages ? pages.hour : null;
   const list = entries.filter(([dom, ms]) => !isPrivate(dom) && ms >= 1000).sort((a, b) => b[1] - a[1]).slice(0, 80);
   const max = list.length ? list[0][1] : 1;
-  list.forEach(([domain, ms], i) => ol.appendChild(siteRow(domain, ms, max, i, soft)));
+  list.forEach(([domain, ms], i) => {
+    const li = siteRow(domain, ms, max, i, soft);
+    if (pages && hasPages(domain, dayIdxs, pages.hour)) {
+      li.classList.add('has-pages');
+      const time = li.querySelector('.row-time');
+      time.tabIndex = 0;
+      time.setAttribute('role', 'button');
+      time.setAttribute('aria-label', `${time.textContent}. See each page’s time on ${siteName(domain)}`);
+    }
+    ol.appendChild(li);
+  });
   return ol;
 }
 
@@ -1673,7 +1779,7 @@ function titlesTip(domain, dayIdxs) {
   const other = list.find(([t]) => !t);
   const rows = named.slice(0, 3).map(([t, ms]) => `<div class="tip-page"><span>${escapeHtml(t)}</span><b>${fmt(ms)}</b></div>`).join('');
   const more = named.length > 3 || other ? `<div class="tip-note">+ ${named.length > 3 ? `${named.length - 3} more page${named.length - 3 === 1 ? '' : 's'}` : 'other pages'}</div>` : '';
-  return `<div class="tip-title">Top pages · ${escapeHtml(domain.startsWith('app:') ? window.memoir.appName(domain) : domain)}</div>${rows}${more}`;
+  return `<div class="tip-title">Top pages · ${escapeHtml(siteName(domain))}</div>${rows}${more}`;
 }
 
 // ----- category donut -----
@@ -1805,17 +1911,24 @@ function renderDonut(s, soft) {
     $('donut-sub').textContent = sc.sub;
   }
 
-  const ul = $('cat-legend');
-  ul.classList.toggle('soft', soft);
-  ul.textContent = '';
-  CATEGORIES.filter(c => sc.cats[c.id]).sort((a, b) => sc.cats[b.id] - sc.cats[a.id]).forEach((c, i) => {
-    const li = document.createElement('li');
-    li.dataset.cat = c.id;
-    li.style.setProperty('--i', i);
-    if (c.id === focusCat) li.classList.add('on');
-    li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} — see its sites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(sc.cats[c.id])}</span></button>`;
-    ul.appendChild(li);
-  });
+  // a legend with more or fewer rows changes the card's height: it glides there, and
+  // Most used below it follows, instead of both jumping (on short windows the legend
+  // decides the card's height)
+  const buildLegend = () => {
+    const ul = $('cat-legend');
+    ul.classList.toggle('soft', soft);
+    ul.textContent = '';
+    CATEGORIES.filter(c => sc.cats[c.id]).sort((a, b) => sc.cats[b.id] - sc.cats[a.id]).forEach((c, i) => {
+      const li = document.createElement('li');
+      li.dataset.cat = c.id;
+      li.style.setProperty('--i', i);
+      if (c.id === focusCat) li.classList.add('on');
+      li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} — see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(sc.cats[c.id])}</span></button>`;
+      ul.appendChild(li);
+    });
+  };
+  if (state.queue) buildLegend();
+  else animateHeight(document.querySelector('.donut-card'), () => (soft ? regroup($('cat-legend'), 'cat', buildLegend) : buildLegend()), { duration: 520 });
 }
 
 let centerTimer = 0;
@@ -1871,7 +1984,7 @@ function openCatPop(catId, anchor) {
   const list = siteRows(entries, false, null);
   el.appendChild(list);
   makeScroller(list);
-  if (!entries.length) el.appendChild(emptyNote(`No sites in this category ${sc.when}.`));
+  if (!entries.length) el.appendChild(emptyNote(`No apps or websites in this category ${sc.when}.`));
   for (const b of document.querySelectorAll('.hl.active')) b.classList.remove('active');
   if (anchor.classList && anchor.classList.contains('hl')) anchor.classList.add('active');
   const wasOpen = catPop.isOpen;
@@ -1888,9 +2001,505 @@ function closeCatPop(instant = false) {
   catPop.close({ instant });
 }
 
+// ----- a site's pages: grows out of its row in Most used -----
+
+// Its pages over the days given (all of the week when none), or over one hour of
+// them, with each page's latest link, and the newest of those days whose titles were
+// deleted as they got old. An hour from before pages were kept hour by hour shows its
+// whole day's pages instead (wholeDay), and says so.
+function pagesFor(domain, dayIdxs, hour = null) {
+  const s = state.summary;
+  const idxs = dayIdxs || s.keys.map((_, j) => j);
+  const agg = {};
+  const links = {};
+  let gone = null;
+  let dayOnly = false;
+  const add = t => { for (const [k, v] of Object.entries(t)) agg[k] = (agg[k] || 0) + v; };
+  for (const i of idxs) {
+    const d = s.days[i];
+    const u = d.tu && d.tu[domain];
+    if (u) Object.assign(links, u);
+    if (d.tp && d.tp.includes(domain)) gone = s.keys[i];
+    if (hour == null) { if (d.ti[domain]) add(d.ti[domain]); continue; }
+    const byHour = d.th && d.th[hour] && d.th[hour][domain];
+    if (byHour) add(byHour);
+    else if (d.ti[domain] && (d.hs[hour] || {})[domain]) dayOnly = true;
+  }
+  if (hour != null && !Object.keys(agg).length && dayOnly) {
+    // only whole days to go on: those days' pages (the days this site was on in this hour)
+    const days = idxs.filter(i => s.days[i].ti[domain] && (s.days[i].hs[hour] || {})[domain]);
+    return { ...pagesFor(domain, days), wholeDay: true };
+  }
+  // the share of "other pages" goes last, whatever its time
+  const list = Object.entries(agg).filter(([, ms]) => ms >= 1000).sort((a, b) => (!a[0]) - (!b[0]) || b[1] - a[1]);
+  return { list, links, gone, wholeDay: false };
+}
+function hasPages(domain, dayIdxs, hour = null) {
+  if (isPrivate(domain)) return false;
+  const p = pagesFor(domain, dayIdxs, hour);
+  return p.list.length > 0 || !!p.gone;
+}
+// "today", "on Monday", "this week"; with an hour, "9 – 10 PM on Monday"
+function pagesWhen(dayIdxs, hour = null) {
+  const s = state.summary;
+  const one = dayIdxs && dayIdxs.length === 1 ? dayIdxs[0] : null;
+  const day = one == null ? null : !state.demo && s.keys[one] === dayKey(new Date()) ? 'today' : `on ${longDay.format(dateFromKey(s.keys[one]))}`;
+  if (hour == null) return day || 'this week';
+  return `${hourRange(hour)} ${day || 'on each day this week'}`;
+}
+// the time a site had in that scope
+function timeIn(domain, dayIdxs, hour = null) {
+  const s = state.summary;
+  let t = 0;
+  for (const i of dayIdxs || s.keys.map((_, j) => j)) t += hour == null ? s.days[i].s[domain] || 0 : (s.days[i].hs[hour] || {})[domain] || 0;
+  return t;
+}
+const shortUrl = url => { try { const u = new URL(url); return `${u.hostname.replace(/^www\./, '')}${u.pathname === '/' ? '' : u.pathname}${u.search}`; } catch { return url; } };
+
+let popSite = null;
+let popAnchor = null;
+// scope: { days, hour } for a row in the day or hour view; Most used's Week / Day otherwise.
+// From a row of Most used the row grows down into the whole card (the same timing and
+// spring as every popover); from the day or hour view the card cross-fades to the pages
+// the way Daily activity changes views. Another site while they're up cross-fades the
+// same way. Everything reverses from wherever it has got to.
+function openPagePop(domain, anchor, scope = null) {
+  const s = state.summary;
+  if (!s) return;
+  if (popAnchor === anchor && pages.isOpen) { closePagePop(); return; }
+  tip.hide(true);
+  resetPageTip();
+  closeCatMenu(true);
+  closeCatPop(true);
+  let days = scope ? scope.days : null;
+  const hour = scope ? scope.hour : null;
+  if (!scope) { const sc = scoped(s); days = sc.day == null ? null : [sc.day]; }
+  const layer = $('page-pop');
+  const card = layer.parentElement;
+  const body = buildPages(domain, days, hour);
+  for (const r of document.querySelectorAll('.site.active, .row.active')) r.classList.remove('active');
+  anchor.classList.add('active');
+  popSite = domain;
+  popAnchor = anchor;
+  ++pageSwap;
+  setCardInert(card, true);
+  layer.classList.remove('closing');
+
+  // up already: the new site's pages cross-fade over the old ones
+  if (pages.isOpen) {
+    for (const b of layer.querySelectorAll('.sp-body.leaving')) b.remove();
+    for (const b of layer.querySelectorAll('.sp-body')) {
+      b.classList.add('leaving');
+      b.inert = true;
+      setTimeout(() => b.remove(), 600);
+    }
+    body.classList.add('entering');
+    layer.appendChild(body);
+    getComputedStyle(body).opacity;
+    body.classList.remove('entering');
+    growBars(body);
+    return;
+  }
+
+  const drop = card.contains(anchor) && !reducedMotion();
+  const was = pages.state;
+  const wasMode = pages.mode;
+  // reopened while folding back into its row: the title carries on from where it is
+  const headNow = was === 'closing' && wasMode === 'drop' ? headPose(layer) : null;
+  stopHead();
+  layer.textContent = '';
+  layer.appendChild(body);
+  layer.hidden = false;
+  pages.state = 'opening';
+  pages.mode = drop ? 'drop' : 'fade';
+  const done = () => { if (pages.state === 'opening') pages.state = 'open'; };
+
+  if (drop) {
+    // The row's own rectangle, in the card, grows to fill it. The row's name rides up
+    // to become the pages' title while the rest of the list fades away, and the pages'
+    // rows come in under it; so the row is what turns into the pages.
+    const R = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 20;
+    const row = insetsOf(card, anchor);
+    let from = row;
+    let opacity = 1;
+    if (was === 'closing' && wasMode === 'drop' && pages.anim) {
+      // reopened on its way back in: from where it is now
+      from = parseInsets(getComputedStyle(layer).clipPath) || row;
+      opacity = +getComputedStyle(layer).opacity;
+    }
+    if (pages.anim) pages.anim.cancel();
+    if (pages.fade) { pages.fade.cancel(); pages.fade = null; }
+    layer.style.clipPath = '';
+    card.classList.add('paged', 'drop', 'lifted');
+    const left = Math.min(1, sum(from) / Math.max(1, sum(row)));
+    const D = 200 + 400 * left;
+    const D2 = Math.max(260, 560 * left);
+    const { frames, T } = dropFrames(from, R, D, D2);
+    frames.forEach(f => { f.opacity = +(opacity + (1 - opacity) * Math.min(1, f.offset * 2)).toFixed(3); });
+    pages.anim = layer.animate(frames, { duration: T, easing: 'linear', fill: 'forwards' });
+    // the surface starts as the row's highlight and loses it as it grows
+    const tint = was === 'closing' && pages.tint ? tintNow(layer) : 1;
+    if (pages.tint) pages.tint.cancel();
+    pages.tint = layer.animate([{ opacity: tint }, { opacity: 0 }], { duration: D * 0.4, easing: 'linear', pseudoElement: '::before', fill: 'forwards' });
+    const at = headOffset(body, anchor, card);
+    const start = headNow || at;
+    pages.head = [
+      body.querySelector('.sp-head').animate([{ transform: `translate(${start.x}px, ${start.y}px)` }, { transform: 'none' }], { duration: D2, easing: EASE_OUT, fill: 'backwards' }),
+      body.querySelector('.sp-name').animate([{ scale: start.k }, { scale: 1 }], { duration: D2, easing: EASE_OUT, fill: 'backwards' }),
+    ];
+    // the title's surroundings (back, colour, time) arrive once it's on its way
+    for (const el of body.querySelectorAll('.pp-back, .sp-title .dot, .sp-meta')) {
+      pages.head.push(el.animate([{ opacity: headNow ? headNow.chrome : 0 }, { opacity: 1 }], { duration: 260, delay: headNow ? 0 : 110 * left, easing: 'ease-out', fill: 'backwards' }));
+    }
+    body.classList.add('unfold');
+    growBars(body);
+    pages.anim.finished.then(done, () => {});
+    return;
+  }
+
+  // cross-fading in (CSS, like Daily activity's views): from wherever it is
+  if (pages.anim) { pages.anim.cancel(); pages.anim = null; }
+  if (pages.tint) { pages.tint.cancel(); pages.tint = null; }
+  if (pages.fade) { pages.fade.cancel(); pages.fade = null; }
+  card.classList.remove('lifted');
+  if (card.classList.contains('drop')) {
+    // it was growing or shrinking from a row: carry on from its look now, as a fade
+    card.classList.remove('drop');
+  }
+  getComputedStyle(layer).opacity;
+  card.classList.add('paged');
+  // where Most used is below the window (narrow layouts), it comes into view first
+  const r = card.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > innerHeight) card.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  growBars(body);
+  setTimeout(done, reducedMotion() ? 0 : 700);
+}
+let pageSwap = 0;
+
+// the card's own content (header, list) can't be reached while the pages are over it
+function setCardInert(card, on) {
+  for (const c of card.children) if (c.id !== 'page-pop') c.inert = on;
+}
+// a row's place in the card, as clip-path insets: [top, right, bottom, left]
+function insetsOf(card, row) {
+  const c = card.getBoundingClientRect();
+  const a = row.getBoundingClientRect();
+  const clamp = v => Math.max(0, Math.round(v));
+  return [clamp(a.top - c.top), clamp(c.right - a.right), clamp(c.bottom - a.bottom), clamp(a.left - c.left)];
+}
+const insetCss = (v, r) => `inset(${v.map(n => `${n}px`).join(' ')} round ${r}px)`;
+// Where the pages' title has to be to sit on a row's name (as a translate from its own
+// place, kept inside the card) and how big the row's name is next to it.
+function headOffset(body, anchor, card) {
+  const name = body.querySelector('.sp-name');
+  const head = body.querySelector('.sp-head');
+  const src = anchor.querySelector('.site-domain .sl-text') || anchor.querySelector('.site-domain') || anchor;
+  const a = src.getBoundingClientRect();
+  const n = name.getBoundingClientRect();
+  const h = head.getBoundingClientRect();
+  const c = card.getBoundingClientRect();
+  // the same words in two fonts: scaled so they're as wide as the row's
+  const wa = textWidth(src);
+  const wn = textWidth(name);
+  const k = wa > 0 && wn > 0 ? wa / wn : (parseFloat(getComputedStyle(src).fontSize) || 13.5) / (parseFloat(getComputedStyle(name).fontSize) || 15);
+  // baselines meet (the two fonts sit differently in their boxes), so the words land
+  // exactly on each other
+  let y = a.top + a.height / 2 + baselineDrop(src) - (n.top + n.height / 2 + k * baselineDrop(name));
+  y = Math.max(c.top - h.top, Math.min(y, c.bottom - h.bottom));
+  return { x: +(a.left - n.left).toFixed(1), y: +y.toFixed(1), k: +k.toFixed(4) };
+}
+// the laid-out width of an element's words (all of them, even where an ellipsis cuts them)
+function textWidth(el) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  return r.getBoundingClientRect().width;
+}
+// how far below the middle of its line an element's text sits on its baseline
+let metricsCtx = null;
+function baselineDrop(el) {
+  metricsCtx = metricsCtx || document.createElement('canvas').getContext('2d');
+  const cs = getComputedStyle(el);
+  metricsCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const m = metricsCtx.measureText('x');
+  const asc = m.fontBoundingBoxAscent;
+  const desc = m.fontBoundingBoxDescent;
+  return Number.isFinite(asc) && Number.isFinite(desc) ? (asc - desc) / 2 : 0;
+}
+// A cubic-bezier easing as a function (for keyframes sampled by hand).
+function bezier(x1, y1, x2, y2) {
+  const at = (a, b, t) => 3 * a * t * (1 - t) * (1 - t) + 3 * b * t * t * (1 - t) + t * t * t;
+  return x => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0;
+    let hi = 1;
+    let t = x;
+    for (let i = 0; i < 24; i++) {
+      const v = at(x1, x2, t);
+      if (Math.abs(v - x) < 1e-5) break;
+      if (v < x) lo = t; else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return at(y1, y2, t);
+  };
+}
+const easeOutFn = bezier(0.22, 1, 0.36, 1);
+const popFn = bezier(0.32, 1.24, 0.5, 1);
+// The surface growing from a row: its sides and bottom spring out like a popover, while
+// its top edge keeps pace with the title riding up just under it (so the title is
+// never clipped). Sampled, since one clip-path can't ease each edge its own way.
+function dropFrames(from, R, D, D2) {
+  const T = Math.max(D, D2);
+  const frames = [];
+  const N = 30;
+  for (let n = 0; n <= N; n++) {
+    const ms = (n / N) * T;
+    const p = popFn(Math.min(1, ms / D));
+    const q = easeOutFn(Math.min(1, ms / D2));
+    const v = [from[0] * (1 - q), from[1] * (1 - p), from[2] * (1 - p), from[3] * (1 - p)];
+    frames.push({ clipPath: insetCss(v.map(x => +x.toFixed(2)), +(12 + (R - 12) * Math.min(1, p)).toFixed(2)), offset: n / N });
+  }
+  return { frames, T };
+}
+// the title as it is right now (mid-flight), to carry on from
+function headPose(layer) {
+  const head = layer.querySelector('.sp-body:not(.leaving) .sp-head');
+  const name = head && head.querySelector('.sp-name');
+  if (!head || !name) return null;
+  const m = new DOMMatrixReadOnly(getComputedStyle(head).transform === 'none' ? undefined : getComputedStyle(head).transform);
+  const k = parseFloat(getComputedStyle(name).scale);
+  const back = head.querySelector('.pp-back');
+  return { x: +m.e.toFixed(1), y: +m.f.toFixed(1), k: Number.isFinite(k) ? k : 1, chrome: back ? +getComputedStyle(back).opacity : 1 };
+}
+function stopHead() {
+  if (pages.head) for (const a of pages.head) a.cancel();
+  pages.head = null;
+}
+const tintNow = layer => +getComputedStyle(layer, '::before').opacity || 0;
+function parseInsets(clip) {
+  const m = /inset\(([^)]*?)(?: round [^)]*)?\)/.exec(clip || '');
+  if (!m) return null;
+  const n = m[1].trim().split(/\s+/).map(parseFloat);
+  if (n.some(x => !Number.isFinite(x))) return null;
+  return n.length === 1 ? [n[0], n[0], n[0], n[0]] : n.length === 2 ? [n[0], n[1], n[0], n[1]] : n.length === 3 ? [n[0], n[1], n[2], n[1]] : n.slice(0, 4);
+}
+
+// What the pages show: the site, its time and when, then each page (or why there are none).
+function buildPages(domain, days, hour) {
+  const { list, links, gone, wholeDay } = pagesFor(domain, days, hour);
+  const cat = CATEGORY_BY_ID[categorize(domain, activeOverrides())];
+  const total = timeIn(domain, days, hour);
+  const body = document.createElement('div');
+  body.className = 'sp-body';
+  body.innerHTML = `<header class="panel-head sp-head"><h2 class="section-title sp-title"><button class="pp-back" type="button" aria-label="Back to Most used"><svg><use href="#i-chev-l"/></svg></button><span class="dot" style="--c:${cat.color}"></span><span class="sp-name">${escapeHtml(siteName(domain))}</span></h2><span class="caption sp-meta num">${fmt(total, { seconds: hour != null })} · ${pagesWhen(days, hour)}</span></header>`;
+  if (list.length) {
+    const ol = document.createElement('ol');
+    ol.className = 'rows page-rows';
+    const max = Math.max(...list.map(([, ms]) => ms));
+    list.forEach(([t, ms], i) => {
+      const li = document.createElement('li');
+      li.className = `row page-row${t ? '' : ' other'}`;
+      li.style.setProperty('--i', Math.min(i, 12));
+      const url = t && links[t];
+      const w = Math.max(2, (ms / max) * 100).toFixed(2);
+      const name = !t ? 'Other pages'
+        : url ? `<a class="site-link page-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><span class="sl-text">${escapeHtml(t)}</span>${ARROW_SVG}</a>`
+        : `<span class="sl-text">${escapeHtml(t)}</span>`;
+      if (url) li.dataset.url = url;
+      li.innerHTML = `<div class="row-main"><span class="row-name">${name}</span></div><span class="row-time">${fmt(ms, { seconds: true })}</span><div class="row-bar"><i style="--c:${cat.color};--d:${260 + Math.min(i, 12) * 45}ms" data-w="${w}"></i></div>`;
+      ol.appendChild(li);
+    });
+    body.appendChild(ol);
+    makeScroller(ol);
+    if (wholeDay) body.insertAdjacentHTML('beforeend', `<p class="pp-foot">Pages for the whole ${days && days.length > 1 ? 'days' : 'day'}: this hour was saved before pages were kept hour by hour.</p>`);
+    else if (gone) body.insertAdjacentHTML('beforeend', '<p class="pp-foot">Pages from earlier days were deleted as they got old.</p>');
+  } else {
+    // its titles were deleted (by a version that kept them only a few weeks): say so
+    body.insertAdjacentHTML('beforeend', '<div class="pp-gone-box"><p class="pp-gone">The titles saved for it were deleted.</p></div>');
+  }
+  return body;
+}
+
+// Back to Most used: into the row it grew from (when that row is in the card), or a
+// cross-fade back to the list.
+function closePagePop(instant = false) {
+  const layer = $('page-pop');
+  if (layer.hidden || (pages.state === 'closing' && !instant)) return;
+  const card = layer.parentElement;
+  const anchor = popAnchor;
+  ++pageSwap;
+  popSite = null;
+  if (pageTipShown) tip.hide();
+  resetPageTip();
+  if (anchor) anchor.classList.remove('active');
+  popAnchor = null;
+  setCardInert(card, false);
+  pages.state = 'closing';
+  layer.classList.add('closing');
+  const token = pageSwap;
+  const finish = () => {
+    if (token !== pageSwap || pages.state !== 'closing') return;
+    if (pages.anim) { pages.anim.cancel(); pages.anim = null; }
+    if (pages.tint) { pages.tint.cancel(); pages.tint = null; }
+    if (pages.fade) { pages.fade.cancel(); pages.fade = null; }
+    stopHead();
+    card.classList.remove('paged', 'drop', 'lifted');
+    layer.classList.remove('closing');
+    layer.hidden = true;
+    layer.textContent = '';
+    pages.state = 'closed';
+    pages.mode = null;
+  };
+  if (instant || reducedMotion()) { finish(); return; }
+  const intoRow = pages.mode === 'drop' && anchor && anchor.isConnected && card.contains(anchor) && card.classList.contains('drop');
+  if (intoRow) {
+    // the opening, backwards: the pages' rows go first, the title rides back down onto
+    // the row's name as the surface folds into the row (turning back into its
+    // highlight) and the list returns around it; then the surface lets the row show
+    const row = insetsOf(card, anchor);
+    const now = parseInsets(getComputedStyle(layer).clipPath) || [0, 0, 0, 0];
+    const opacity = +getComputedStyle(layer).opacity;
+    const tint = tintNow(layer);
+    const body = layer.querySelector('.sp-body:not(.leaving)');
+    const pose = headPose(layer) || { x: 0, y: 0, k: 1, chrome: 1 };
+    stopHead();
+    if (pages.anim) pages.anim.cancel();
+    if (pages.tint) pages.tint.cancel();
+    if (pages.fade) pages.fade.cancel();
+    const left = Math.min(1, row.reduce((t, v, i) => t + Math.abs(v - now[i]), 0) / Math.max(1, sum(row)));
+    const D = 160 + 340 * left;
+    const SHEET = 'cubic-bezier(0.45, 0, 0.15, 1)';
+    // it lets the row through as it lands (the title is then right on the row's name)
+    pages.anim = layer.animate([
+      { clipPath: insetCss(now, 12), easing: SHEET },
+      { clipPath: insetCss(row, 12) },
+    ], { duration: D, fill: 'forwards' });
+    pages.fade = layer.animate([{ opacity }, { opacity, offset: 0.74, easing: 'ease-in' }, { opacity: 0 }], { duration: D, fill: 'forwards' });
+    pages.tint = layer.animate([{ opacity: tint }, { opacity: 1 }], { duration: D * 0.8, easing: 'ease-in', pseudoElement: '::before', fill: 'forwards' });
+    card.classList.remove('lifted');
+    for (const b of layer.querySelectorAll('.sp-body')) {
+      for (const el of b.children) if (!(b === body && el.classList.contains('sp-head'))) el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-out', fill: 'forwards' });
+    }
+    if (body) {
+      const to = headOffset(body, anchor, card);
+      pages.head = [
+        body.querySelector('.sp-head').animate([{ transform: `translate(${pose.x}px, ${pose.y}px)` }, { transform: `translate(${to.x}px, ${to.y}px)` }], { duration: D, easing: SHEET, fill: 'forwards' }),
+        body.querySelector('.sp-name').animate([{ scale: pose.k }, { scale: to.k }], { duration: D, easing: SHEET, fill: 'forwards' }),
+      ];
+      for (const el of body.querySelectorAll('.pp-back, .sp-title .dot, .sp-meta')) {
+        pages.head.push(el.animate([{ opacity: pose.chrome }, { opacity: 0 }], { duration: 150, easing: 'ease-out', fill: 'forwards' }));
+      }
+    }
+    pages.anim.finished.then(finish, () => {});
+    return;
+  }
+  // a fade back (also for pages that grew from a row now gone, or now from elsewhere)
+  if (pages.anim) { pages.anim.cancel(); pages.anim = null; }
+  if (pages.tint) { pages.tint.cancel(); pages.tint = null; }
+  if (pages.fade) { pages.fade.cancel(); pages.fade = null; }
+  stopHead();
+  card.classList.remove('lifted');
+  if (card.classList.contains('drop')) { card.classList.remove('drop'); getComputedStyle(layer).opacity; }
+  card.classList.remove('paged');
+  setTimeout(finish, 600);
+}
+
+// over a page: its arrow shows; resting on it a second says where it goes
+let pageTipTimer = 0;
+let pageTipRow = null;
+let pageTipShown = false;
+function resetPageTip() {
+  clearTimeout(pageTipTimer);
+  pageTipShown = false;
+  pageTipRow = null;
+}
+function wirePagePop() {
+  const pop = $('page-pop');
+  const hideTip = () => { clearTimeout(pageTipTimer); if (pageTipShown) tip.hide(); pageTipShown = false; };
+  const tipFor = row => `<div class="tip-title">Open URL</div><div class="tip-note">${escapeHtml(shortUrl(row.dataset.url))}</div>`;
+  // The first time, it waits for a second's rest on a page. Once it's up it behaves like
+  // every other tip: it morphs from page to page and stays up between two rows; a row
+  // without a link, or leaving the list, puts it away.
+  pop.addEventListener('pointermove', e => {
+    const row = e.target.closest('.page-row');
+    const link = row && row.dataset.url ? row : null;
+    if (pageTipShown) {
+      if (link && link !== pageTipRow) { pageTipRow = link; tip.show(tipFor(link), e.clientX, e.clientY); return; }
+      if (link || (!row && e.target.closest('.page-rows'))) { tip.move(e.clientX, e.clientY); return; }
+      hideTip();
+      pageTipRow = null;
+      return;
+    }
+    clearTimeout(pageTipTimer);
+    pageTipRow = link;
+    if (!link) return;
+    const x = e.clientX;
+    const y = e.clientY;
+    pageTipTimer = setTimeout(() => {
+      if (!link.isConnected || pages.state !== 'open') return;
+      pageTipShown = true;
+      tip.show(tipFor(link), x, y);
+    }, 1000);
+  });
+  pop.addEventListener('pointerleave', () => { hideTip(); pageTipRow = null; });
+  pop.addEventListener('click', e => {
+    if (e.target.closest('.pp-back')) {
+      const back = popAnchor;
+      closePagePop();
+      back?.querySelector('[role="button"]')?.focus({ preventScroll: true });
+      return;
+    }
+    const row = e.target.closest('.page-row[data-url]');
+    if (!row) return;
+    hideTip();
+    // the link itself opens the page; anywhere else on the row does the same
+    if (!e.target.closest('a')) row.querySelector('a').click();
+  });
+}
+
+// A list redrawn with new numbers (the report refreshing as time comes in): rows that
+// stay glide from where they were to their new place, so a re-sort is seen, and their
+// bars grow or shrink from the old length; new rows fade in. Nothing jumps.
+function regroup(list, key, build) {
+  if (reducedMotion() || !list.isConnected) { build(); return; }
+  const was = new Map();
+  for (const el of list.children) {
+    if (!el.dataset[key]) continue;
+    was.set(el.dataset[key], { r: el.getBoundingClientRect(), w: el.querySelector('.site-bar i')?.style.getPropertyValue('--w') });
+  }
+  build();
+  if (!was.size) return;
+  const bars = [];
+  for (const el of list.children) {
+    const old = el.dataset[key] && was.get(el.dataset[key]);
+    if (!old) {
+      if (el.dataset[key]) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, delay: 180, easing: 'ease-out', fill: 'backwards' });
+      continue;
+    }
+    const r = el.getBoundingClientRect();
+    const dx = old.r.left - r.left;
+    const dy = old.r.top - r.top;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      el.animate([{ transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)` }, { transform: 'none' }], { duration: 560, easing: EASE_OUT });
+    }
+    const fill = el.querySelector('.site-bar i');
+    const w = fill && fill.style.getPropertyValue('--w');
+    if (fill && old.w && w && w !== old.w) { fill.style.setProperty('--w', old.w); bars.push([fill, w]); }
+  }
+  if (bars.length) requestAnimationFrame(() => requestAnimationFrame(() => { for (const [f, w] of bars) f.style.setProperty('--w', w); }));
+}
+
 // ----- most used -----
 
 function renderSites(s, soft) {
+  // the rows are about to be rebuilt: a site's pages close back into their row first
+  if (pages.isOpen) closePagePop();
+  const ol = $('sites');
+  if (soft) regroup(ol, 'domain', () => buildSites(s, soft));
+  else buildSites(s, soft);
+}
+
+function buildSites(s, soft) {
   const ol = $('sites');
   ol.classList.toggle('soft', soft);
   ol.textContent = '';
@@ -1902,6 +2511,7 @@ function renderSites(s, soft) {
   if ($('sites-cap').textContent !== cap) swapText($('sites-cap'), cap);
   const top = sc.siteList.slice(0, 60);
   const max = top.length ? top[0][1] : 1;
+  const idxs = sc.day == null ? null : [sc.day];
   // only the rows you can see make an entrance; the rest are simply there
   const onScreen = Math.ceil((ol.clientHeight || 600) / 50) + 1;
   const grow = [];
@@ -1927,6 +2537,13 @@ function renderSites(s, soft) {
     time.className = 'site-time';
     time.textContent = fmt(ms);
     time.title = `${pct(ms, sc.total)}% ${sc.of}`;
+    // a site with page titles (or titles that were deleted): the row opens its pages
+    if (hasPages(domain, idxs)) {
+      li.classList.add('has-pages');
+      time.tabIndex = 0;
+      time.setAttribute('role', 'button');
+      time.setAttribute('aria-label', `${fmt(ms)}. See each page’s time on ${siteName(domain)}`);
+    }
     const bar = document.createElement('div');
     bar.className = 'site-bar';
     const fill = document.createElement('i');
@@ -1950,7 +2567,7 @@ function renderSites(s, soft) {
 
 function setCatBtn(btn, cat, domain) {
   btn.innerHTML = `<span class="dot" style="--c:${cat.color}"></span>${cat.label}<svg><use href="#i-chev-d"/></svg>`;
-  btn.setAttribute('aria-label', `Category: ${cat.label}. Change category for ${domain}`);
+  btn.setAttribute('aria-label', `Category: ${cat.label}. Change category for ${siteName(domain)}`);
 }
 
 // ----- hour grid -----
@@ -1992,6 +2609,12 @@ function buildHeat() {
     lab.textContent = hourLabel(h);
     wrap.appendChild(lab);
   }
+  // the cells' entrance (recap.css .heat-veil): one sliding veil, not a fade per cell
+  const veil = document.createElement('div');
+  veil.className = 'heat-veil';
+  veil.setAttribute('aria-hidden', 'true');
+  veil.appendChild(document.createElement('i'));
+  wrap.appendChild(veil);
   heatCells[0][0].tabIndex = 0;
 
   const showCell = (cell, x, y) => {
@@ -2005,7 +2628,7 @@ function buildHeat() {
     const slot = Object.entries(d.hs[c] || {}).filter(([dom]) => !isPrivate(dom)).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const sites = slot.map(([dom, v]) => {
       const cat = CATEGORY_BY_ID[categorize(dom, activeOverrides())];
-      return `<div class="tip-row"><span><span class="dot" style="--c:${cat.color}"></span>${escapeHtml(dom)}</span><b>${fmt(v, { seconds: true })}</b></div>`;
+      return `<div class="tip-row"><span><span class="dot" style="--c:${cat.color}"></span>${escapeHtml(siteName(dom))}</span><b>${fmt(v, { seconds: true })}</b></div>`;
     }).join('');
     const hint = !future && ms > 0 ? '<div class="tip-note">Click to see this hour</div>' : '';
     tip.show(`<div class="tip-title">${longDay.format(dateFromKey(s.keys[r]))}, ${hourRange(c)}</div><div class="tip-row"><span>Screen time</span><b>${value}</b></div>${sites}${hint}`, x, y);
@@ -2239,6 +2862,26 @@ function placeHeatFrame({ instant = false } = {}) {
 
 // ---------- today's limit ----------
 
+// From the over-the-limit notification (recap.html#over): the ring's flame takes the stage,
+// then flies home (shared/overshow.js). lifted: the ring is already on screen.
+function takeOverHash() {
+  if (location.hash !== '#over') return false;
+  window.history.replaceState(null, '', location.pathname);
+  return true;
+}
+let overPending = takeOverHash();
+let boardShown = false;
+function overShow(lifted) {
+  const limit = goalLimit();
+  const used = usedToday();
+  if (!limit || used <= limit) return;
+  playOverShow({ flame: document.querySelector('#goal-ring .gr-flame'), overMs: used - limit, limitMs: limit, lifted });
+}
+
+function goalLimit() {
+  return limitOn(state.goalHistory, state.todayKey);
+}
+
 function usedToday() {
   const d = cloneDay(state.todayRec);
   if (state.session && !state.settings.paused) mergeSession(d, state.session);
@@ -2247,20 +2890,14 @@ function usedToday() {
 
 function updateGoal() {
   if (!goalRing) return;
-  const limit = limitOn(state.goalHistory, state.todayKey);
+  const limit = goalLimit();
   const locked = limitLocked(state.goalHistory, state.todayKey);
   const used = usedToday();
-  const level = goalRing.update({ used, limit, locked });
-  const chip = $('goal-chip');
-  if (!limit) { chip.hidden = true; return; }
-  chip.hidden = false;
-  chip.dataset.level = level;
-  const text = level === 'over' ? 'Over the limit' : `${Math.min(100, pct(used, limit))}% used`;
-  const html = `<span class="dot"></span>${text}`;
-  if (chip.innerHTML !== html) chip.innerHTML = html;
+  goalRing.update({ used, limit, locked });
 }
 
 function goalTick() {
+  if (document.hidden) return; // caught up when the tab is shown again
   const nowKey = dayKey(new Date());
   if (nowKey !== state.todayKey) {
     state.todayKey = nowKey;
@@ -2279,7 +2916,17 @@ async function openGoalPicker(btn) {
   const r = ringEl.getBoundingClientRect();
   const limit = limitOn(state.goalHistory, state.todayKey);
   const size = Math.round(Math.min(380, Math.max(310, r.width * 1.35)));
-  const result = await openPicker({
+  // in the tour, the tour (dim and card) fades out while the picker is up, so its
+  // scrim is the only layer: never two dims or blurs stacked. On the way back, in turn:
+  // the tour's dim takes over from the picker's as the clock closes, the card comes
+  // back once the clock has landed in the ring, then the outline around it
+  const body = document.body;
+  body.classList.add('picking');
+  let result = null;
+  try { result = await openPicker({
+    onClosing: () => { body.classList.add('tour-return', 'tour-return-ring'); body.classList.remove('picking'); },
+    // the keys (← →) belong to the tour again: focus goes back to its card, not the page
+    focusBack: () => (touring && document.querySelector('.tour.on .tour-next')) || btn,
     fromEl: btn,
     returnTo: ringEl,
     center: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
@@ -2288,6 +2935,11 @@ async function openGoalPicker(btn) {
     canRemove: !!limit,
     onCommit: async ms => {
       const saved = await commitLimit(ms);
+      // tried in the tour: Settings can undo it in one click for a day
+      if (touring) {
+        state.goalTrial = { from: dayKey(new Date()), until: Date.now() + 24 * 3600_000 };
+        await chrome.storage.local.set({ goalTrial: state.goalTrial });
+      }
       state.goalHistory = await getGoalHistory();
       updateGoal();
       return saved;
@@ -2297,9 +2949,17 @@ async function openGoalPicker(btn) {
       state.goalHistory = await getGoalHistory();
       updateGoal();
     },
-  });
+  }); } finally {
+    body.classList.remove('picking');
+    if (body.classList.contains('tour-return')) {
+      requestAnimationFrame(() => body.classList.remove('tour-return'));
+      setTimeout(() => body.classList.remove('tour-return-ring'), 300);
+    }
+  }
   if (result === 'commit') {
-    toast(`Daily limit set: ${fmt(limitOn(state.goalHistory, state.todayKey))}. It’s locked in.`);
+    toast(touring
+      ? `Daily limit set: ${fmt(limitOn(state.goalHistory, state.todayKey))}. Settings can undo it in one click until tomorrow.`
+      : `Daily limit set: ${fmt(limitOn(state.goalHistory, state.todayKey))}. It’s locked in.`);
     render({ soft: true });
   } else if (result === 'remove') {
     toast('Daily limit removed');
@@ -2318,11 +2978,11 @@ function openCatMenu(btn) {
   menuFor = btn;
   const domain = btn.dataset.domain;
   const current = categorize(domain, activeOverrides());
-  menu.innerHTML = `<p class="menu-title">${escapeHtml(domain.startsWith('app:') ? window.memoir.appName(domain) : domain)}</p>` + CATEGORIES.map(c => `
+  menu.innerHTML = `<p class="menu-title">${escapeHtml(siteName(domain))}</p>` + CATEGORIES.map(c => `
     <button class="menu-item" role="menuitemradio" aria-checked="${c.id === current}" data-cat="${c.id}">
       <span class="dot" style="--c:${c.color}"></span>${c.label}${c.id === current ? '<svg><use href="#i-check"/></svg>' : ''}
-    </button>`).join('') + (state.demo ? '' : `<div class="menu-sep"></div>
-    <button class="menu-item danger" role="menuitem" data-exclude="1"><svg><use href="#i-private"/></svg>Never track this site</button>`);
+    </button>`).join('') + (state.demo || isPage(domain) ? '' : `<div class="menu-sep"></div>
+    <button class="menu-item danger" role="menuitem" data-exclude="1"><svg><use href="#i-private"/></svg>Never track it</button>`);
   menu.hidden = false;
   menu.classList.remove('closing');
   const r = btn.getBoundingClientRect();
@@ -2378,7 +3038,7 @@ async function applyCategory(domain, catId) {
     replay(btn, 'changed');
     btn.closest('.site').querySelector('.site-bar i').style.setProperty('--c', cat.color);
   }
-  toast(`${domain.startsWith('app:') ? window.memoir.appName(domain) : domain} moved to ${cat.label}`);
+  toast(`${siteName(domain)} moved to ${cat.label}`);
 }
 
 // ---------- privacy helpers ----------
@@ -2408,6 +3068,9 @@ async function anonymizeSites(list) {
       }
     }
     for (const dom of Object.keys(rec.ti)) if (isExcluded(dom, list)) { delete rec.ti[dom]; changed = true; }
+    for (const dom of Object.keys(rec.tu)) if (isExcluded(dom, list)) { delete rec.tu[dom]; changed = true; }
+    for (const slot of Object.values(rec.th)) for (const dom of Object.keys(slot)) if (isExcluded(dom, list)) { delete slot[dom]; changed = true; }
+    if (rec.tp.some(d => isExcluded(d, list))) { rec.tp = rec.tp.filter(d => !isExcluded(d, list)); changed = true; }
     if (changed) { patch[storageKeyForDay(k)] = rec; touched++; }
   }
   const origins = raw.origins || {};
@@ -2428,7 +3091,8 @@ async function eraseTitles() {
   const patch = {};
   for (const k of keys) {
     const r = raw[storageKeyForDay(k)];
-    if (r && r.ti && Object.keys(r.ti).length) patch[storageKeyForDay(k)] = { ...r, ti: {} };
+    const has = o => o && typeof o === 'object' && Object.keys(o).length;
+    if (r && (has(r.ti) || has(r.th) || has(r.tu) || has(r.tp))) patch[storageKeyForDay(k)] = { ...r, ti: {}, th: {}, tu: {}, tp: [] };
   }
   if (Object.keys(patch).length) await chrome.storage.local.set(patch);
   return Object.keys(patch).length;
@@ -2453,6 +3117,8 @@ function openSettings() {
   $('settings-btn').setAttribute('aria-expanded', 'true');
   $('settings-btn').setAttribute('aria-label', 'Close settings');
   renderSettings();
+  clearTimeout(dustNap);
+  dust.pause(false);
   requestAnimationFrame(() => {
     for (const seg of ['appearance', 'detail', 'retention']) syncSegmented($(seg), false);
   });
@@ -2469,8 +3135,15 @@ function closeSettings(focusTrigger = false) {
   setReveal('detail-confirm', false);
   setReveal('ret-confirm', false);
   pendingRetention = null;
+  askPause(false);
   $('ex-form').classList.remove('invalid');
   tip.hide();
+  // the sites under Never track hide again as you leave; the dust rests once the panel is shut
+  for (const li of $('ex-list').querySelectorAll('.ex-chip')) concealChip(li);
+  clearTimeout(dustNap);
+  dustNap = setTimeout(() => dust.pause(true), 900);
+  answerImport(null, true);
+  closeAuthor(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
   $('settings-btn').setAttribute('aria-label', 'Settings');
   if (focusTrigger) $('settings-btn').focus({ preventScroll: true });
@@ -2478,13 +3151,52 @@ function closeSettings(focusTrigger = false) {
 
 function setReveal(id, open) {
   const el = $(id);
-  el.classList.toggle('open', open);
   el.inert = !open;
+  if (el._revealT) {
+    if (el._revealWant === open) return; // already waiting for the light to make room
+    clearTimeout(el._revealT);
+    el._revealT = 0;
+  }
+  if (el.classList.contains('open') === open) return;
+  // In the tour, what's lit grows only once the light has made room for it: the open
+  // layout is measured first (with no transition), then it opens from where it was.
+  if (open && touring && !reducedMotion()) {
+    el.style.transition = 'none';
+    el.classList.add('open');
+    void el.offsetHeight;
+    const lead = relight(450);
+    el.classList.remove('open');
+    void el.offsetHeight;
+    el.style.transition = '';
+    if (lead) {
+      el._revealWant = open;
+      el._revealT = setTimeout(() => { el._revealT = 0; el.classList.add('open'); }, lead);
+      return;
+    }
+  }
+  el.classList.toggle('open', open);
+  // closing, it goes first and the light follows
+  if (!open && touring) relight(450);
 }
 
 function setPressed(groupId, match) {
   for (const b of $(groupId).querySelectorAll('button')) b.setAttribute('aria-pressed', String(match(b)));
   syncSegmented($(groupId));
+}
+
+// The line under Appearance fills as the theme change runs (transform only), then fades.
+function themeProgress() {
+  const fill = document.querySelector('.tp-fill');
+  if (!fill) return;
+  // a change that replaces one still running carries on from where the line had got to
+  const shown = +getComputedStyle(fill).opacity > 0.05 ? new DOMMatrix(getComputedStyle(fill).transform).a : 0;
+  fill.getAnimations().forEach(a => a.cancel());
+  // a strong ease in and out: it starts softly, travels, and settles softly
+  fill.animate([
+    { transform: `scaleX(${shown.toFixed(4)})`, opacity: 1, easing: 'cubic-bezier(0.83, 0, 0.17, 1)' },
+    { transform: 'scaleX(1)', opacity: 1, offset: 0.82, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+    { transform: 'scaleX(1)', opacity: 0 },
+  ], { duration: THEME_SWITCH_MS + 390, easing: 'linear' });
 }
 
 function updateAppearanceUI() {
@@ -2495,6 +3207,15 @@ const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const dayLetter = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' });
 const dayLong = d => longDay.format(new Date(2024, 0, 7 + d)); // 2024-01-07 was a Sunday
 
+// Smooth cursor only means something with the custom cursor on: otherwise its row
+// fades and the switch stays put (a press just nudges it)
+function lockSmooth() {
+  const locked = !$('set-cursor').checked;
+  $('smooth-row').classList.toggle('locked', locked);
+  if (locked) $('set-smooth').setAttribute('aria-disabled', 'true');
+  else $('set-smooth').removeAttribute('aria-disabled');
+}
+
 function renderSettings() {
   const st = state.settings;
   $('set-tracking').checked = !st.paused;
@@ -2504,11 +3225,14 @@ function renderSettings() {
   setPressed('detail', b => (b.dataset.val === 'titles') === !!st.titles);
   setPressed('retention', b => +b.dataset.days === st.retention);
   const desc = st.titles
-    ? 'Page and window titles are saved so you can see which pages took your time. Switching back to Names only stops saving them.'
-    : 'Only site names and time are saved — never full addresses or page content.';
+    ? 'Saves page and window titles, like a video you watched on YouTube or a document you had open. They’re kept as long as your history.'
+    : 'Only app and website names are saved, not titles, like Word or youtube.com.';
   const dd = $('detail-desc');
   if (dd.textContent !== desc) animateHeight(dd, () => swapText(dd, desc));
   $('set-cursor').checked = cursorEnabled();
+  $('set-rainbow').checked = rainbowOn();
+  $('set-smooth').checked = cursorSmooth();
+  lockSmooth();
   $('set-demo').checked = state.demo;
   renderLimitRow();
   renderExcluded();
@@ -2516,8 +3240,9 @@ function renderSettings() {
 }
 
 let exPrimed = false;   // the first fill of the list (when Settings opens) doesn't animate
-const exFlights = new Map(); // site -> the text flying from the input into its chip
+const exFlights = new Map(); // site -> its typed words, on their way from the field to its chip
 
+// Newest first: a site you add lands right under the field, the others make room.
 function renderExcluded(added = null) {
   const ul = $('ex-list');
   const list = state.settings.excluded;
@@ -2528,29 +3253,128 @@ function renderExcluded(added = null) {
   if (!stale.length && !fresh.length) { exPrimed = true; return; }
   const animate = exPrimed && !reducedMotion();
   const made = [];
+  const stay = [...existing.values()].filter(li => list.includes(li.dataset.site));
+  const first = animate ? new Map(stay.map(li => [li, li.getBoundingClientRect()])) : null;
+  // in the tour the light makes room first, and all of this waits for it
+  let lead = 0;
   // the list (and everything under it) rolls open instead of jumping
   const build = () => {
-    for (const [, li] of stale) li.remove();
+    for (const [, li] of stale) { dropChip(li); li.remove(); }
+    for (const li of stay) if (li._flip) { li._flip.cancel(); li._flip = null; }
     for (const site of fresh) {
       const li = document.createElement('li');
-      li.className = `ex-chip${animate ? ' adding' : ''}`;
+      li.className = 'ex-chip';
       li.dataset.site = site;
-      li.innerHTML = `<span>${escapeHtml(site)}</span><button class="x" type="button" aria-label="Track ${escapeHtml(site)} again"><svg><use href="#i-x"/></svg></button>`;
-      ul.appendChild(li);
+      li.innerHTML = `<canvas class="ex-dust" aria-hidden="true"></canvas><button class="ex-name" type="button" aria-label="${HIDDEN_SITE}"><span class="ex-text">${escapeHtml(site)}</span></button><button class="x" type="button" aria-label="Track this site again"><svg><use href="#i-x"/></svg></button>`;
+      ul.prepend(li);
       made.push(li);
     }
+    if (animate) lead = relight(450);
   };
-  if (animate) animateHeight($('ex-wrap'), build, { duration: 420 });
+  if (animate) animateHeight($('ex-wrap'), build, { duration: 420, delay: () => lead });
   else build();
   exPrimed = true;
-  // a site you just typed flies from the field into its new chip
+  // the others glide to their new places (even across rows)
+  if (first) {
+    for (const li of stay) {
+      const a = first.get(li);
+      const b = li.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      const anim = li.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, delay: lead, easing: EASE_OUT, fill: 'backwards' });
+      li._flip = anim;
+      anim.finished.then(() => { if (li._flip === anim) li._flip = null; }, () => {});
+    }
+  }
+  // the new ones pop in (one you typed is flown into instead)
   for (const li of made) {
-    const from = exFlights.get(li.dataset.site);
-    if (!from || !animate) continue;
+    if (!animate || exFlights.has(li.dataset.site)) continue;
+    if (lead) li.style.animationDelay = `${lead}ms`;
+    li.classList.add('adding');
+  }
+  for (const li of made) {
+    // a site you just typed: its words fly from the field into the new chip, still
+    // readable, and turn to dust once they've landed; every other one is dust from the start
+    const bird = animate ? exFlights.get(li.dataset.site) : null;
+    if (bird) li.classList.add('shown', 'landing');
+    dust.attach(chipDust(li), { shown: !!bird });
+    if (!bird) continue;
     exFlights.delete(li.dataset.site);
-    flyIntoChip(from, li);
+    flyIntoChip(bird, li, lead);
   }
   void added;
+}
+
+// ----- never-track sites are hidden under dust; two clicks show one -----
+// The first click stirs the dust and asks for a second; the second, within a moment,
+// blows the dust away from where it landed while the name clears up from there. A click
+// on a shown name (or closing Settings) hides it again.
+const HIDDEN_SITE = 'Hidden. Press twice to show it';
+const REVEAL_GUARD_MS = 500; // after showing a site, its remove button (and hiding it) wait this long
+const dust = createDust();
+let dustNap = 0;
+const ARM_MS = 2600;
+let armedChip = null;
+function chipDust(li) { return li.querySelector('.ex-dust'); }
+function disarmChip(li) {
+  if (!li || !li._armTimer) return;
+  clearTimeout(li._armTimer);
+  li._armTimer = 0;
+  li.classList.remove('armed');
+  if (armedChip === li) { armedChip = null; tip.hide(); }
+  dust.heat(chipDust(li), li.matches(':hover') ? 1.4 : 1);
+  if (!li.classList.contains('shown')) li.querySelector('.ex-name').setAttribute('aria-label', HIDDEN_SITE);
+}
+function armChip(li, e) {
+  if (armedChip && armedChip !== li) disarmChip(armedChip);
+  armedChip = li;
+  li.classList.add('armed');
+  li._armTimer = setTimeout(() => disarmChip(li), ARM_MS);
+  dust.poke(chipDust(li), e, 2.3);
+  li.querySelector('.ex-name').setAttribute('aria-label', 'Press again to show it');
+  if (e && e.detail) tip.show('<div class="tip-row"><span>Click again to show it</span></div>', e.clientX, e.clientY);
+}
+function revealChip(li, e) {
+  disarmChip(li);
+  li.classList.remove('hiding', 'landing');
+  li.classList.add('shown');
+  li._shownAt = performance.now();
+  li.querySelector('.ex-name').setAttribute('aria-label', `${li.dataset.site}. Press to hide it again`);
+  dust.reveal(chipDust(li), e);
+  if (reducedMotion()) return;
+  // the name clears up from where the click landed, as the dust blows away from there
+  const text = li.querySelector('.ex-text');
+  const c = dust.at(chipDust(li), e);
+  const cr = chipDust(li).getBoundingClientRect();
+  const tr = text.getBoundingClientRect();
+  const x = c.x + cr.left - tr.left;
+  const y = c.y + cr.top - tr.top;
+  const R = Math.hypot(Math.max(x, tr.width - x), Math.max(y, tr.height - y)) + 6;
+  text.getAnimations().forEach(a => a.cancel());
+  text.animate([
+    { clipPath: `circle(0px at ${x.toFixed(1)}px ${y.toFixed(1)}px)`, filter: 'blur(3px)', opacity: 0.5 },
+    { clipPath: `circle(${R.toFixed(1)}px at ${x.toFixed(1)}px ${y.toFixed(1)}px)`, filter: 'blur(0)', opacity: 1 },
+  ], { duration: 620, easing: EASE_OUT });
+}
+function concealChip(li, { instant = false } = {}) {
+  disarmChip(li);
+  if (!li.classList.contains('shown')) return;
+  li.classList.remove('shown', 'landing');
+  li.querySelector('.ex-name').setAttribute('aria-label', HIDDEN_SITE);
+  const fast = instant || reducedMotion();
+  dust.conceal(chipDust(li), fast);
+  if (fast) return;
+  // the name blurs away as fresh dust settles over it
+  const text = li.querySelector('.ex-text');
+  li.classList.add('hiding');
+  text.getAnimations().forEach(a => a.cancel());
+  text.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(3px)' }], { duration: 340, easing: 'ease-in' })
+    .finished.then(() => li.classList.remove('hiding'), () => {});
+}
+function dropChip(li) {
+  disarmChip(li);
+  dust.detach(chipDust(li));
 }
 
 // A removed chip fades out where it is while the others glide straight to their
@@ -2576,38 +3400,75 @@ function foldChip(li) {
     anim.finished.then(() => { if (c._flip === anim) c._flip = null; }, () => {});
   }
   const out = li.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.6)' }], { duration: 240, easing: EASE_OUT, fill: 'forwards' });
-  out.finished.then(() => li.remove(), () => li.remove());
+  const gone = () => { dropChip(li); li.remove(); };
+  out.finished.then(gone, gone);
 }
 
-function flyIntoChip(from, li) {
-  const to = li.getBoundingClientRect();
-  if (!to.width) return;
+// The words you typed, lifted off the field the moment you add them (the field empties
+// under them in the same frame, so they're never there twice): same place, size and
+// weight as the typed text.
+function liftTyped(site) {
+  const r = $('ex-input').getBoundingClientRect();
   const bird = document.createElement('div');
   bird.className = 'ex-bird';
-  bird.textContent = li.dataset.site;
-  Object.assign(bird.style, { left: `${from.left}px`, top: `${from.top}px`, height: `${from.height}px` });
+  bird.textContent = site;
+  Object.assign(bird.style, { left: `${r.left}px`, top: `${r.top}px`, height: `${r.height}px` });
   document.body.appendChild(bird);
-  li.classList.remove('adding');
-  li.style.opacity = '0';
+  return bird;
+}
+
+// The words glide down into the new chip (right under the field) and settle exactly on
+// its name, easing to its size on the way, while the pill grows in under them. Then a
+// beat to read it, and it turns to dust like the others.
+function flyIntoChip(bird, li, delay = 0) {
+  const text = li.querySelector('.ex-text');
+  const to = text.getBoundingClientRect();
   const b = bird.getBoundingClientRect();
-  const dx = to.left + 10 - b.left;
-  const dy = to.top + (to.height - b.height) / 2 - b.top;
+  if (!to.width || !b.width) { bird.remove(); return; }
+  const k = (parseFloat(getComputedStyle(text).fontSize) || 12) / (parseFloat(getComputedStyle(bird).fontSize) || 12.5);
+  const dx = to.left - b.left;
+  const dy = to.top + to.height / 2 - (b.top + b.height / 2);
+  li.classList.add('awaiting');
+  li.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: delay + 90, easing: EASE_OUT, fill: 'backwards' });
   const a = bird.animate([
-    { transform: 'none', opacity: 1 },
-    { transform: `translate(${dx * 0.55}px, ${dy * 0.35 - 6}px)`, opacity: 1, offset: 0.45 },
-    { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.9 },
-  ], { duration: 520, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)' });
+    { transform: 'none' },
+    { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${k.toFixed(4)})` },
+  ], { duration: 460, delay, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)', fill: 'forwards' });
   const land = () => {
     bird.remove();
-    li.style.opacity = '';
-    li.animate([{ transform: 'scale(0.92)' }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(0.32, 1.24, 0.5, 1)' });
+    li.classList.remove('awaiting');
+    setTimeout(() => { if (li.isConnected && !li.classList.contains('leaving')) concealChip(li); }, 650);
   };
   a.finished.then(land, land);
+}
+
+// A limit set during the tour can be undone in one click for 24 hours; after that
+// the access is gone and the usual questions apply.
+function trialActive() {
+  const t = state.goalTrial;
+  if (!t) return false;
+  const today = dayKey(new Date());
+  const current = state.goalHistory.filter(e => e.from <= today).at(-1);
+  if (Date.now() < t.until && current && current.from === t.from && current.limit != null) return true;
+  state.goalTrial = null;
+  chrome.storage.local.remove('goalTrial');
+  return false;
 }
 
 async function openResetGauntlet(btn) {
   if (!limitLocked(state.goalHistory, dayKey(new Date()))) return;
   tip.hide();
+  if (trialActive()) {
+    await resetLimit();
+    state.goalTrial = null;
+    await chrome.storage.local.remove('goalTrial');
+    state.goalHistory = await getGoalHistory();
+    updateGoal();
+    renderLimitRow();
+    render({ soft: true });
+    toast('Limit undone. Set one for real from Today’s limit.');
+    return;
+  }
   const ok = await runGauntlet({
     fromEl: btn,
     onReset: async () => {
@@ -2625,12 +3486,16 @@ function renderLimitRow() {
   const today = dayKey(new Date());
   const limit = limitOn(state.goalHistory, today);
   const locked = limitLocked(state.goalHistory, today);
-  const text = locked ? `${fmt(limit)} a day · locked` : 'No limit set';
+  const trial = locked && trialActive();
+  const text = !locked ? 'No limit set' : trial ? `${fmt(limit)} a day · set in the tour` : `${fmt(limit)} a day · locked`;
   const d = $('limit-desc');
   if (d.textContent !== text) swapText(d, text);
   const b = $('limit-reset');
   b.disabled = !locked;
-  b.title = locked ? 'Unlock your limit (if you really must)' : 'There’s no limit to reset';
+  swapText(b, trial ? 'Undo' : 'Reset…');
+  b.title = trial
+    ? `Set during the tour, so it can be undone in one click until ${new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(state.goalTrial.until)}`
+    : locked ? 'Unlock your limit (if you really must)' : 'There’s no limit to reset';
 }
 
 function renderReminder() {
@@ -2678,15 +3543,37 @@ async function saveReminder(patch, note = true) {
 
 // ----- storage estimates for "Keep history" -----
 
+let statsRun = 0;
 async function refreshStats() {
+  const run = ++statsRun;
   const keys = await listDayKeys();
   const dayBytes = keys.length ? await chrome.storage.local.getBytesInUse(keys.map(storageKeyForDay)) : 0;
   const all = await chrome.storage.local.getBytesInUse(null);
   state.stats = { keys, days: keys.length, dayBytes, all };
   state.earliestKey = keys[0] || null;
+  if (!keys.length) { showUsed('Nothing saved yet.'); return; }
+  // how much of it is page titles and their links (they're saved inside each day); the
+  // line waits for that, and nothing else does
+  titleBytesIn(keys).then(titles => {
+    if (run !== statsRun) return; // a newer count is on its way
+    showUsed(titles ? `Used ${formatBytes(all)} so far, ${formatBytes(titles)} of it page titles.` : `Used ${formatBytes(all)} so far.`);
+  });
+}
+function showUsed(text) {
   const d = $('ret-desc');
-  const text = keys.length ? `Used ${formatBytes(all)} so far.` : 'Nothing saved yet.';
   if (d.textContent !== text) swapText(d, text);
+}
+// read a month of days at a time, so a long history never holds up Settings
+const utf8 = new TextEncoder();
+async function titleBytesIn(keys) {
+  let bytes = 0;
+  for (let i = 0; i < keys.length; i += 31) {
+    const raw = await chrome.storage.local.get(keys.slice(i, i + 31).map(storageKeyForDay));
+    for (const r of Object.values(raw)) {
+      for (const f of ['ti', 'th', 'tu']) if (r && r[f] && Object.keys(r[f]).length) bytes += utf8.encode(JSON.stringify(r[f])).length;
+    }
+  }
+  return bytes;
 }
 
 function estimateFor(days) {
@@ -2735,6 +3622,19 @@ async function chooseRetention(days) {
     return;
   }
   await applyRetention(days);
+}
+
+// ----- Pausing tracking: only from the switch in Settings, and only on a second press: the
+// switch turns into a "Sure?" button (recap.css .pause-switch). Left alone for a few seconds
+// (or Esc, a press elsewhere, Settings closing), it turns back into the switch, still on. -----
+
+let pauseAsk = 0;
+const pauseAsking = () => $('set-tracking').closest('.switch').classList.contains('sure');
+function askPause(on) {
+  clearTimeout(pauseAsk);
+  $('set-tracking').closest('.switch').classList.toggle('sure', on);
+  $('set-tracking').setAttribute('aria-label', on ? 'Sure? Press again to pause tracking' : 'Track screen time');
+  if (on) pauseAsk = setTimeout(() => askPause(false), 4000);
 }
 
 async function applyRetention(days) {
@@ -2787,9 +3687,11 @@ function setNukeStep(n) {
 }
 
 async function clearAllData() {
-  const keys = await listDayKeys();
-  await chrome.storage.local.remove([...keys.map(storageKeyForDay), 'categories', 'origins', 'apps', 'goalNotify']);
-  await chrome.storage.session.remove('session');
+  await withData(async () => {
+    const keys = await listDayKeys();
+    await chrome.storage.local.remove([...keys.map(storageKeyForDay), 'categories', 'origins', 'apps', 'goalNotify']);
+    await chrome.storage.session.remove('session');
+  });
   state.overrides = {};
   state.earliestKey = null;
   state.todayRec = normalizeDay(null);
@@ -2825,7 +3727,8 @@ function wire() {
       return [
         ...(category ? [{ label: 'Change category', icon: 'category', action: () => openCatMenu(category) }, { separator: true }] : []),
         { label: $('settings').classList.contains('open') ? 'Close settings' : 'Settings', icon: 'settings', action: () => $('settings-btn').click() },
-        { label: state.settings.paused ? 'Resume tracking' : 'Pause tracking', icon: state.settings.paused ? 'play' : 'pause', action: () => { $('set-tracking').checked = !state.settings.paused; $('set-tracking').click(); } },
+        // tracking can be paused only from Settings; this menu can only resume it
+        ...(state.settings.paused ? [{ label: 'Resume tracking', icon: 'play', action: () => { $('set-tracking').checked = false; $('set-tracking').click(); } }] : []),
       ];
     },
   });
@@ -2840,13 +3743,42 @@ function wire() {
     goToWeek(next, 'next');
   });
 
+  // The mouse's Back button steps back inside the report, the way Esc does: the tour's
+  // previous step, or whatever is open, or out of a day or hour. Only with nothing to
+  // step back from does the browser's own Back happen. The press is taken before any
+  // other handler sees it (window, capture), so exactly one step happens, on release.
+  let backPlan = null;
+  const backTarget = () => {
+    if (document.querySelector('.wel')) return null;
+    const tourBack = document.querySelector('.tour.on .tour-back');
+    if (tourBack) return () => { if (!tourBack.disabled && !tourBack.classList.contains('gone')) tourBack.click(); };
+    const open = document.querySelector('.pk-layer, .gx-layer, .context-menu:not([hidden])') || !$('cat-menu').hidden || catPop.isOpen || pages.isOpen
+      || importAnswer || authorPop.isOpen || $('settings').classList.contains('open') || state.view.type !== 'week';
+    return open ? () => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) : null;
+  };
+  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick']) {
+    addEventListener(type, e => {
+      if (e.button !== 3) return;
+      if (type === 'pointerdown') backPlan = backTarget();
+      if (!backPlan) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // cancelling the press also cancels its mouseup, so the step happens on pointerup
+      if (type === 'pointerup') { const go = backPlan; backPlan = null; go(); }
+    }, true);
+  }
+
   document.addEventListener('keydown', e => {
     if (e.defaultPrevented) return;
     if (e.key === 'Escape') {
       if (!$('cat-menu').hidden) closeCatMenu();
       else if (catPop.isOpen) closeCatPop();
+      else if (pages.isOpen) { const back = popAnchor; closePagePop(); back?.querySelector('[role="button"]')?.focus({ preventScroll: true }); }
+      else if (importAnswer) { answerImport(null); $('import').focus({ preventScroll: true }); }
+      else if (authorPop.isOpen) { closeAuthor(); focusAuthor(); }
       else if ($('settings').classList.contains('open')) {
         if ($('data-row').dataset.step !== '0') setNukeStep(0);
+        else if (pauseAsking()) askPause(false);
         else closeSettings(true);
       } else if (state.view.type !== 'week') goBack();
       return;
@@ -2904,27 +3836,71 @@ function wire() {
       const d = state.summary.days[state.view.day];
       const h = +hcol.dataset.h;
       const slot = Object.entries(d.hs[h] || {}).filter(([dom]) => !isPrivate(dom)).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      const rows = slot.map(([dom, v]) => `<div class="tip-row"><span>${escapeHtml(dom)}</span><b>${fmt(v, { seconds: true })}</b></div>`).join('');
+      const rows = slot.map(([dom, v]) => `<div class="tip-row"><span>${escapeHtml(siteName(dom))}</span><b>${fmt(v, { seconds: true })}</b></div>`).join('');
       tip.show(`<div class="tip-title">${hourRange(h)}</div><div class="tip-row"><span>Screen time</span><b>${d.h[h] > 0 ? fmt(d.h[h], { seconds: true }) : 'No activity'}</b></div>${rows}`, e.clientX, e.clientY);
       return;
     }
+    // the gaps between columns and their hour labels: the tip stays, so moving from one
+    // column to the next morphs it (as on the week chart) instead of closing and reopening
+    if (e.target.closest('.hstrip')) return;
     rowTip(e);
   });
   $('detail-view').addEventListener('pointermove', e => tip.move(e.clientX, e.clientY));
   $('detail-view').addEventListener('pointerout', e => {
     if (!e.relatedTarget || !$('detail-view').contains(e.relatedTarget)) tip.hide();
-    else if (!e.relatedTarget.closest('.hcol, .row')) tip.hide();
+    else if (!e.relatedTarget.closest('.hstrip, .rows')) tip.hide();
   });
 
   // page titles on hover (only when titles are recorded)
   function rowTip(e) {
     const row = e.target.closest('.row, .site');
+    // between two rows of a list the tip stays, so it morphs from one row to the next
+    if (!row && e.target.closest('.rows, .sites')) return;
     if (!row || !row.dataset.domain || e.target.closest('.cat-btn')) { tip.hide(); return; }
+    // Most used, and the day and hour views: a click on the row shows each page's time
+    // (the name itself opens the site)
+    const inDetail = !!row.closest('#detail-view');
+    if (row.classList.contains('site') || inDetail) {
+      if (!row.classList.contains('has-pages') || e.target.closest('.site-link') || (pages.isOpen && popAnchor === row)) { tip.hide(); return; }
+      const ol = row.parentElement;
+      const when = inDetail ? pagesWhen(ol._days, ol._hour) : scoped().when;
+      tip.show(`<div class="tip-row"><span>Click to see each page’s time ${when}</span></div>`, e.clientX, e.clientY);
+      return;
+    }
     const scope = row.parentElement && row.parentElement._days;
     const html = titlesTip(row.dataset.domain, scope || null);
     if (html) tip.show(html, e.clientX, e.clientY);
     else tip.hide();
   }
+  // a row with pages (not its name or its category) opens them
+  const openRowPages = row => { tip.hide(true); openPagePop(row.dataset.domain, row); };
+  $('sites').addEventListener('click', e => {
+    if (e.target.closest('.site-link, .cat-btn')) return;
+    const row = e.target.closest('.site.has-pages');
+    if (row) openRowPages(row);
+  });
+  $('sites').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const time = e.target.closest('.site-time[role="button"]');
+    if (!time) return;
+    e.preventDefault();
+    openRowPages(time.closest('.site'));
+  });
+  // the same from a row in the day or hour view, for that day or hour
+  const detailPages = row => { tip.hide(true); openPagePop(row.dataset.domain, row, { days: row.parentElement._days, hour: row.parentElement._hour }); };
+  $('detail-view').addEventListener('click', e => {
+    if (e.target.closest('.site-link')) return;
+    const row = e.target.closest('.row.has-pages');
+    if (row && !row.closest('.leaving')) detailPages(row);
+  });
+  $('detail-view').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const time = e.target.closest('.row-time[role="button"]');
+    if (!time) return;
+    e.preventDefault();
+    detailPages(time.closest('.row'));
+  });
+  wirePagePop();
   for (const id of ['sites', 'cat-pop']) {
     $(id).addEventListener('pointerover', rowTip);
     $(id).addEventListener('pointermove', e => tip.move(e.clientX, e.clientY));
@@ -2938,9 +3914,13 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #author-pop')) closeSettings();
+    if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
+    if (authorPop.isOpen && !e.target.closest('#author-pop, #author')) closeAuthor();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
     if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
+    // another row with pages opens its own (the click does that); anywhere else closes it
+    if (pages.isOpen && !e.target.closest('#page-pop') && !(e.target.closest('.site.has-pages, #detail-view .row.has-pages') && !e.target.closest('.site-link, .cat-btn'))) closePagePop();
   });
 
   // appearance
@@ -2948,8 +3928,19 @@ function wire() {
     const b = e.target.closest('button[data-pref]');
     if (!b) return;
     const r = b.getBoundingClientRect();
-    setThemePref(b.dataset.pref, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const t = setThemePref(b.dataset.pref, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, {
+      // the Settings panel and, in the tour, its card fill in with one circle from the button
+      panels: [
+        { el: $('settings').classList.contains('open') ? $('settings-panel') : null, parts: [document.querySelector('#settings-panel .panel-inner')] },
+        { el: document.querySelector('.tour.on .tour-card'), parts: [document.querySelector('.tour.on .tour-card')] },
+      ],
+      parts: [...document.querySelectorAll('.board > .card, .head-left, .demo-pill, .morph-trigger')],
+      // the tour's dim fades to the new theme's as the sweep passes it
+      fades: [document.querySelector('.tour.on .tour-spot')],
+      cards: [...document.querySelectorAll('.board > .card')],
+    });
     updateAppearanceUI();
+    if (t) t.ready.then(themeProgress, () => {});
   });
 
   // category menu
@@ -2972,13 +3963,30 @@ function wire() {
     const i = items.indexOf(document.activeElement);
     items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
   });
-  window.addEventListener('resize', () => { closeCatMenu(true); closeCatPop(true); tip.hide(); });
+  window.addEventListener('resize', () => { closeCatMenu(true); closeCatPop(true); closePagePop(true); tip.hide(); });
 
   // tracking
-  $('set-tracking').addEventListener('change', async e => {
-    state.settings = await updateSettings({ paused: !e.target.checked });
-    toast(e.target.checked ? 'Tracking resumed' : 'Tracking paused');
+  // turning it on is one click; turning it off, the first press turns it into "Sure?" and
+  // the press on that pauses
+  $('set-tracking').addEventListener('click', e => {
+    if (e.target.checked || pauseAsking()) return;
+    e.preventDefault();
+    askPause(true);
   });
+  $('set-tracking').addEventListener('change', async e => {
+    const fromSure = pauseAsking();
+    askPause(false);
+    state.settings = await updateSettings({ paused: !e.target.checked });
+    // paused from "Sure?": the toast waits until it has turned back into the switch, so the
+    // two don't share frames (and says nothing if tracking was turned back on meanwhile)
+    if (fromSure && !reducedMotion()) setTimeout(() => { if (!$('set-tracking').checked) toast('Tracking paused'); }, 380);
+    else toast(e.target.checked ? 'Tracking resumed' : 'Tracking paused');
+  });
+  $('set-tracking').addEventListener('blur', () => askPause(false));
+  // a press anywhere else takes the question back
+  document.addEventListener('pointerdown', e => {
+    if (pauseAsking() && !e.target.closest('.pause-switch')) askPause(false);
+  }, true);
 
   // tracking detail
   $('detail').addEventListener('click', async e => {
@@ -2994,15 +4002,16 @@ function wire() {
     } else if (await hasTitles()) {
       setReveal('detail-confirm', true);
     } else {
-      toast('Only site names are saved now');
+      toast('Only app and website names are saved now');
     }
   });
   $('detail-keep').addEventListener('click', () => { setReveal('detail-confirm', false); toast('Saved titles kept; new ones won’t be saved'); });
   $('detail-erase').addEventListener('click', async () => {
     setReveal('detail-confirm', false);
-    const n = await eraseTitles();
+    const n = await withData(eraseTitles);
     toast(n ? 'Saved page titles erased' : 'No page titles to erase');
     render({ soft: true });
+    refreshStats();
   });
 
   // never track
@@ -3020,27 +4029,67 @@ function wire() {
       toast('That doesn’t look like a website');
       return;
     }
-    // remember where the typed text is, so it can fly into its chip
-    const r = exInput.getBoundingClientRect();
-    exFlights.set(site, { left: r.left, top: r.top, height: r.height });
+    // a new site: the typed words lift off at once (the field empties under them) and
+    // fly into the chip once it's made
+    if (!state.settings.excluded.includes(site) && !reducedMotion()) {
+      exFlights.set(site, liftTyped(site));
+      exInput.value = '';
+      exForm.classList.remove('has-text');
+      exForm.classList.add('sent');
+      setTimeout(() => exForm.classList.remove('sent'), 420);
+    }
     if (await addExcluded(site)) {
       exInput.value = '';
       exForm.classList.remove('has-text');
     }
+    // words that found no chip to land in just fade
+    const stray = exFlights.get(site);
     exFlights.delete(site);
+    if (stray) stray.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }).finished.then(() => stray.remove(), () => stray.remove());
   });
   $('ex-list').addEventListener('click', async e => {
+    const name = e.target.closest('.ex-name');
+    if (name) {
+      const li = name.closest('.ex-chip');
+      if (li.classList.contains('leaving')) return;
+      if (li.classList.contains('shown')) {
+        // a third tap straight after showing it doesn't hide it again
+        if (performance.now() - (li._shownAt || 0) >= REVEAL_GUARD_MS) concealChip(li);
+      } else if (li._armTimer) revealChip(li, e);
+      else armChip(li, e);
+      return;
+    }
+    // The remove button is under the dust with the name: it's there only once the site is
+    // shown, and only half a second after that (CSS), so a tap too many can't remove it.
     const x = e.target.closest('.x');
     if (!x) return;
     const li = x.closest('.ex-chip');
-    if (li.classList.contains('leaving')) return;
+    if (li.classList.contains('leaving') || !li.classList.contains('shown') || li.classList.contains('landing')) return;
+    if (performance.now() - (li._shownAt || 0) < REVEAL_GUARD_MS) return;
     const site = li.dataset.site;
     li.classList.add('leaving');
-    if (reducedMotion()) li.remove();
+    disarmChip(li);
+    if (reducedMotion()) { dropChip(li); li.remove(); }
     else foldChip(li);
     state.settings = await updateSettings({ excluded: state.settings.excluded.filter(s => s !== site) });
     toast(`${site} will be tracked again`);
   });
+  // pointing at a hidden site stirs its dust a little; leaving lets it settle (and the
+  // "click again" hint goes with the pointer)
+  $('ex-list').addEventListener('pointerover', e => {
+    const name = e.target.closest('.ex-name');
+    if (!name || (e.relatedTarget && name.contains(e.relatedTarget))) return;
+    const li = name.closest('.ex-chip');
+    if (!li._armTimer) dust.heat(chipDust(li), 1.4);
+  });
+  $('ex-list').addEventListener('pointerout', e => {
+    const name = e.target.closest('.ex-name');
+    if (!name || (e.relatedTarget && name.contains(e.relatedTarget))) return;
+    const li = name.closest('.ex-chip');
+    if (armedChip === li) tip.hide();
+    if (!li._armTimer) dust.heat(chipDust(li), 1);
+  });
+  $('ex-list').addEventListener('pointermove', e => { if (armedChip && e.target.closest('.ex-name') && tip.visible) tip.move(e.clientX, e.clientY); });
 
   // weekly reminder
   $('set-reminder').addEventListener('change', async e => {
@@ -3121,7 +4170,7 @@ function wire() {
   // your data
   $('export').addEventListener('click', async () => {
     const all = await chrome.storage.local.get(null);
-    const blob = new Blob([JSON.stringify({ app: 'Memoir: Browser Screen Time', exportedAt: new Date().toISOString(), data: all }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ app: 'Memoir: Browser Screen Time', format: EXPORT_FORMAT, exportedAt: new Date().toISOString(), data: all }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `memoir-screen-time-${dayKey(new Date())}.json`;
@@ -3136,7 +4185,21 @@ function wire() {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    const n = await importFile(file);
+    const parsed = await readImport(file);
+    if (!parsed) { toast('That file isn’t a Memoir export'); return; }
+    // an export from before page links: say so, while it's brought up to date
+    if (parsed.old) {
+      toast('This export is from an older version of Memoir. Updating it to the new format…', 4000);
+      await new Promise(r => setTimeout(r, reducedMotion() ? 0 : 1500));
+    }
+    // days that already hold time here: ask before touching them
+    const here = await chrome.storage.local.get(Object.keys(parsed.days));
+    const overlap = Object.keys(parsed.days).filter(k => here[k] && dayTotal(normalizeDay(here[k])) > 0).length;
+    const mode = overlap ? await askImportMode(overlap) : 'replace';
+    if (!mode) return;
+    let n = 0;
+    try { n = await withData(() => writeImport(parsed, mode)); }
+    catch { toast('The import couldn’t be completed. Nothing was changed.'); return; }
     if (n > 0) {
       if (state.demo) exitDemo(false);
       const keys = await listDayKeys();
@@ -3147,9 +4210,19 @@ function wire() {
       await render({});
       updateGoal();
       refreshStats();
-      toast(`Imported ${n} day${n === 1 ? '' : 's'}`);
-    } else toast('That file isn’t a Memoir export');
+      const days = `${parsed.old ? 'Updated and imported' : 'Imported'} ${n} day${n === 1 ? '' : 's'}`;
+      toast(overlap ? `${days} · ${overlap} ${mode === 'merge' ? 'merged' : 'replaced'}` : days);
+    }
   });
+  $('import-pop').addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]');
+    if (b) { answerImport(b.dataset.mode || null); $('import').focus({ preventScroll: true }); }
+  });
+  // the panel scrolls under its popovers: keep them on what they came from
+  $('settings-panel').addEventListener('scroll', () => {
+    if (!$('import-pop').hidden) importPop.place($('import').getBoundingClientRect());
+    if (!$('author-pop').hidden) authorPop.place($('author').getBoundingClientRect());
+  }, { passive: true });
   $('nuke').addEventListener('click', async () => {
     const step = +$('data-row').dataset.step;
     if (step === 0) setNukeStep(1);
@@ -3167,9 +4240,31 @@ function wire() {
   $('exit-demo').addEventListener('click', () => exitDemo(true));
 
   // settings: cursor, sample week, tutorial, and the way out of a locked limit
+  $('set-rainbow').addEventListener('change', async e => {
+    const on = e.target.checked;
+    setRainbow(on);
+    toast(on ? 'Rainbow clock on' : 'Rainbow clock off');
+    state.settings = await updateSettings({ rainbow: on }); // the toolbar icon follows
+  });
   $('set-cursor').addEventListener('change', e => {
     setCursorPref(e.target.checked);
+    lockSmooth();
     toast(e.target.checked ? 'Custom cursor on' : 'Using your system cursor');
+  });
+  // locked: the switch doesn't move, it shakes its head (only the switch, not the row)
+  $('set-smooth').addEventListener('click', e => {
+    if (e.target.getAttribute('aria-disabled') !== 'true') return;
+    e.preventDefault();
+    const sw = e.target.closest('.switch');
+    if (reducedMotion() || sw._nudge?.playState === 'running') return;
+    sw._nudge = sw.animate([
+      { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(4px)' },
+      { transform: 'translateX(-3px)' }, { transform: 'translateX(1.5px)' }, { transform: 'translateX(0)' },
+    ], { duration: 420, easing: 'cubic-bezier(0.36, 0.07, 0.19, 0.97)' });
+  });
+  $('set-smooth').addEventListener('change', e => {
+    setCursorSmooth(e.target.checked);
+    toast(e.target.checked ? 'Smooth cursor on' : 'Smooth cursor off');
   });
   $('set-demo').addEventListener('change', e => {
     if (e.target.checked) enterDemo();
@@ -3187,72 +4282,255 @@ async function addExcluded(site) {
   if (list.includes(site)) { toast(`${site} is already private`); return true; }
   state.settings = await updateSettings({ excluded: [...list, site] });
   renderExcluded(site);
-  const n = await anonymizeSites([site]);
+  const n = await withData(() => anonymizeSites([site]));
   toast(n ? `${site} won’t be tracked; its past time is now Private` : `${site} won’t be tracked`);
   // repaint the report once the chip has landed, not while it's still moving
   setTimeout(() => render({ soft: true }), reducedMotion() ? 0 : 600);
   return true;
 }
 
+// Toast text, with the name set in its face (as everywhere in Settings, where toasts come from).
+function brand(el, text) {
+  el.replaceChildren(...text.split(/(Memoir)/).map(part => {
+    if (part !== 'Memoir') return part;
+    const name = document.createElement('span');
+    name.className = 'wordmark-plain';
+    name.textContent = part;
+    return name;
+  }));
+}
+
+// A message at the bottom. It rises in, and sinks away after a while. A new one while it's
+// up (or on its way out) doesn't blink: the pill morphs to the new words' size while the
+// old words fade up and away and the new ones fade in. Every move starts from wherever the
+// last one had got to (read off the running animations), so clicks as fast as you like
+// never make it jump. The words only wrap where the finished pill would (CSS), never
+// because the pill is still growing.
 let toastTimer = 0;
-function toast(text) {
+const TOAST_UP = { opacity: 1, transform: 'translateY(0px) scale(1)' };
+const TOAST_DOWN = { opacity: 0, transform: 'translateY(14px) scale(0.96)' };
+const TOAST_POP = 'cubic-bezier(0.32, 1.24, 0.5, 1)'; // --pop
+
+function toast(text, hold = 2600) {
   const t = $('toast');
-  t.textContent = text;
-  t.classList.add('on');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('on'), 2600);
+  toastTimer = setTimeout(hideToast, hold);
+  const words = document.createElement('span');
+  words.className = 'toast-words';
+  brand(words, text);
+  if (reducedMotion()) {
+    t.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    t.replaceChildren(words);
+    Object.assign(t.style, TOAST_UP);
+    t._up = true;
+    return;
+  }
+  const cs = getComputedStyle(t);
+  const now = { opacity: cs.opacity, transform: cs.transform === 'none' ? 'translateY(0px) scale(1)' : cs.transform };
+  const from = { width: cs.width, height: cs.height };
+  const old = t.querySelector('.toast-words:not(.out)');
+  t._size?.cancel();
+  t._size = null;
+  if (old && +now.opacity > 0.02) {
+    // the old words stay where they are, as they wrap now, and fade up and away
+    const ws = getComputedStyle(old);
+    old.style.width = ws.width; // exactly, not rounded: a hair narrower and its last word would wrap
+    old.classList.add('out');
+    old.setAttribute('aria-hidden', 'true');
+    old.getAnimations().forEach(a => a.cancel());
+    old.animate([{ opacity: ws.opacity, transform: ws.transform === 'none' ? 'translateY(0px)' : ws.transform }, { opacity: 0, transform: 'translateY(-6px)' }],
+      { duration: 180, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => old.remove(), () => {});
+    // at high speed, only the newest of the leaving words are kept
+    const gone = [...t.querySelectorAll('.toast-words.out')];
+    gone.slice(0, -2).forEach(el => el.remove());
+    t.appendChild(words);
+    const to = { width: cs.width, height: cs.height };
+    if (from.width !== to.width || from.height !== to.height) {
+      t._size = t.animate([from, to], { duration: 380, easing: EASE_OUT });
+    }
+    words.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'translateY(0px)' }], { duration: 300, delay: 60, easing: EASE_OUT, fill: 'backwards' });
+  } else {
+    // nothing showing (or all but gone): just the new words, at their own size
+    t.replaceChildren(words);
+  }
+  if (!t._up || +now.opacity < 1) {
+    t._move?.cancel();
+    t._move = t.animate([now, TOAST_UP], { duration: 420, easing: TOAST_POP, fill: 'forwards' });
+  }
+  t._up = true;
+}
+
+function hideToast() {
+  const t = $('toast');
+  if (!t._up) return;
+  t._up = false;
+  if (reducedMotion()) {
+    t.replaceChildren();
+    Object.assign(t.style, TOAST_DOWN);
+    return;
+  }
+  const cs = getComputedStyle(t);
+  const now = { opacity: cs.opacity, transform: cs.transform === 'none' ? 'translateY(0px) scale(1)' : cs.transform };
+  t._move?.cancel();
+  const a = t.animate([now, TOAST_DOWN], { duration: 300, easing: EASE_OUT, fill: 'forwards' });
+  t._move = a;
+  // once it's gone, so is what it said (a new one then starts afresh)
+  a.finished.then(() => { if (t._move === a) t.replaceChildren(); }, () => {});
 }
 
 // Accepts an export from any version of Browser Screen Time or Memoir.
-async function importFile(file) {
-  try {
-    const json = JSON.parse(await file.text());
-    const data = json && typeof json === 'object' && json.data && typeof json.data === 'object' ? json.data : json;
-    const patch = {};
-    let days = 0;
-    const num = x => (Number.isFinite(x) && x >= 0 ? Math.round(x) : 0);
-    const cleanMap = (m, depth) => {
-      const out = {};
-      if (!m || typeof m !== 'object') return out;
-      for (const [k, v] of Object.entries(m)) {
-        if (typeof k !== 'string' || k.length > 256 || k === '__proto__') continue;
-        if (depth > 1) { const inner = cleanMap(v, depth - 1); if (Object.keys(inner).length) out[k] = inner; }
-        else if (Number.isFinite(v) && v >= 0) out[k] = Math.round(v);
+// Names from a file must look exactly like the ones the tracker writes: no
+// built-in object names, no markup, nothing a page address couldn't produce.
+// (Windows: an app's key too, app:name.exe)
+const APP_KEY = /^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/;
+const siteKey = d => (d === PRIVATE_KEY || isPage(d) || APP_KEY.test(d) || domainFromUrl(`http://${d}`) === d ? d : null);
+const titleKey = t => (t.length <= 256 && safeKey(t) !== null ? t : null);
+
+// Reads an export into clean records, or null when the file isn't one.
+async function readImport(file) {
+  let json;
+  try { json = JSON.parse(await file.text()); } catch { return null; }
+  const data = json && typeof json === 'object' && json.data && typeof json.data === 'object' ? json.data : json;
+  if (!data || typeof data !== 'object') return null;
+  const ms = v => (Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+  const times = (m, keyOf) => {
+    const out = {};
+    if (!m || typeof m !== 'object') return out;
+    for (const [k, v] of Object.entries(m)) {
+      const name = keyOf(k);
+      const t = ms(v);
+      if (name !== null && t !== null) out[name] = t;
+    }
+    return out;
+  };
+  const days = {};
+  const categories = {};
+  const origins = {};
+  const apps = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (/^day:\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v.s === 'object' && Array.isArray(v.h) && v.h.length === 24) {
+      const hs = {};
+      for (const [h, slot] of Object.entries(v.hs && typeof v.hs === 'object' ? v.hs : {})) {
+        if (!/^([0-9]|1[0-9]|2[0-3])$/.test(h)) continue;
+        const clean = times(slot, siteKey);
+        if (Object.keys(clean).length) hs[h] = clean;
       }
-      return out;
-    };
-    for (const [k, v] of Object.entries(data || {})) {
-      if (/^day:\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v.s === 'object' && Array.isArray(v.h) && v.h.length === 24) {
-        const hs = {};
-        for (const [h, slot] of Object.entries(cleanMap(v.hs, 2))) if (/^([0-9]|1[0-9]|2[0-3])$/.test(h)) hs[h] = slot;
-        patch[k] = { s: cleanMap(v.s, 1), h: v.h.map(num), hs, ti: cleanMap(v.ti, 2) };
-        days++;
-      } else if (k === 'categories' && v && typeof v === 'object') {
-        const c = { ...state.overrides };
-        for (const [d, cat] of Object.entries(v)) if (CATEGORY_BY_ID[cat] && d !== '__proto__') c[d] = cat;
-        patch.categories = c;
-      } else if (k === 'apps' && v && typeof v === 'object') {
-        const apps = { ...window.memoir.apps };
-        for (const [d, app] of Object.entries(v)) {
-          if (!normalizeSite(d)?.startsWith('app:') || !app || typeof app.name !== 'string') continue;
-          apps[d] = { name: app.name.slice(0, 160), category: CATEGORY_BY_ID[app.category] ? app.category : 'other', icon: /^[a-f0-9]{24}\.png$/.test(app.icon || '') ? app.icon : null };
+      const ti = {};
+      for (const [d, pages] of Object.entries(v.ti && typeof v.ti === 'object' ? v.ti : {})) {
+        if (isPrivate(d) || siteKey(d) === null) continue;
+        const clean = times(pages, titleKey);
+        if (Object.keys(clean).length) ti[d] = clean;
+      }
+      // a page's link only for a title that's there, and only to a web page on that site
+      const tu = {};
+      for (const [d, links] of Object.entries(v.tu && typeof v.tu === 'object' ? v.tu : {})) {
+        if (!ti[d] || !links || typeof links !== 'object') continue;
+        for (const [t, url] of Object.entries(links)) {
+          const clean = titleKey(t) !== null && Object.hasOwn(ti[d], t) ? cleanUrl(url, d) : null;
+          if (clean) (tu[d] || (tu[d] = {}))[t] = clean;
         }
-        patch.apps = apps;
-      } else if (k === 'origins' && v && typeof v === 'object') {
-        const o = await getOrigins();
-        for (const [d, origin] of Object.entries(v)) if (typeof origin === 'string' && /^https?:\/\/[^/]+$/.test(origin) && d !== '__proto__') o[d] = origin;
-        patch.origins = o;
+      }
+      const th = {};
+      for (const [h, slot] of Object.entries(v.th && typeof v.th === 'object' ? v.th : {})) {
+        if (!/^([0-9]|1[0-9]|2[0-3])$/.test(h) || !slot || typeof slot !== 'object') continue;
+        for (const [d, pages] of Object.entries(slot)) {
+          if (!ti[d]) continue;
+          const clean = times(pages, t => (titleKey(t) !== null && Object.hasOwn(ti[d], t) ? t : null));
+          if (Object.keys(clean).length) (th[h] || (th[h] = {}))[d] = clean;
+        }
+      }
+      const tp = Array.isArray(v.tp) ? [...new Set(v.tp.filter(d => typeof d === 'string' && !isPrivate(d) && siteKey(d) !== null))] : [];
+      days[k] = { s: times(v.s, siteKey), h: v.h.map(x => ms(x) ?? 0), hs, ti, th, tu, tp };
+    } else if (k === 'categories' && v && typeof v === 'object') {
+      for (const [d, cat] of Object.entries(v)) if (CATEGORY_BY_ID[cat] && !isPrivate(d) && siteKey(d) !== null) categories[d] = cat;
+    } else if (k === 'origins' && v && typeof v === 'object') {
+      for (const [d, origin] of Object.entries(v)) if (typeof origin === 'string' && /^https?:\/\/[^/]+$/.test(origin) && !isPrivate(d) && siteKey(d) !== null) origins[d] = origin;
+    } else if (k === 'apps' && v && typeof v === 'object') {
+      // Windows apps: a name, a category and the file name of an icon Memoir saved
+      for (const [d, app] of Object.entries(v)) {
+        if (!APP_KEY.test(d) || !app || typeof app.name !== 'string') continue;
+        apps[d] = { name: app.name.slice(0, 160), category: CATEGORY_BY_ID[app.category] ? app.category : 'other', icon: /^[a-f0-9]{24}\.png$/.test(app.icon || '') ? app.icon : null };
       }
     }
-    if (!days) return 0;
-    await chrome.storage.local.set(patch);
-    if (patch.categories) state.overrides = patch.categories;
-    if (state.settings.excluded.length) await anonymizeSites(state.settings.excluded);
-    return days;
-  } catch {
-    return 0;
   }
+  if (!Object.keys(days).length) return null;
+  // files from before page links were saved (no format number) are brought up to date
+  const format = json && Number.isInteger(json.format) ? json.format : 1;
+  return { days, categories, origins, apps, old: format < EXPORT_FORMAT };
 }
+
+// A day in both: the larger time for each site in each hour, so nothing is ever
+// counted twice (importing the same file again changes nothing). Days kept
+// without per-hour detail by older versions keep whichever record holds more.
+const hourlyTotal = d => Object.values(d.hs).reduce((t, slot) => t + sum(Object.values(slot)), 0);
+function mergeDay(a, b) {
+  if (Math.abs(hourlyTotal(a) - dayTotal(a)) > 1000 || Math.abs(hourlyTotal(b) - dayTotal(b)) > 1000) return dayTotal(b) > dayTotal(a) ? b : a;
+  const out = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {}, th: {}, tu: {}, tp: [...new Set([...(a.tp || []), ...(b.tp || [])])] };
+  for (let h = 0; h < 24; h++) {
+    const slot = {};
+    for (const from of [a.hs[h], b.hs[h]]) for (const [d, ms] of Object.entries(from || {})) slot[d] = Math.max(slot[d] || 0, ms);
+    if (!Object.keys(slot).length) continue;
+    out.hs[h] = slot;
+    for (const [d, ms] of Object.entries(slot)) { out.s[d] = (out.s[d] || 0) + ms; out.h[h] += ms; }
+  }
+  for (const from of [a.ti, b.ti]) {
+    for (const [d, pages] of Object.entries(from)) {
+      const into = out.ti[d] || (out.ti[d] = {});
+      for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
+    }
+  }
+  for (const from of [a.th || {}, b.th || {}]) {
+    for (const [h, slot] of Object.entries(from)) {
+      for (const [d, pages] of Object.entries(slot)) {
+        const into = (out.th[h] || (out.th[h] = {}))[d] || (out.th[h][d] = {});
+        for (const [t, ms] of Object.entries(pages)) into[t] = Math.max(into[t] || 0, ms);
+      }
+    }
+  }
+  // the file's link for a page wins (it's the one being brought in)
+  for (const from of [a.tu || {}, b.tu || {}]) {
+    for (const [d, links] of Object.entries(from)) Object.assign(out.tu[d] || (out.tu[d] = {}), links);
+  }
+  return out;
+}
+
+// Runs under the data lock, so the tracker can't save in between.
+async function writeImport({ days, categories, origins, apps = {} }, mode) {
+  const keys = Object.keys(days);
+  const raw = await chrome.storage.local.get([...keys, 'categories', 'origins', 'apps']);
+  const patch = {};
+  for (const k of keys) patch[k] = mode === 'merge' && raw[k] ? mergeDay(normalizeDay(raw[k]), days[k]) : days[k];
+  if (Object.keys(categories).length) patch.categories = { ...(raw.categories || {}), ...categories };
+  if (Object.keys(origins).length) patch.origins = { ...(raw.origins || {}), ...origins };
+  if (Object.keys(apps).length) patch.apps = { ...(raw.apps || {}), ...apps };
+  await chrome.storage.local.set(patch);
+  if (patch.categories) state.overrides = patch.categories;
+  if (state.settings.excluded.length) await anonymizeSites(state.settings.excluded);
+  return keys.length;
+}
+
+// Merge or replace: a popover that grows out of the Import button.
+let importAnswer = null;
+function askImportMode(count) {
+  answerImport(null, true);
+  $('ip-text').innerHTML = `<b>${count} day${count === 1 ? '' : 's'}</b> in this file also ${count === 1 ? 'has' : 'have'} time in <span class="wordmark-plain">Memoir</span>. Every other day is added either way.`;
+  return new Promise(resolve => {
+    importAnswer = resolve;
+    importPop.open($('import'));
+    $('import-pop').querySelector('[data-mode="merge"]').focus({ preventScroll: true });
+  });
+}
+function answerImport(mode, instant = false) {
+  const resolve = importAnswer;
+  importAnswer = null;
+  if (!$('import-pop').hidden) importPop.close({ instant });
+  if (resolve) resolve(mode);
+}
+
+// ----- the author's name in Settings (its popover: shared/mail-pop.js) -----
+
+function focusAuthor() { author.focusTrigger(); }
+function closeAuthor(instant = false) { author.close(instant); }
 
 async function enterDemo() {
   if (state.demo) return;
@@ -3275,7 +4553,7 @@ function useTourWeek() {
 }
 
 // prepared: the board already shows the tour's week (first visit, from the welcome)
-async function startTour({ prepared = false } = {}) {
+async function startTour({ prepared = false, handoff = null } = {}) {
   if (touring) return;
   touring = true;
   closeSettings();
@@ -3322,6 +4600,18 @@ async function startTour({ prepared = false } = {}) {
   const onHover = sel => listen('pointerover', e => !!e.target.closest(sel));
   const onScroll = sel => listen('scroll', e => !!e.target.closest(sel));
   const onChange = sel => listen('change', e => !!e.target.closest(sel));
+  // any of several
+  const either = (...watches) => done => {
+    const offs = watches.map(w => w(done));
+    return () => offs.forEach(off => off());
+  };
+  // a site added to Never track (one that wasn't there when the step began)
+  const onNewSite = done => {
+    const had = new Set(state.settings.excluded);
+    const mo = new MutationObserver(() => { if (state.settings.excluded.some(s => !had.has(s))) done(); });
+    mo.observe($('ex-list'), { childList: true });
+    return () => mo.disconnect();
+  };
 
   const toWeek = async () => { if (state.view.type !== 'week') goHome(); };
   const thisWeek = async () => {
@@ -3351,7 +4641,7 @@ async function startTour({ prepared = false } = {}) {
     const h = busiestHour(d);
     openView({ type: 'hour', day: d, hour: h, origin: { kind: 'hcol', h } }, q(`#detail-view .dv:not(.leaving) .hcol[data-h="${h}"]`));
   };
-  const tidy = () => { closeCatPop(true); closeCatMenu(true); tip.hide(); };
+  const tidy = () => { closeCatPop(true); closePagePop(true); closeCatMenu(true); tip.hide(); };
   // a part of Settings: open the panel and bring that part into view
   const toSettings = sel => async () => {
     tidy();
@@ -3363,61 +4653,86 @@ async function startTour({ prepared = false } = {}) {
     if (t) t.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
   };
   const noSettings = async () => { tidy(); closeSettings(); };
+  // a day, an hour or the trend that a try opened in Daily activity: lit too, so it's seen
+  const chartOpen = () => (state.view.type !== 'week' ? chart() : null);
+  // a limit can be tried in the tour only when none is locked in already
+  const canTryLimit = !limitLocked(state.goalHistory, dayKey(new Date()));
 
   const steps = [
-    { kicker: 'Quick tour', title: 'This is Memoir', text: 'A quick look around, on a <b>sample week</b>, so nothing of yours is touched. When a step says <b>Try</b>, go ahead: everything in the light is live.', next: 'Start', before: toWeek, settle: 0 },
-    { title: 'Your weeks', text: 'Step back through past weeks with the arrows. The <b>←</b> and <b>→</b> keys work too.', target: () => q('.week-nav'), before: toWeek, settle: 0, radius: 12, tasks: [
+    { title: 'Your weeks', text: 'Click <b>‹</b> or <b>›</b> to step back through your weeks, or forward again once you’ve stepped back. The <b>←</b> and <b>→</b> keys work too. This is a <b>sample week</b>, so nothing is saved.', target: () => q('.week-nav'), before: toWeek, settle: 0, radius: 12,
+      // here the arrow keys change the week, as they do on the page; from the next step on they're the tour's
+      arrows: dir => { const b = q(dir < 0 ? '#prev-week' : '#next-week'); if (b && !b.disabled) b.click(); },
+      tasks: [
       { text: 'Click <b>‹</b> to see the week before', watch: onClick('#prev-week') },
       { text: 'Then <b>›</b> to come back', watch: onClick('#next-week') },
     ] },
-    { title: 'Daily average', text: 'How long you browse on a typical day, and how it compares with last week.', target: () => [q('.summary .caption'), q('#stat-avg'), q('#trend-btn')], before: thisWeek, radius: 14, tasks: [
-      { text: 'Point at <b>the change from last week</b>: it becomes a button for Trend over time', watch: onHover('#trend-btn') },
+    { title: 'Daily average', text: 'Your average screen time, compared with last week’s.', target: () => [q('.summary .caption'), q('#stat-avg'), q('#trend-btn')], follow: () => (state.view.type === 'trend' ? chart() : null), before: thisWeek, radius: 14, below: true,
+      // the buttons go to the top, and the card under the trend's left edge, only once it's open
+      flip: () => state.view.type === 'trend', alignTo: () => (state.view.type === 'trend' ? chart() : null), tasks: [
+      { text: 'Click <b>the change from last week</b> to open Trend over time', watch: onClick('#trend-btn', () => state.view.type === 'trend') },
     ] },
-    { title: 'Highlights', text: 'What your week looked like, in words. <b>Bold words are buttons.</b>', target: () => q('#story'), before: tidy, settle: 0, radius: 14, tasks: [
+    { title: 'Highlights', text: 'What your week looked like, in words. <b>Bold words are buttons.</b>', target: () => q('#story'), follow: chartOpen, before: async () => { tidy(); await toWeek(); }, settle: 0, radius: 14,
+      // beside the words, so a category's sites can drop down under them; under the light
+      // only once a bold day or hour has opened in the chart
+      below: () => state.view.type !== 'week', tasks: [
       { text: 'Try a bold <b>day</b> or <b>hour</b> to open it', watch: onClick('#story [data-act="day"], #story [data-act="hour"]') },
-      { text: 'Try a bold <b>category</b> to see its sites', watch: onClick('#story [data-act="cat"]') },
+      { text: 'Try a bold <b>category</b> to see what’s in it', watch: onClick('#story [data-act="cat"]') },
     ] },
-    { title: 'Today’s limit', text: 'Set a daily limit and commit to it. It stays locked, day after day; only a long talk in Settings undoes it. The ring turns yellow, orange, then red, with a nudge at 95% and another if you go over.', target: () => q('#goal-card'), before: tidy, settle: 0 },
+    { title: 'Today’s limit', text: 'Set a limit and you’ll have to commit to it. You’ll get a notification before you hit it.', target: () => q('#goal-card'), before: tidy, settle: 0, tasks: canTryLimit ? [
+      { text: 'Tap <b>Set limit</b> to try it out (you don’t have to set one; just tap the button)', watch: onClick('#goal-card .gr-set') },
+    ] : undefined },
     { title: 'Daily activity', text: 'Each day, stacked by category, with your average and limit lines.', target: chart, before: toWeek, tasks: [
       { text: 'Click a day to open it', watch: onClick('#chart-card', () => state.view.type === 'day'), advance: true },
     ] },
-    { title: 'A day up close', text: 'Every hour of the day and every site in it. <b>Back</b> returns to the week.', target: chart, before: toDay, settle: 800, tasks: [
+    { title: 'A day up close', text: 'Every hour of the day and every app and website in it. <b>Back</b> returns to the week.', target: chart, before: toDay, settle: 800, tasks: [
       { text: 'Step to another day with <b>‹ ›</b>', watch: onClick('#step-prev, #step-next') },
       { text: 'Click an hour to open it', watch: onClick('#detail-view', () => state.view.type === 'hour'), advance: true },
     ] },
-    { title: 'An hour up close', text: 'Which sites filled the hour, and the same hour on the other days. <b>Back</b> goes one step; the round <b>«</b> goes all the way home.', target: chart, before: toHour, settle: 900, tasks: [
+    { title: 'An hour up close', text: 'Which apps and websites filled the hour, and the same hour on the other days. <b>Back</b> goes one step; the round <b>«</b> goes all the way home.', target: chart, before: toHour, settle: 900, autoNext: true, tasks: [
       { text: 'Walk hour by hour with <b>‹ ›</b>', watch: onClick('#step-prev, #step-next', () => state.view.type === 'hour') },
       { text: 'Press <b>«</b> to go all the way home', watch: onClick('#chart-home') },
     ] },
-    { title: 'Activity by hour', text: 'When you browse, square by square. The outline shows what’s open right now.', target: () => q('#heat-card'), before: tidy, settle: 0, tasks: [
+    { title: 'Activity by hour', text: 'When you use your computer, square by square. The outline shows what’s open right now.', target: () => q('#heat-card'), follow: chartOpen, before: tidy, settle: 0, tasks: [
       { text: 'Click any square to open that hour', watch: onClick('#heat-card .cell') },
       { text: 'Click a day’s name for the whole day', watch: onClick('#heat-card .heat-day') },
     ] },
-    { title: 'Categories', text: 'Where the time went, by kind of site. <b>Week</b> shows the whole week; <b>Day</b> shows one day: today, or the day you’ve opened in Daily activity.', target: () => q('.donut-card'), before: toWeek, settle: 500, tasks: [
-      { text: 'Point at a slice to light it up across the page', watch: onHover('.donut-card .donut-seg, .donut-card .cat-legend button') },
-      { text: 'Click it to see its sites', watch: onClick('.donut-card .donut-seg, .donut-card .cat-legend button') },
+    { title: 'Categories', text: 'Where the time went, by kind of app or website. <b>Week</b> shows the whole week; <b>Day</b> shows one day: today, or the day you’ve opened in Daily activity.', target: () => q('.donut-card'), before: toWeek, settle: 500, tasks: [
+      { text: 'Hover over a slice to light it up across the page', watch: onHover('.donut-card .donut-seg, .donut-card .cat-legend button') },
+      { text: 'Click it to see what’s in it', watch: onClick('.donut-card .donut-seg, .donut-card .cat-legend button') },
       { text: 'Switch to <b>Week</b>, then back to <b>Day</b>', watch: onClick('#scope [data-scope="day"]', () => state.scope === 'day' && scopeTried) },
     ] },
-    { title: 'Most used', text: 'Every app and website, largest first, for the week or the day, following the switch on Categories. A website’s name opens it.', target: () => q('.sites-card'), before: tidy, settle: 0, tasks: [
-      { text: 'Scroll the list', watch: onScroll('.sites-card') },
-      { text: 'Click a site’s category to move it (or never track it)', watch: onClick('.sites-card .cat-btn') },
+    { title: 'Most used', text: 'Every app and website you used is listed here, with page and window titles too if you turn them on later in Settings.', target: () => q('.sites-card'), before: noSettings, settle: 0, tasks: [
+      { text: 'Click a category to move that app or website (or never track it)', watch: onClick('.sites-card .cat-btn') },
+      { text: 'Click a row to see the time on each page or window', watch: onClick('.sites-card .site.has-pages', () => pages.isOpen) },
     ] },
-    { title: 'Settings', text: 'Themes, the cursor, reminders, privacy and your data all live behind the gear.', target: () => ($('settings').classList.contains('open') ? q('#settings-panel') : q('#settings-btn')), before: noSettings, settle: 0, radius: 22, pad: 6, tasks: [
+    { title: 'Settings', text: '', target: () => ($('settings').classList.contains('open') ? q('#settings-panel') : q('#settings-btn')), before: noSettings, settle: 0, radius: 22, pad: 6, tasks: [
       { text: 'Click the gear to open Settings', watch: onClick('#settings-btn', () => $('settings').classList.contains('open')) },
     ] },
-    { title: 'Appearance', text: '<b>System</b> follows your computer. Or pick Light, Dark, or <b>Pink</b>, which is never picked for you.', target: () => block('#appearance'), before: toSettings('#appearance'), settle: 350, radius: 14, tasks: [
+    { title: 'Appearance', text: '<b>System</b> picks your theme automatically, or pick Light or Dark. <b>Rainbow clock</b> puts the clock in rainbow colours, in support of the LGBTQ+ community.', target: () => block('#appearance'), before: toSettings('#appearance'), settle: 350, radius: 14, tasks: [
       { text: 'Try another theme', watch: onClick('#appearance button') },
     ] },
-    { title: 'Custom cursor', text: 'Memoir’s own animated pointer. Turning it off is recommended on low-end devices: everything stays the same, just lighter.', target: () => row('#set-cursor'), before: toSettings('#set-cursor'), settle: 350, radius: 14, tasks: [
-      { text: 'Switch it off, then on again, to compare', watch: onChange('#set-cursor') },
+    { title: 'Cursor', text: 'Turning it on gives you <span class="wordmark wm-in">Memoir</span>’s custom, modern-looking cursor. <b>Smooth cursor</b> makes your cursor move smoothly.', target: () => block('#set-cursor'), before: toSettings('#set-smooth'), settle: 350, radius: 14, tasks: [
+      { text: 'Switch <b>Custom cursor</b> off, then on again, to compare', watch: onChange('#set-cursor') },
+      { text: 'Try <b>Smooth cursor</b>', watch: onChange('#set-smooth') },
     ] },
-    { title: 'What gets tracked', text: '<b>Track screen time</b> pauses and resumes (the popup has it too). <b>Tracking detail</b> can also keep page titles. Apps and websites under <b>Never track</b> still count toward your totals, but only as Private.', target: () => [row('#set-tracking'), block('#detail'), block('#ex-form')], before: toSettings('#set-tracking'), settle: 350, radius: 14 },
-    { title: 'Weekly recap', text: 'A reminder on the day and at the time you choose, with your week ready to look at.', target: () => block('#set-reminder'), before: toSettings('#set-reminder'), settle: 350, radius: 14 },
-    { title: 'Your limit and history', text: 'A committed limit can only be undone here, after a long run of increasingly pointed questions. <b>Keep history</b> sets how long days are kept; a shorter option asks twice before removing anything.', target: () => [row('#limit-reset'), block('#retention')], before: toSettings('#retention'), settle: 350, radius: 14 },
-    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, and <b>Export</b> or <b>Import</b> your history. <b>Clear all</b> asks twice.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
-    { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you browse. The hourglass in your toolbar shows today at a glance.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
+    { title: 'What gets tracked', text: '<b>Page titles</b> also keeps window titles, so you can see which pages and windows took the time. Turning off <b>Track screen time</b> pauses tracking. Type a website into <b>Never track</b> and it will never be tracked, unless you remove it.', target: () => [block('#detail'), block('#ex-form')], before: toSettings('#ex-form'), settle: 350, radius: 14, tasks: [
+      { text: 'Switch <b>Tracking detail</b>', watch: onClick('#detail button[aria-pressed="false"]') },
+      { text: 'Add a website to <b>Never track</b>', watch: onNewSite },
+    ] },
+    { title: 'Weekly recap', text: 'A reminder on the day and at the time you choose, with your week ready to look at.', target: () => block('#set-reminder'), before: toSettings('#set-reminder'), settle: 350, radius: 14, tasks: [
+      ...(state.settings.weeklyReminder ? [] : [{ text: 'Switch the reminder on', watch: onChange('#set-reminder') }]),
+      { text: 'Pick another day', watch: onClick('#rem-days .day-chip[aria-checked="false"]') },
+      { text: 'Change the time', watch: either(onChange('#rem-h, #rem-m'), onClick('#rem-ampm'), listen('keydown', e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !!e.target.closest('#rem-h, #rem-m'))) },
+    ] },
+    { title: 'Your limit and history', text: 'A committed limit can only be undone here. <b>Keep history</b> sets how long days are kept.', target: () => [row('#limit-reset'), block('#retention')], before: toSettings('#retention'), settle: 350, radius: 14 },
+    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
+    { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you use your computer. Double-click the clock in the notification area to come back to Memoir.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
   ];
-  await runTour(steps);
+  await runTour(steps, {
+    handoff,
+    // popovers and menus a try opened stay in sight
+    avoid: () => [...document.querySelectorAll('.pop:not([hidden]), .menu:not([hidden])')].filter(el => el.dataset.state !== 'closing'),
+  });
   chrome.storage.local.set({ onboarded: true });
   document.body.classList.remove('touring');
   catPop.z = popZ;
@@ -3537,7 +4852,25 @@ function exitDemo(rerender) {
   else render({ direction: 'prev' });
 }
 
+// In a background tab nothing is drawn: every tab switch the tracker records is
+// folded into one set of changes, applied once when the report is looked at again.
+const hiddenChanges = { local: null, session: null };
+function applyHiddenChanges() {
+  if (document.hidden) return;
+  goalTick();
+  for (const area of ['session', 'local']) {
+    const changes = hiddenChanges[area];
+    hiddenChanges[area] = null;
+    if (changes) onStorageChanged(changes, area);
+  }
+}
+
 function onStorageChanged(changes, area) {
+  if (document.hidden && area in hiddenChanges) {
+    const into = hiddenChanges[area] || (hiddenChanges[area] = {});
+    for (const [k, c] of Object.entries(changes)) into[k] = { oldValue: k in into ? into[k].oldValue : c.oldValue, newValue: c.newValue };
+    return;
+  }
   if (area === 'session' && changes.session) {
     state.session = changes.session.newValue || null;
     updateGoal();
@@ -3550,17 +4883,25 @@ function onStorageChanged(changes, area) {
     else $('set-tracking').checked = !state.settings.paused;
   }
   if (changes.goal) getGoalHistory().then(h => { state.goalHistory = h; updateGoal(); renderLimitRow(); if (!state.demo) render({ soft: true }); });
+  if (changes.goalTrial) { state.goalTrial = changes.goalTrial.newValue || null; renderLimitRow(); }
   if (changes.origins) setOrigins(changes.origins.newValue || {});
   const todayKey = storageKeyForDay(state.todayKey);
   if (changes[todayKey]) { state.todayRec = normalizeDay(changes[todayKey].newValue); updateGoal(); }
   if (state.demo) return;
   const keys = weekDayKeys(state.weekStart).map(storageKeyForDay);
-  if (Object.keys(changes).some(k => keys.includes(k))) {
-    clearTimeout(state.refreshTimer);
-    state.refreshTimer = setTimeout(() => {
-      if (!document.hidden && $('cat-menu').hidden && !catPop.isOpen) render({ soft: true });
-    }, 1500);
-  }
+  if (Object.keys(changes).some(k => keys.includes(k))) refreshSoon();
+}
+
+// New time saved for the week shown: redraw in a moment, but never under a menu or a
+// popover (shown, or still on its way in or out), which it would rebuild from under
+// them; it waits until they've gone instead.
+function refreshSoon(ms = 1500) {
+  clearTimeout(state.refreshTimer);
+  state.refreshTimer = setTimeout(() => {
+    if (document.hidden) return;
+    if (!$('cat-menu').hidden || !$('cat-pop').hidden || !$('page-pop').hidden) { refreshSoon(1000); return; }
+    render({ soft: true });
+  }, ms);
 }
 
 // ---------- sample week ----------
@@ -3596,6 +4937,14 @@ const SAMPLE_TITLES = {
   'netflix.com': ['Home', 'Watching: a mystery series'],
   'wikipedia.org': ['Hourglass', 'Cherry blossom', 'Memoir'],
 };
+// where a sample page title leads: a search for it, an article, or the site itself
+function sampleUrl(domain, title) {
+  const q = encodeURIComponent(title);
+  if (domain === 'youtube.com') return `https://www.youtube.com/results?search_query=${q}`;
+  if (domain === 'wikipedia.org') return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+  if (domain === 'reddit.com' && title.startsWith('r/')) return `https://www.reddit.com/${title}/`;
+  return `https://${domain}/`;
+}
 const WEEKDAY_HOURS = [0.15, 0.05, 0, 0, 0, 0, 0.05, 0.3, 0.6, 0.9, 1, 0.9, 0.6, 0.8, 0.9, 0.85, 0.7, 0.5, 0.45, 0.7, 0.95, 1, 0.8, 0.4];
 const WEEKEND_HOURS = [0.4, 0.2, 0.05, 0, 0, 0, 0, 0.05, 0.2, 0.5, 0.8, 0.9, 0.8, 0.7, 0.6, 0.6, 0.5, 0.5, 0.6, 0.9, 1, 1, 0.9, 0.6];
 function boost(cat, hour, weekend) {
@@ -3611,14 +4960,35 @@ function boost(cat, hour, weekend) {
     default: return 1;
   }
 }
+// A sample day is the same every time for its date, so each is made once and kept.
+const samples = new Map();
 function sampleDay(key) {
+  let day = samples.get(key);
+  if (!day) samples.set(key, (day = makeSampleDay(key)));
+  return day;
+}
+
+// The tour's sample weeks, made ahead (behind the welcome): this week, last week and
+// the trend's range, a fortnight at a time so the page keeps breathing.
+async function warmSamples(report = () => {}) {
+  const start = startOfWeek(new Date());
+  const keys = [];
+  for (let w = 0; w <= state.trendWeeks; w++) keys.push(...weekDayKeys(addDays(start, -7 * w)));
+  for (let i = 0; i < keys.length; i += 14) {
+    keys.slice(i, i + 14).forEach(sampleDay);
+    report(Math.min(1, (i + 14) / keys.length));
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+function makeSampleDay(key) {
   const rnd = mulberry32(hashStr(`bloom:${key}`));
   const date = dateFromKey(key);
   const weekend = date.getDay() === 0 || date.getDay() === 6;
   const totalMin = weekend ? 190 + rnd() * 150 : 140 + rnd() * 140;
   const weights = (weekend ? WEEKEND_HOURS : WEEKDAY_HOURS).map(p => p * (0.55 + rnd() * 0.9));
   const wsum = sum(weights);
-  const day = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {} };
+  const day = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {}, th: {}, tu: {}, tp: [] };
   weights.forEach((w, hour) => {
     const minutes = (totalMin * w) / wsum;
     if (minutes < 1) return;
@@ -3647,6 +5017,9 @@ function sampleDay(key) {
         const t = titles[Math.floor(rnd() * titles.length)];
         const pages = day.ti[d] || (day.ti[d] = {});
         pages[t] = (pages[t] || 0) + part;
+        (day.tu[d] || (day.tu[d] = {}))[t] = sampleUrl(d, t);
+        const byHour = (day.th[hour] || (day.th[hour] = {}))[d] || (day.th[hour][d] = {});
+        byHour[t] = (byHour[t] || 0) + part;
       }
     });
     day.h[hour] = ms;

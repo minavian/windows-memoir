@@ -7,7 +7,10 @@
   <link rel="icon" href="icons/icon32.png">
   <script src="desktop-bridge.js"></script>
   <script src="shared/theme-boot.js"></script>
+  <link rel="preload" href="fonts/Unbounded-subset.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="shared/theme.css">
+  <link rel="stylesheet" href="shared/logo.css">
+  <link rel="stylesheet" href="shared/pop.css">
   <link rel="stylesheet" href="shared/goal.css">
   <link rel="stylesheet" href="recap.css">
 </head>
@@ -19,7 +22,7 @@
       <symbol id="i-chev-ll" viewBox="0 0 16 16"><path d="M8 3.5 3.5 8 8 12.5M12.5 3.5 8 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-play" viewBox="0 0 16 16"><path d="M5.2 3.6v8.8a.6.6 0 0 0 .9.5l6.9-4.4a.6.6 0 0 0 0-1L6.1 3.1a.6.6 0 0 0-.9.5Z" fill="currentColor"/></symbol>
       <symbol id="i-chev-d" viewBox="0 0 12 12"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-      <symbol id="i-gear" viewBox="0 0 20 20"><path d="M10 6.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.6 2.5h2.8l.4 2.1 1.5.8 2-.8 1.4 2.4-1.6 1.4v1.8l1.6 1.4-1.4 2.4-2-.8-1.5.8-.4 2.1H8.6l-.4-2.1-1.5-.8-2 .8-1.4-2.4L4.9 11V9.1L3.3 7.7 4.7 5.3l2 .8 1.5-.8.4-2.1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 1.90L10.71 1.93L11.41 2.02L11.89 2.94L12.14 4.13L12.62 4.38L13.10 4.63L13.56 4.92L14.01 5.22L15.17 4.83L16.20 4.79L16.64 5.35L17.01 5.95L17.34 6.58L17.61 7.23L17.06 8.11L16.15 8.92L16.18 9.46L16.20 10L16.18 10.54L16.15 11.08L17.06 11.89L17.61 12.77L17.34 13.42L17.01 14.05L16.64 14.65L16.20 15.21L15.17 15.17L14.01 14.78L13.56 15.08L13.10 15.37L12.62 15.62L12.14 15.87L11.89 17.06L11.41 17.98L10.71 18.07L10 18.10L9.29 18.07L8.59 17.98L8.11 17.06L7.86 15.87L7.38 15.62L6.90 15.37L6.44 15.08L5.99 14.78L4.83 15.17L3.80 15.21L3.36 14.65L2.99 14.05L2.66 13.42L2.39 12.77L2.94 11.89L3.85 11.08L3.82 10.54L3.80 10L3.82 9.46L3.85 8.92L2.94 8.11L2.39 7.23L2.66 6.58L2.99 5.95L3.36 5.35L3.80 4.79L4.83 4.83L5.99 5.22L6.44 4.92L6.90 4.63L7.38 4.38L7.86 4.13L8.11 2.94L8.59 2.02L9.29 1.93Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
       <symbol id="i-close" viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
       <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
       <symbol id="i-grid" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
@@ -28,7 +31,6 @@
       <symbol id="i-focus" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
       <symbol id="i-trend" viewBox="0 0 16 16"><path d="M2.5 11.5 6.5 7.5l2.5 2.5 4.5-4.5M10.5 5.5h3v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.2 8h11.6M8 2.2c2 1.8 2 9.8 0 11.6M8 2.2c-2 1.8-2 9.8 0 11.6" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
-      <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9s8 4 8 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 3v10M4 9l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -43,7 +45,7 @@
   <main class="dash">
     <header class="head" data-anim style="--i:0">
       <div class="head-left">
-        <img class="mark" src="icons/icon48.png" alt="" width="28" height="28">
+        <span class="mark logo themed" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
         <h1 class="display"><span class="title-text" id="hero-title">This week</span></h1>
         <nav class="week-nav" aria-label="Choose a week">
           <button class="icon-btn" id="prev-week" data-dir="prev" aria-label="Previous week"><svg><use href="#i-chev-l"/></svg></button>
@@ -65,24 +67,32 @@
               <div class="panel-cols">
                 <div class="panel-col">
                   <div class="p-block">
-                    <span class="p-label">Appearance</span>
+                    <div class="p-head">
+                      <span class="p-label">Appearance</span>
+                      <span class="p-head-opt">
+                        <label class="p-head-name" for="set-rainbow" id="rainbow-name">Rainbow clock</label>
+                        <label class="switch switch-sm"><input type="checkbox" id="set-rainbow" aria-labelledby="rainbow-name" aria-describedby="rainbow-desc"><span class="track"></span><span class="knob"></span></label>
+                      </span>
+                    </div>
+                    <span class="theme-progress" aria-hidden="true"><i class="tp-fill"></i></span>
                     <div class="segmented" id="appearance" role="group" aria-label="Appearance">
                       <span class="thumb"></span>
                       <button type="button" data-pref="auto" aria-pressed="false">System</button>
                       <button type="button" data-pref="light" aria-pressed="false">Light</button>
                       <button type="button" data-pref="dark" aria-pressed="false">Dark</button>
-                      <button type="button" data-pref="pink" aria-pressed="false">Pink</button>
                     </div>
+                    <p class="p-desc" id="rainbow-desc">Rainbow clock: in support of the LGBTQ+ community</p>
                   </div>
 
-                  <div class="p-row">
-                    <span><b>Track screen time</b><small>Pause any time from Today or the tray</small></span>
-                    <label class="switch"><input type="checkbox" id="set-tracking" aria-label="Track screen time"><span class="track"></span><span class="knob"></span></label>
-                  </div>
-
-                  <div class="p-row">
-                    <span><b>Custom cursor</b><small>Use the animated pointer. Turning it off is recommended on low-end devices</small></span>
-                    <label class="switch"><input type="checkbox" id="set-cursor" aria-label="Custom cursor"><span class="track"></span><span class="knob"></span></label>
+                  <div class="p-block">
+                    <div class="p-row">
+                      <span><b>Custom cursor</b><small>Use the animated cursor. Turning it off is highly recommended on low-end devices</small></span>
+                      <label class="switch"><input type="checkbox" id="set-cursor" aria-label="Custom cursor"><span class="track"></span><span class="knob"></span></label>
+                    </div>
+                    <div class="p-row" id="smooth-row">
+                      <span><b>Smooth cursor</b><small id="smooth-desc">Glides after your mouse, a touch behind it</small></span>
+                      <label class="switch"><input type="checkbox" id="set-smooth" aria-label="Smooth cursor" aria-describedby="smooth-desc"><span class="track"></span><span class="knob"></span></label>
+                    </div>
                   </div>
 
                   <div class="p-block">
@@ -100,11 +110,15 @@
                         <button class="btn btn-danger btn-xs" id="detail-erase" type="button">Erase</button>
                       </div>
                     </div></div>
+                    <div class="p-row p-row-gap">
+                      <span><b>Track screen time</b><small>Pause any time from Today or the tray</small></span>
+                      <label class="switch pause-switch"><input type="checkbox" id="set-tracking" aria-label="Track screen time"><span class="track"></span><span class="knob"></span><span class="sure-word" aria-hidden="true">Sure?</span></label>
+                    </div>
                   </div>
 
                   <div class="p-block">
                     <span class="p-label">Never track</span>
-                    <p class="p-desc">Time in these apps and websites still counts toward your totals and limit, filed as Private — their names are never saved or shown. Past time in an app or website you add is made Private too.</p>
+                    <p class="p-desc">These apps and websites you add won’t be tracked, but their time still counts. Past time on them is made private too. They stay hidden here; click one twice to see it (or remove it).</p>
                     <form class="ex-form" id="ex-form" autocomplete="off">
                       <input id="ex-input" type="text" placeholder="Add a site, like youtube.com" aria-label="Site to never track" spellcheck="false">
                       <button class="btn btn-primary btn-xs ex-add" id="ex-add" type="submit" aria-label="Add site"><svg><use href="#i-plus"/></svg><span>Add</span></button>
@@ -165,6 +179,10 @@
                       <span><b>Tutorial</b><small>A quick tour of every feature</small></span>
                       <button class="btn btn-secondary btn-xs replay-btn" id="replay-tour" type="button"><svg><use href="#i-play"/></svg>Replay</button>
                     </div>
+                    <div class="p-row">
+                      <span><b>How Memoir works</b><small>What counts as time, and what’s saved</small></span>
+                      <a class="btn btn-secondary btn-xs open-btn" id="how-link" href="how-it-works.html" target="_blank" rel="noopener">Open<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 8.6 8.4 3.6M4.4 3.4h4.2v4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+                    </div>
                   </div>
 
                   <div class="p-block">
@@ -186,7 +204,7 @@
                   </div>
                 </div>
               </div>
-              <p class="p-foot">Memoir · Made by Mina Vian · Your data never leaves this computer</p>
+              <p class="p-foot"><span class="wordmark-plain">Memoir</span> · Made by <button class="p-author" id="author" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="author-pop">Mina Vian</button> · <a class="p-author" href="privacy.html" target="_blank" rel="noopener">Your data never leaves this computer</a></p>
             </div>
           </div>
           <button class="icon-btn morph-trigger" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-panel">
@@ -218,7 +236,6 @@
       <section class="card goal-card" id="goal-card" data-anim style="--i:4">
         <header class="panel-head goal-head">
           <h2 class="section-title">Today’s limit</h2>
-          <span class="goal-chip" id="goal-chip" hidden></span>
         </header>
         <div class="goal-host"><div class="goal-ring" id="goal-ring"></div></div>
       </section>
@@ -279,7 +296,7 @@
           <h2 class="section-title">Activity by hour</h2>
           <span class="scale" aria-hidden="true">Less<i style="--c:var(--g0)"></i><i style="--c:var(--g1)"></i><i style="--c:var(--g2)"></i><i style="--c:var(--g3)"></i><i style="--c:var(--g4)"></i><i style="--c:var(--g5)"></i>More</span>
         </header>
-        <div class="heat-wrap" id="heat-wrap"><div class="heat" id="heat" role="grid" aria-label="Browsing by hour of day. Use arrow keys to move and Enter to open an hour."></div><div class="heat-sel" id="heat-sel" aria-hidden="true"><div class="hs-dim"><i class="hs-b" data-k="l"></i><i class="hs-b" data-k="r"></i><i class="hs-b" data-k="t"></i><i class="hs-b" data-k="b"></i></div><i class="hs-e" data-k="t"></i><i class="hs-e" data-k="b"></i><i class="hs-e" data-k="l"></i><i class="hs-e" data-k="r"></i><i class="hs-c" data-k="tl"></i><i class="hs-c" data-k="tr"></i><i class="hs-c" data-k="bl"></i><i class="hs-c" data-k="br"></i></div></div>
+        <div class="heat-wrap" id="heat-wrap"><div class="heat" id="heat" role="grid" aria-label="Screen time by hour of day. Use arrow keys to move and Enter to open an hour."></div><div class="heat-sel" id="heat-sel" aria-hidden="true"><div class="hs-dim"><i class="hs-b" data-k="l"></i><i class="hs-b" data-k="r"></i><i class="hs-b" data-k="t"></i><i class="hs-b" data-k="b"></i></div><i class="hs-e" data-k="t"></i><i class="hs-e" data-k="b"></i><i class="hs-e" data-k="l"></i><i class="hs-e" data-k="r"></i><i class="hs-c" data-k="tl"></i><i class="hs-c" data-k="tr"></i><i class="hs-c" data-k="bl"></i><i class="hs-c" data-k="br"></i></div></div>
       </section>
 
       <section class="card sites-card lift" data-anim style="--i:6">
@@ -288,10 +305,11 @@
           <span class="caption" id="sites-cap">This week · click a category to change it</span>
         </header>
         <ol class="sites" id="sites"></ol>
+        <div class="sites-page" id="page-pop" role="region" aria-label="Time on each page" hidden></div>
       </section>
 
       <section class="card empty" id="empty" data-anim style="--i:2" hidden>
-        <svg class="empty-icon" aria-hidden="true"><use href="#i-hourglass"/></svg>
+        <span class="empty-icon logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
         <h2 class="display" id="empty-title">No activity yet</h2>
         <p id="empty-text">Use your computer as usual and your week will appear here. Nothing ever leaves this computer.</p>
         <button class="btn btn-secondary" id="try-demo">Preview a sample week</button>
@@ -301,6 +319,23 @@
 
   <div class="menu" id="cat-menu" role="menu" hidden></div>
   <div class="pop" id="cat-pop" role="dialog" aria-label="Apps and websites in this category" hidden></div>
+  <div class="pop import-pop" id="import-pop" role="dialog" aria-labelledby="ip-title" aria-describedby="ip-text" hidden>
+    <p class="ip-title" id="ip-title">Some days are already here</p>
+    <p class="ip-text" id="ip-text"><b id="ip-count">1 day</b> in this file also has time in <span class="wordmark-plain">Memoir</span>. Every other day is added either way.</p>
+    <div class="ip-choices">
+      <button class="ip-choice" type="button" data-mode="merge" style="--d:70ms"><b>Merge</b><small>Keep both, without counting any time twice</small></button>
+      <button class="ip-choice" type="button" data-mode="replace" style="--d:110ms"><b>Replace</b><small>Use the file’s version of those days</small></button>
+    </div>
+    <button class="ip-cancel" type="button" data-mode="" style="--d:150ms">Cancel</button>
+  </div>
+  <div class="pop author-pop" id="author-pop" role="dialog" aria-labelledby="ap-title" hidden>
+    <p class="ap-title" id="ap-title">Looking to report bugs?</p>
+    <p class="ap-text">Send here!</p>
+    <div class="ap-mail">
+      <a class="ap-addr" id="ap-addr" href="mailto:iamminavian@gmail.com">iamminavian@gmail.com</a>
+      <button class="ap-copy" id="ap-copy" type="button" aria-label="Copy email address"><span class="ap-copy-label">Copy</span></button>
+    </div>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="recap.js"></script>

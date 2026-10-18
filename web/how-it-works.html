@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" class="pv-pop">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memoir · How it works</title>
+  <link rel="icon" href="icons/icon32.png">
+  <script src="shared/theme-boot.js"></script>
+  <script src="desktop-bridge.js"></script>
+  <link rel="preload" href="fonts/Unbounded-subset.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="shared/theme.css">
+  <link rel="stylesheet" href="shared/logo.css">
+  <link rel="stylesheet" href="shared/pop.css">
+  <link rel="stylesheet" href="privacy.css">
+  <script type="module" src="privacy.js"></script>
+</head>
+<body>
+  <main>
+    <!-- How Memoir for Windows counts time, in plain words (the extension has its own). Keep it true to
+         src/Tracker.cs and src/Engine.cs: when a tracking rule changes, change this page with it. -->
+    <header class="brand">
+      <span class="logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
+      <span class="wordmark">Memoir</span>
+    </header>
+
+    <p class="kicker">How Memoir works</p>
+    <h1>Only the time you spend using your computer counts.</h1>
+    <p class="lead">Memoir times the app in front of you, and stops when you step away. Here’s exactly what counts, when the clock stops, and what’s kept.</p>
+
+    <h2>What counts</h2>
+    <ul>
+      <li><b>The app you’re using</b>, in the window that’s in front. Apps behind it don’t count, even if a video is playing in them.</li>
+      <li><b>Websites, under their name</b>, like <code>youtube.com</code>, in Chrome, Edge, Firefox, Brave, Opera, Vivaldi, Arc and Comet. Memoir reads the site’s name from the browser’s address bar; until it can, the time counts under the browser.</li>
+      <li><b>Memoir itself</b>, as Memoir. The desktop and the taskbar don’t count.</li>
+      <li><b>By the hour.</b> Each day keeps how long you spent in each app and on each site, and in which hours, so the report can show your day hour by hour.</li>
+    </ul>
+
+    <h2>When the clock stops</h2>
+    <ul>
+      <li>You haven’t touched the mouse or keyboard for <b>60 seconds</b>. If the app in front is playing sound, like a video or music, it keeps counting.</li>
+      <li>The screen locks, or the computer goes to sleep.</li>
+      <li>You pause it with <b>Track screen time</b> in Settings, or <b>Pause</b> in Memoir’s menu in the notification area.</li>
+      <li>You quit Memoir. Closing or minimising its window doesn’t stop it: it keeps counting from the notification area. It doesn’t start with Windows, so open it again after a restart.</li>
+    </ul>
+
+    <h2>Private time</h2>
+    <p>Apps and websites on your <b>Never track</b> list still count towards your total and your limit, but only as one <b>Private</b> line, with no names. Adding one makes its past time Private too. Private (Incognito) browser windows count as Private only with the optional browser connector, allowed to run in them; without it, Memoir can’t tell a private window from any other.</p>
+
+    <h2>What’s kept</h2>
+    <ul>
+      <li>Each app’s and site’s name and its time, hour by hour, and each app’s icon. Never what you type, click or see.</li>
+      <li><b>Page and window titles</b>, only if you turn on <b>Page titles</b> in Settings: up to 30 an app or site each day, the rest as “other pages”.</li>
+      <li>Everything is kept for as long as you choose under <b>Keep history</b> (forever, unless you pick a shorter time).</li>
+      <li>It all stays on this computer, in the <b>Data</b> folder next to Memoir. More in the <a href="privacy.html">privacy policy</a>.</li>
+    </ul>
+
+    <h2>Your daily limit</h2>
+    <ul>
+      <li>The ring is green, then yellow at 75% of your limit, orange at 90% and red at 95%, when you get a notification. Past the limit it turns deep red with a flame, and you’re notified once more.</li>
+      <li>Once you commit to a limit, it’s locked: it stays the same on the days after. Only Settings can undo it, after a run of questions.</li>
+    </ul>
+
+    <h2>Why it may differ from other screen-time tools</h2>
+    <p>Windows and other screen-time tools often count any time the screen is on. Memoir counts only while you’re using your computer, or while the app in front plays sound. So its numbers are usually smaller, and they tell you where your time went.</p>
+
+    <h2>The clock is real</h2>
+    <p>Memoir’s clock tells the time: the dot goes round the ring once a minute, the long hand shows the minutes and the short hand the hours, on your computer’s own time. Like the one at the top of this page.</p>
+    <figure class="hw-clock" role="img" aria-label="Memoir’s clock, showing the time now">
+      <span class="logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
+    </figure>
+  </main>
+</body>
+</html>

@@ -1,31 +1,61 @@
 // An animated pointer. One arrow in every state: over something clickable it
 // tilts and shrinks a little; pressing squeezes it. Its colours never flip.
 // Text fields keep the system's I-beam. Can be turned off in Settings.
+//
+// It sits exactly where the mouse is (Smooth cursor, off by default, lets it glide
+// a touch behind instead). A page-drawn arrow can only move when the page has a
+// moment, so whenever the page is busy (opening, or a slow device catching up) the
+// system draws the same arrow instead (theme.css --cursor), which never lags; the
+// animated one takes over again on the next move once the page is free.
 
 const KEY = 'bst-cursor';
+const SMOOTH_KEY = 'bst-cursor-smooth';
 const ARROW = 'M6.65 5.33L19.79 14.35Q21.60 15.60 19.46 16.09L16.02 16.88Q12.90 17.60 10.62 19.85L7.77 22.66Q6.20 24.20 6.07 22.00L5.12 6.20Q5.00 4.20 6.65 5.33Z';
 const INTERACTIVE = [
   'a[href]', 'button', 'summary', 'select', 'label.switch', '[role="button"]', '[role="menuitem"]',
   '[role="menuitemradio"]', '[role="radio"]', '.col:not(.future)', '.cell:not(.future)', '.donut-seg',
-  '.ring-seg', '.pk-hit', '.pk-knob', '.sb i', '.tr-svg',
+  '.ring-seg', '.pk-hit', '.pk-knob', '.sb i', '.tr-svg', '.site.has-pages', '.row.has-pages', '.page-row[data-url]',
 ].join(',');
 const TEXT = 'input[type="text"], input[type="search"], input:not([type]), input[inputmode], textarea';
 
 export function cursorEnabled() {
   try { return localStorage.getItem(KEY) !== 'off'; } catch { return true; }
 }
+export function cursorSmooth() {
+  try { return localStorage.getItem(SMOOTH_KEY) === 'on'; } catch { return false; }
+}
 
 let live = null;
+let smooth = false;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let edgeGuard = false;
+
+// The page has settled after opening (loaded, then a moment with nothing to do):
+// until then the system draws the arrow.
+let settled = false;
+const onSettled = [];
+function watchSettled() {
+  const idle = () => {
+    const done = () => { settled = true; onSettled.splice(0).forEach(f => f()); };
+    if ('requestIdleCallback' in window) requestIdleCallback(done, { timeout: 4000 });
+    else setTimeout(done, 1200);
+  };
+  if (document.readyState === 'complete') idle();
+  else addEventListener('load', idle, { once: true });
+}
 
 // edge: in the popup, a fast exit through the side isn't always reported, so a
 // pointer that stops right at the edge is treated as gone (it returns on the next move)
 export function initCursor({ edge = false } = {}) {
   edgeGuard = edge;
+  smooth = cursorSmooth();
+  watchSettled();
   apply(cursorEnabled());
-  addEventListener('storage', e => { if (e.key === KEY) apply(cursorEnabled()); });
+  addEventListener('storage', e => {
+    if (e.key === KEY) apply(cursorEnabled());
+    if (e.key === SMOOTH_KEY) smooth = cursorSmooth();
+  });
 }
 
 export function setCursorPref(on) {
@@ -34,6 +64,14 @@ export function setCursorPref(on) {
     else localStorage.setItem(KEY, 'off');
   } catch { /* storage unavailable */ }
   apply(on);
+}
+
+export function setCursorSmooth(on) {
+  try {
+    if (on) localStorage.setItem(SMOOTH_KEY, 'on');
+    else localStorage.removeItem(SMOOTH_KEY);
+  } catch { /* storage unavailable */ }
+  smooth = on;
 }
 
 function apply(on) {
@@ -47,18 +85,44 @@ function stateFor(t) {
   if (!(t instanceof Element)) return 'idle';
   if (t.closest(TEXT)) return 'text';
   const hit = t.closest(INTERACTIVE);
-  if (!hit) return 'idle';
+  if (!hit || t.closest('[aria-disabled="true"]')) return 'idle';
   if (hit.disabled || hit.getAttribute('aria-disabled') === 'true' || hit.getAttribute('aria-current') === 'true' || hit.closest('[inert]')) return 'idle';
   return 'hover';
 }
 
 function mount() {
   const el = document.createElement('div');
-  el.className = 'cc is-out';
+  el.className = 'cc is-out is-native';
   el.setAttribute('aria-hidden', 'true');
   el.innerHTML = `<span class="cc-inner"><svg class="cc-arrow" viewBox="0 0 28 28" width="28" height="28"><path class="halo" d="${ARROW}"/><path class="body" d="${ARROW}"/></svg></span>`;
   document.body.appendChild(el);
-  document.documentElement.classList.add('cc-live');
+  const html = document.documentElement;
+
+  // Who draws the arrow: the system (the same arrow, which can't lag) or this one.
+  // Ours takes over on a move, once the page has settled and the moves arrive on
+  // time; it hands back the moment they start arriving late.
+  let native = true;
+  let lateAt = -Infinity;    // when a move last arrived late
+  const LATE_MS = 40;        // a move handled this long after the mouse sent it is late
+  const CALM_MS = 900;       // on time for this long: ours again
+  const toNative = () => {
+    if (native) return;
+    native = true;
+    el.classList.add('is-native');
+    html.classList.remove('cc-live');
+  };
+  const toOwn = () => {
+    if (!native) return;
+    native = false;
+    // it appears at full strength at once, in the same frame the system's arrow goes:
+    // never a moment with a faint arrow, or none
+    const inner = el.firstElementChild;
+    inner.style.transitionProperty = 'transform';
+    el.classList.remove('is-native', 'is-out');
+    html.classList.add('cc-live');
+    getComputedStyle(inner).opacity;
+    inner.style.transitionProperty = '';
+  };
 
   let mode = 'idle';
   const setMode = m => {
@@ -103,7 +167,7 @@ function mount() {
   const place = (x, y, now = false) => {
     tx = x;
     ty = y;
-    if (now || shownX < 0 || reduced()) { cancelAnimationFrame(raf); raf = 0; lastFrame = 0; draw(x, y); return; }
+    if (now || !smooth || native || shownX < 0 || reduced()) { cancelAnimationFrame(raf); raf = 0; lastFrame = 0; draw(x, y); return; }
     if (!raf) raf = requestAnimationFrame(frame);
   };
   const move = e => {
@@ -130,6 +194,11 @@ function mount() {
     }
     lastX = x;
     lastY = y;
+    // late (the page is busy): the system's arrow, which keeps up; on time again for a
+    // while (and the page has settled): ours, starting right under the pointer
+    const now = performance.now();
+    if (e.timeStamp && now - e.timeStamp > LATE_MS) { lateAt = now; toNative(); }
+    else if (native && settled && now - lateAt > CALM_MS) { place(x, y, true); toOwn(); }
     // coming back from outside: appear right under the pointer
     place(x, y, el.classList.contains('is-out'));
     el.classList.remove('is-out');
@@ -158,11 +227,15 @@ function mount() {
   const hide = () => { el.classList.add('is-out'); el.classList.remove('is-down'); };
   // a button can turn disabled (or a view can change) under a still pointer
   const recheck = () => {
-    if (el.classList.contains('is-out') || lastX < 0) return;
+    if (native || el.classList.contains('is-out') || lastX < 0) return;
     const t = document.elementFromPoint(lastX, lastY);
     if (t && !t.closest('.cc')) setMode(stateFor(t));
   };
-  const timer = setInterval(recheck, 400);
+  // the recheck only runs while the page can be seen
+  let timer = 0;
+  const watch = () => { clearInterval(timer); timer = document.hidden ? 0 : setInterval(recheck, 400); };
+  const visibility = () => { hide(); watch(); };
+  watch();
 
   // pointerrawupdate arrives as soon as the mouse reports, not once per frame
   const MOVE = 'onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove';
@@ -173,14 +246,14 @@ function mount() {
   document.addEventListener('pointerup', up, { passive: true });
   document.addEventListener('pointercancel', up, { passive: true });
   document.documentElement.addEventListener('mouseleave', leave);
-  document.addEventListener('visibilitychange', hide);
+  document.addEventListener('visibilitychange', visibility);
   window.addEventListener('blur', hide);
 
   return () => {
     clearInterval(timer);
     clearTimeout(edgeTimer);
     document.documentElement.removeEventListener('mouseleave', leave);
-    document.removeEventListener('visibilitychange', hide);
+    document.removeEventListener('visibilitychange', visibility);
     cancelAnimationFrame(raf);
     document.removeEventListener(MOVE, move);
     document.removeEventListener('pointerover', over);

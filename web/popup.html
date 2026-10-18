@@ -5,22 +5,26 @@
   <title>Memoir</title>
   <script src="desktop-bridge.js"></script>
   <script src="shared/theme-boot.js"></script>
+  <link rel="preload" href="fonts/Unbounded-subset.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="shared/theme.css">
+  <link rel="stylesheet" href="shared/logo.css">
+  <link rel="stylesheet" href="shared/pop.css">
   <link rel="stylesheet" href="shared/goal.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main class="app">
     <header class="top" data-anim style="--i:0">
-      <div>
-        <h1 class="display">Memoir</h1>
-        <p class="caption" id="today-label"></p>
+      <div class="brand">
+        <span class="top-mark logo themed hold" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
+        <div>
+          <h1><span class="wordmark">Memoir</span></h1>
+          <p class="caption" id="today-label"></p>
+        </div>
       </div>
-      <label class="switch" id="switch-wrap" title="Tracking is on">
-        <input type="checkbox" id="track-toggle" checked aria-label="Track my screen time">
-        <span class="track"></span>
-        <span class="knob"></span>
-      </label>
+      <button class="btn btn-primary btn-xs resume" id="resume" type="button" hidden title="Tracking is paused" aria-label="Tracking is paused. Resume tracking">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.6v8.8l6.6-4.4z" fill="currentColor"/></svg><span>Resume</span>
+      </button>
     </header>
 
     <section class="card hero" data-anim style="--i:1">
@@ -56,16 +60,7 @@
       </div>
     </section>
 
-    <section class="card now" data-anim style="--i:3" id="now">
-      <span class="now-icon" id="now-icon"></span>
-      <div class="now-text">
-        <p class="overline" id="now-eyebrow">Now</p>
-        <p class="now-domain" id="now-domain">—</p>
-      </div>
-      <span class="now-timer num" id="now-timer"></span>
-    </section>
-
-    <section class="most" data-anim style="--i:4">
+    <section class="most" data-anim style="--i:3">
       <div class="most-head">
         <p class="overline">Most used today</p>
         <span class="caption" id="site-count"></span>
@@ -73,17 +68,18 @@
       <div class="card list-card" id="list-card">
         <ol class="site-list" id="site-list"></ol>
         <div class="empty" id="sites-empty" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9s8 4 8 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <p>No activity yet today.</p>
         </div>
       </div>
     </section>
 
-    <button class="btn btn-primary btn-lg week-btn" id="open-week" data-anim style="--i:5">
+    <p class="week-tip" id="week-tip" data-anim style="--i:4" hidden>Your whole week, day by day, is one click away.</p>
+    <button class="btn btn-primary btn-lg week-btn" id="open-week" data-anim style="--i:4">
       <span>Weekly Report</span>
       <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </main>
+  <div class="pop" id="cat-pop" role="dialog" aria-label="Sites in this category" hidden></div>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

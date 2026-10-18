@@ -43,12 +43,23 @@ namespace Memoir {
             Target next = target.Copy();
             if (next.Domain == "~private" || Excluded(next.Domain, Json.Get(Settings, "excluded"))) { next.Domain = "~private"; next.Title = next.Origin = null; }
             if (!Json.Bool(Json.Get(Settings, "titles"))) next.Title = null;
-            if (next.Title != null) {
-                next.Title = Regex.Replace(Regex.Replace(next.Title, @"^\(\d+\+?\)\s*", ""), @"\s+", " ").Trim();
-                if (next.Title.Length > 120) next.Title = next.Title.Substring(0, 119) + "…";
-                if (next.Title.Length == 0 || next.Title == next.Domain) next.Title = null;
-            }
+            next.Title = CleanTitle(next.Title, next.Domain);
             return next;
+        }
+        // The extension's cleanTitle (core.js): no unread-count prefix, one space at a time, at most 120
+        // characters; nothing that's only the site's name or address (a browser shows the address while a
+        // page loads), and no name that would clash with a JavaScript object's own (safeKey).
+        private static readonly string[] Reserved = { "__proto__", "constructor", "prototype", "hasownproperty", "tostring", "valueof", "isprototypeof", "propertyisenumerable", "tolocalestring" };
+        public static string CleanTitle(string title, string domain) {
+            if (title == null) return null;
+            string t = Regex.Replace(Regex.Replace(title, @"^\(\d+\+?\)\s*", ""), @"\s+", " ").Trim();
+            if (t.Length == 0 || t == domain || Regex.IsMatch(t, @"^https?://", RegexOptions.IgnoreCase)) return null;
+            if (!Regex.IsMatch(t, @"\s") && !String.IsNullOrEmpty(domain)) {
+                string host = Regex.Replace(Regex.Replace(t.Split('/', '?', '#')[0], @":\d+$", ""), @"^www\.", "", RegexOptions.IgnoreCase).ToLowerInvariant();
+                if (host == domain || host.EndsWith("." + domain)) return null;
+            }
+            if (t.Length > 120) t = t.Substring(0, 119) + "…";
+            return Array.IndexOf(Reserved, t.ToLowerInvariant()) >= 0 ? null : t;
         }
         public void Observe(Target target, long now, long idleMs) {
             if (lastObserved > 0 && now - lastObserved > 30000) Stop(lastObserved);
@@ -86,7 +97,7 @@ namespace Memoir {
             store.ScrubBackup(store.BackupFilter);
             var patch = new Dictionary<string, object>();
             foreach (var item in store.Data.Where(p => Regex.IsMatch(p.Key, @"^day:\d{4}-\d{2}-\d{2}$"))) {
-                var rec = Normalize(item.Value); rec["ti"] = Json.Object(); patch[item.Key] = rec;
+                var rec = Normalize(item.Value); rec["ti"] = Json.Object(); rec["th"] = Json.Object(); rec["tu"] = Json.Object(); rec["tp"] = new object[0]; patch[item.Key] = rec;
             }
             store.Set(patch);
         }
@@ -94,8 +105,9 @@ namespace Memoir {
             foreach (var pair in data) {
                 if (Regex.IsMatch(pair.Key, @"^day:\d{4}-\d{2}-\d{2}$")) {
                     var rec = Json.Map(pair.Value);
-                    if (Json.Map(Json.Get(rec, "s")).Keys.Any(d => Excluded(d, excluded)) || Json.Map(Json.Get(rec, "ti")).Keys.Any(d => Excluded(d, excluded))) return true;
-                    foreach (object slot in Json.Map(Json.Get(rec, "hs")).Values) if (Json.Map(slot).Keys.Any(d => Excluded(d, excluded))) return true;
+                    if (new[] { "s", "ti", "tu" }.Any(field => Json.Map(Json.Get(rec, field)).Keys.Any(d => Excluded(d, excluded)))) return true;
+                    if (Json.Array(Json.Get(rec, "tp")).Any(d => Excluded(Json.Text(d), excluded))) return true;
+                    foreach (string field in new[] { "hs", "th" }) foreach (object slot in Json.Map(Json.Get(rec, field)).Values) if (Json.Map(slot).Keys.Any(d => Excluded(d, excluded))) return true;
                 } else if ((pair.Key == "apps" || pair.Key == "origins" || pair.Key == "categories") && Json.Map(pair.Value).Keys.Any(d => Excluded(d, excluded))) return true;
             }
             return false;
@@ -109,8 +121,13 @@ namespace Memoir {
                         var slot = Json.Map(value);
                         foreach (string domain in slot.Keys.ToArray()) if (Excluded(domain, excluded)) { slot["~private"] = Json.Number(Json.Get(slot, "~private")) + Json.Number(slot[domain]); slot.Remove(domain); }
                     }
-                    var pages = Json.Map(rec["ti"]);
-                    foreach (string domain in pages.Keys.ToArray()) if (titles || Excluded(domain, excluded)) pages.Remove(domain);
+                    // titles, their links and their hours go with an excluded name, or all of them when erasing titles
+                    if (titles) { rec["ti"] = Json.Object(); rec["th"] = Json.Object(); rec["tu"] = Json.Object(); rec["tp"] = new object[0]; }
+                    else {
+                        foreach (string field in new[] { "ti", "tu" }) { var map = Json.Map(rec[field]); foreach (string domain in map.Keys.ToArray()) if (Excluded(domain, excluded)) map.Remove(domain); }
+                        foreach (object value in Json.Map(rec["th"]).Values) { var slot = Json.Map(value); foreach (string domain in slot.Keys.ToArray()) if (Excluded(domain, excluded)) slot.Remove(domain); }
+                        rec["tp"] = Json.Array(rec["tp"]).Where(d => !Excluded(Json.Text(d), excluded)).ToArray();
+                    }
                     data[key] = rec;
                 } else if (key == "apps" || key == "origins" || key == "categories") {
                     var map = Json.Map(data[key]); foreach (string domain in map.Keys.ToArray()) if (Excluded(domain, excluded)) map.Remove(domain);
@@ -162,16 +179,24 @@ namespace Memoir {
                     var titles = Json.Map(rec["ti"]); var pages = Json.Map(Json.Get(titles, domain));
                     string name = pages.ContainsKey(title) || pages.Count < 30 ? title : "";
                     pages[name] = Json.Number(Json.Get(pages, name)) + ms; titles[domain] = pages; rec["ti"] = titles;
+                    // and the same time hour by hour, so an hour can show its own pages and windows
+                    var byHour = Json.Map(rec["th"]); var hourSlot = Json.Map(Json.Get(byHour, hour)); var hourPages = Json.Map(Json.Get(hourSlot, domain));
+                    hourPages[name] = Json.Number(Json.Get(hourPages, name)) + ms; hourSlot[domain] = hourPages; byHour[hour] = hourSlot; rec["th"] = byHour;
                 }
                 patch[key] = rec; from = end;
             }
             if (!priv && !String.IsNullOrEmpty(target.Origin)) { var origins = Json.Clone(Json.Map(Json.Get(store.Data, "origins"))); origins[domain] = target.Origin; patch["origins"] = origins; }
             store.Set(patch);
         }
+        // A day as the extension keeps it (core.js normalizeDay): s, h and hs; ti, a site's titles;
+        // th, the same titles hour by hour; tu, each title's link (web pages, from the extension);
+        // tp, sites whose titles older versions deleted. All of it is kept, whoever wrote it.
         public static Dictionary<string, object> Normalize(object value) {
             var rec = Json.Map(value); object[] hours = Json.Array(Json.Get(rec, "h"));
             if (hours.Length != 24) hours = Enumerable.Repeat<object>(0, 24).ToArray();
-            return Json.Object("s", Json.Clone(Json.Map(Json.Get(rec, "s"))), "h", hours.ToArray(), "hs", Json.Clone(Json.Map(Json.Get(rec, "hs"))), "ti", Json.Clone(Json.Map(Json.Get(rec, "ti"))));
+            return Json.Object("s", Json.Clone(Json.Map(Json.Get(rec, "s"))), "h", hours.ToArray(), "hs", Json.Clone(Json.Map(Json.Get(rec, "hs"))),
+                "ti", Json.Clone(Json.Map(Json.Get(rec, "ti"))), "th", Json.Clone(Json.Map(Json.Get(rec, "th"))), "tu", Json.Clone(Json.Map(Json.Get(rec, "tu"))),
+                "tp", Json.Array(Json.Get(rec, "tp")).Where(d => d is string).ToArray());
         }
         // Runs every second while a limit is set, so it reads the stored record instead of cloning it.
         public double Total(string day) { return Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "day:" + day)), "s")).Values.Sum(v => Json.Number(v)); }

@@ -2,12 +2,17 @@
 // Hover motion never overshoots; bounce is saved for things that pop open.
 
 import { smoothScrollTo, stopSmoothScroll } from './scroll.js';
+import { isPage, siteName } from './core.js';
 export { initSmoothScrolling } from './scroll.js';
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
 export const EASE_IN_OUT = 'cubic-bezier(0.65, 0, 0.35, 1)';
 export const POP = 'cubic-bezier(0.32, 1.24, 0.5, 1)';
+// one card turning into another (the welcome into the tour's first card, the Reset
+// button into its questions): it sets off from rest and settles softly
+export const RESHAPE = 'cubic-bezier(0.45, 0, 0.15, 1)';
+export const RESHAPE_MS = 560;
 
 const easeOutExpo = t => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 
@@ -171,8 +176,16 @@ export function createTooltip() {
       py = cy;
       kick();
     },
-    hide() {
+    // instant: gone in this frame (a click that starts something bigger), no fade
+    hide(instant = false) {
       visible = false;
+      if (instant && el.classList.contains('on')) {
+        el.style.transition = 'none';
+        el.classList.remove('on');
+        void el.offsetWidth;
+        el.style.transition = '';
+        return;
+      }
       el.classList.remove('on');
     },
     get visible() { return visible; },
@@ -183,15 +196,36 @@ export function reveal() {
   requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
 }
 
+// ---------- no hover tooltips ----------
+// The browser's own tooltip (from a title) never shows: the title is taken away the
+// moment the pointer arrives, before the browser's delay is up, including titles the
+// page sets later. A control with no text of its own keeps it as its accessible name.
+
+let titlesOff = false;
+export function disableTitleTooltips() {
+  if (titlesOff) return;
+  titlesOff = true;
+  document.addEventListener('pointerover', e => {
+    const t = e.target instanceof Element ? e.target.closest('[title]') : null;
+    if (!t) return;
+    const text = t.getAttribute('title');
+    t.removeAttribute('title');
+    if (text && !t.hasAttribute('aria-label') && !t.textContent.trim()) t.setAttribute('aria-label', text);
+  }, true);
+}
+
 // ---------- sites: favicons & links ----------
 
 let ORIGINS = {};
 const iconCache = new Map();
+// icons already found (src, or null for none): a list drawn again shows them straight
+// away, so a refresh never makes them blink
+const iconKnown = new Map();
 
 export function setOrigins(map) {
   const next = map || {};
   for (const d of new Set([...Object.keys(ORIGINS), ...Object.keys(next)])) {
-    if (ORIGINS[d] !== next[d]) iconCache.delete(d);
+    if (ORIGINS[d] !== next[d]) { iconCache.delete(d); iconKnown.delete(d); }
   }
   ORIGINS = next;
 }
@@ -304,6 +338,7 @@ export function resolveFavicon(domain) {
     return null;
   });
   iconCache.set(domain, p);
+  p.then(src => { if (iconCache.get(domain) === p) iconKnown.set(domain, src); });
   return p;
 }
 
@@ -334,6 +369,14 @@ function whenSeen(el, fn) {
   seenIO.observe(el);
 }
 
+// rounded, like the rest: a new tab's plus, a browser window, a puzzle piece, a page
+const glyph = d => `<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const PAGE_GLYPHS = {
+  '~newtab': glyph('<rect x="2.5" y="2.5" width="11" height="11" rx="3"/><path d="M8 5.5v5M5.5 8h5"/>'),
+  '~browser': glyph('<rect x="2" y="3" width="12" height="10" rx="2.5"/><path d="M2 6.5h12"/><circle cx="4.6" cy="4.75" r=".35" fill="currentColor"/><circle cx="6.2" cy="4.75" r=".35" fill="currentColor"/>'),
+  '~extensions': glyph('<path d="M6.5 3.2a1.5 1.5 0 0 1 3 0V4h2.2A1.3 1.3 0 0 1 13 5.3v2.2h-.8a1.5 1.5 0 0 0 0 3h.8v2.2a1.3 1.3 0 0 1-1.3 1.3H9.5v-.8a1.5 1.5 0 0 0-3 0v.8H4.3A1.3 1.3 0 0 1 3 12.7v-2.2h.8a1.5 1.5 0 0 0 0-3H3V5.3A1.3 1.3 0 0 1 4.3 4h2.2Z"/>'),
+  '~files': glyph('<path d="M9 2H5.5A1.5 1.5 0 0 0 4 3.5v9A1.5 1.5 0 0 0 5.5 14h5a1.5 1.5 0 0 0 1.5-1.5V5Z"/><path d="M9 2v2.5A.5.5 0 0 0 9.5 5H12M6.5 8.5h3M6.5 11h3"/>'),
+};
 const LOCK_GLYPH = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5.4a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
 
 export function faviconTile(domain, color) {
@@ -344,26 +387,43 @@ export function faviconTile(domain, color) {
     tile.innerHTML = LOCK_GLYPH;
     return tile;
   }
-  const fallback = () => {
+  // Memoir shows its own icon; the browser's pages, extensions and files a glyph of their own
+  if (domain === '~memoir') {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = chrome.runtime.getURL('icons/icon32.png');
+    tile.appendChild(img);
+    return tile;
+  }
+  if (isPage(domain)) {
+    tile.classList.add('is-private');
+    tile.innerHTML = PAGE_GLYPHS[domain];
+    return tile;
+  }
+  // Windows: an app's first letter when it has no icon, or its icon file won't load
+  const letterTile = () => {
     tile.replaceChildren();
     tile.style.background = color || 'var(--label-3)';
-    const letter = document.createElement('span'); letter.className = 'letter';
-    letter.textContent = (domain.startsWith('app:') ? window.memoir.appName(domain) : domain || '?').charAt(0).toUpperCase();
+    const letter = document.createElement('span');
+    letter.className = 'letter';
+    letter.textContent = (siteName(domain) || '?').charAt(0).toUpperCase();
     tile.appendChild(letter);
   };
-  whenSeen(tile, () => resolveFavicon(domain).then(src => {
-    if (!tile.isConnected) return;
+  const fill = (src, animate) => {
     if (src) {
       const img = document.createElement('img');
       img.alt = '';
-      img.addEventListener('error', fallback, { once: true });
+      img.addEventListener('error', letterTile, { once: true });
       img.src = src;
       tile.appendChild(img);
-      if (!reducedMotion()) img.animate([{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE_OUT });
+      if (animate && !reducedMotion()) img.animate([{ opacity: 0, transform: 'scale(0.7)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE_OUT });
     } else {
-      fallback();
+      letterTile();
     }
-  }));
+  };
+  // known already: in place at once, no entrance (redrawn lists would otherwise blink)
+  if (iconKnown.has(domain)) { fill(iconKnown.get(domain), false); return tile; }
+  whenSeen(tile, () => resolveFavicon(domain).then(src => { if (tile.isConnected) fill(src, true); }));
   return tile;
 }
 
@@ -375,7 +435,9 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 // shows a small ↗ on hover.
 export function siteLinkHtml(domain, extra = '') {
   if (domain === '~private') return `<span class="private-name ${extra}">Private</span>`;
-  if (domain.startsWith('app:')) return `<span class="app-name ${extra}" data-domain="${esc(domain)}" title="Windows app"><span class="sl-text">${esc(window.memoir.appName(domain))}</span></span>`;
+  if (domain.startsWith('app:')) return `<span class="app-name ${extra}" data-domain="${esc(domain)}" title="Windows app"><span class="sl-text">${esc(siteName(domain))}</span></span>`;
+  // not a website, so nothing to open: just its name
+  if (isPage(domain)) return `<span class="page-name ${extra}">${esc(siteName(domain))}</span>`;
   return `<a class="site-link ${extra}" href="${esc(siteHref(domain))}" target="_blank" rel="noopener noreferrer" data-domain="${esc(domain)}" title="Open ${esc(domain)}"><span class="sl-text">${esc(domain)}</span>${ARROW_SVG}</a>`;
 }
 
@@ -387,11 +449,12 @@ export function siteLink(domain, extra = '') {
 
 // ---------- morph: a surface that flies from one rect to another ----------
 
-const px = n => `${Math.round(n * 100) / 100}px`;
+// exact: layout works in 1/64 px, so a shell landing on a box is on it to the last fraction
+const px = n => `${n}px`;
 const radiusFor = (r, rect) => (r === 'pill' || r === 'circle' ? Math.min(rect.width, rect.height) / 2 : r);
 
 export function morph({
-  from, to, fromRadius = 10, toRadius = 18, background = 'var(--raised)', fade = null,
+  from, to, fromRadius = 10, toRadius = 18, background = 'var(--raised)', fade = null, fromOpacity = null,
   duration = 440, easing = EASE_OUT, z = 3000, shadow = true, className = '', parent = document.body,
 }) {
   const shell = document.createElement('div');
@@ -405,9 +468,13 @@ export function morph({
     borderRadius: px(radiusFor(rad, r)), opacity: op,
   });
   const kf = [
-    frame(from, fromRadius, fade === 'in' ? 0 : 1),
+    frame(from, fromRadius, fromOpacity ?? (fade === 'in' ? 0 : 1)),
     frame(to, toRadius, fade === 'out' ? 0 : 1),
   ];
+  // an opacity that never changes stays out: animating it would put the shell on a layer
+  // of its own, drawn between device pixels on scaled screens (125%…), so it would land
+  // a soft edge away from the crisp box it turns into
+  if (kf[0].opacity === 1 && kf[1].opacity === 1) for (const k of kf) delete k.opacity;
   if (reducedMotion()) {
     Object.assign(shell.style, kf[1]);
     return { shell, finished: Promise.resolve(shell), cancel: () => shell.remove() };
@@ -428,7 +495,20 @@ export function dropShell(shell, duration = 140) {
     .finished.then(() => shell.remove(), () => shell.remove());
 }
 
+// An interrupted trip turns around from rest instead of at full speed, so a reversal
+// eases through its turn rather than snapping.
+const TURN = 'cubic-bezier(0.4, 0, 0.2, 1)';
+
+// How much of a trip from `start` to `to` is still ahead when the surface is at `now` (0–1).
+function remaining(now, to, start) {
+  const gap = (a, b) => Math.abs(a.left - b.left) + Math.abs(a.top - b.top) + Math.abs(a.width - b.width) + Math.abs(a.height - b.height);
+  const whole = gap(start, to);
+  return whole < 1 ? 0 : Math.min(1, gap(now, to) / whole);
+}
+
 // A popover that grows out of the element that opened it and shrinks back into it.
+// Fully interruptible: opening and closing always pick up from wherever the surface
+// is at that moment, with one surface on screen, never a jump or a second shell.
 export class MorphPopover {
   constructor(el, { width = null, radius = 16, onClose = null, z = 1990 } = {}) {
     this.el = el;
@@ -458,12 +538,24 @@ export class MorphPopover {
     el.style.top = `${Math.round(top)}px`;
   }
 
+  // The surface still in flight (opening or closing): where it is right now, then gone.
+  // The next surface starts from exactly there, in the same frame, so nothing flickers.
+  takeShell() {
+    const shell = this.shell;
+    this.shell = null;
+    if (!shell || !shell.isConnected) return null;
+    const style = getComputedStyle(shell);
+    const now = { rect: shell.getBoundingClientRect(), radius: parseFloat(style.borderTopLeftRadius) || 0, opacity: +style.opacity };
+    shell.remove();
+    return now;
+  }
+
   open(anchor, { fromRect = null, fromRadius = 8 } = {}) {
     const token = ++this.token;
     const el = this.el;
     this.anchor = anchor;
+    const flight = this.takeShell();
     el.getAnimations().forEach(a => a.cancel());
-    if (this.shell) { this.shell.remove(); this.shell = null; }
     el.hidden = false;
     el.style.background = '';
     el.style.boxShadow = '';
@@ -473,8 +565,13 @@ export class MorphPopover {
     this.place(src);
     const to = el.getBoundingClientRect();
     const bg = getComputedStyle(el).backgroundColor;
+    // reopened mid-close: grow on from where it is, in the time the rest of the trip needs
+    const left = flight ? remaining(flight.rect, to, src) : 1;
     // the shell goes next to the popover (same stacking context), so the content shows above it
-    const m = morph({ from: src, to, fromRadius, toRadius: this.radius, background: bg, duration: 460, easing: POP, z: this.z, parent: el.parentNode || document.body });
+    const m = morph({
+      from: flight ? flight.rect : src, to, fromRadius: flight ? flight.radius : fromRadius, fromOpacity: flight ? flight.opacity : null,
+      toRadius: this.radius, background: bg, duration: 160 + 300 * left, easing: flight ? TURN : POP, z: this.z, parent: el.parentNode || document.body,
+    });
     this.shell = m.shell;
     // the content fades in while the shell is still growing (the shell is the
     // surface until it lands), so there's no pause before anything appears
@@ -487,7 +584,7 @@ export class MorphPopover {
       el.style.opacity = '';
       if (!reducedMotion()) el.animate([{ opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1 }], { duration: 240, easing: EASE_OUT });
     };
-    const early = setTimeout(show, reducedMotion() ? 0 : 150);
+    const early = setTimeout(show, reducedMotion() ? 0 : 150 * left);
     return m.finished.then(() => {
       clearTimeout(early);
       if (token !== this.token) { m.shell.remove(); return; }
@@ -506,7 +603,8 @@ export class MorphPopover {
     const el = this.el;
     if (el.hidden) return Promise.resolve();
     const token = ++this.token;
-    if (this.shell) { this.shell.remove(); this.shell = null; }
+    const flight = this.takeShell();
+    el.getAnimations().forEach(a => a.cancel());
     el.style.background = '';
     el.style.boxShadow = '';
     const anchor = this.anchor;
@@ -520,13 +618,24 @@ export class MorphPopover {
     };
     if (instant || reducedMotion()) { done(); return Promise.resolve(); }
     el.dataset.state = 'closing';
-    const from = el.getBoundingClientRect();
+    const full = el.getBoundingClientRect();
     const target = anchor && anchor.isConnected ? anchor.getBoundingClientRect() : null;
     const bg = getComputedStyle(el).backgroundColor;
     el.style.opacity = '0';
     if (!target || target.width === 0) { done(); return Promise.resolve(); }
-    const m = morph({ from, to: target, fromRadius: this.radius, toRadius: 8, background: bg, fade: 'out', duration: 300, easing: EASE_OUT, z: this.z, parent: el.parentNode || document.body });
-    return m.finished.then(shell => { shell.remove(); done(); });
+    // closed mid-open: shrink back from where the surface had got to
+    const from = flight ? flight.rect : full;
+    const left = remaining(from, target, full);
+    const m = morph({
+      from, to: target, fromRadius: flight ? flight.radius : this.radius, fromOpacity: flight ? flight.opacity : null,
+      toRadius: 8, background: bg, fade: 'out', duration: 120 + 180 * left, easing: flight ? TURN : EASE_OUT, z: this.z, parent: el.parentNode || document.body,
+    });
+    this.shell = m.shell;
+    return m.finished.then(shell => {
+      if (this.shell === shell) this.shell = null;
+      shell.remove();
+      done();
+    });
   }
 }
 
@@ -563,34 +672,17 @@ export function slicePath(cx, cy, r1, r2, a0, a1, corner) {
     `A${cr} ${cr} 0 0 1 ${pt(r1 + cr, a0)}L${pt(r2 - cr, a0)}A${cr} ${cr} 0 0 1 ${pt(r2, a0 + dO)}Z`;
 }
 
-export function initPetals(count = 10, sizes = [9, 16]) {
-  if (reducedMotion()) return;
-  const r = (a, b) => a + Math.random() * (b - a);
-  const amb = document.createElement('div');
-  amb.className = 'ambient';
-  amb.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < count; i++) {
-    const p = document.createElement('div');
-    p.className = 'petal';
-    const dur = r(15, 26);
-    p.style.cssText = `--x:${r(-3, 98).toFixed(1)}%;--size:${r(sizes[0], sizes[1]).toFixed(1)}px;--dur:${dur.toFixed(1)}s;--delay:${(-r(0, dur)).toFixed(1)}s;--drift:${r(-80, 80).toFixed(0)}px`;
-    const inner = document.createElement('i');
-    inner.style.cssText = `--img:var(${i % 2 ? '--petal-b' : '--petal-a'});--flutter:${r(2.8, 4.4).toFixed(1)}s;--alpha:${r(0.22, 0.45).toFixed(2)}`;
-    p.appendChild(inner);
-    amb.appendChild(p);
-  }
-  document.body.prepend(amb);
-}
-
 // ---------- smooth height changes ----------
 
 // Runs `mutate`, then animates the element from its old height to its new one.
-export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT } = {}) {
+// delay: ms (or a function giving them once mutate has run) to hold the old height first.
+export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT, delay = 0 } = {}) {
   if (!el) { mutate(); return Promise.resolve(); }
   const from = el.getBoundingClientRect().height;
   if (el._hAnim) { el._hAnim.cancel(); el._hAnim = null; }
   mutate();
   const to = el.getBoundingClientRect().height;
+  const wait = typeof delay === 'function' ? delay() : delay;
   if (reducedMotion() || Math.abs(to - from) < 0.5) {
     if (el._hOverflow != null) { el.style.overflow = el._hOverflow; el._hOverflow = null; }
     return Promise.resolve();
@@ -598,7 +690,7 @@ export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT } 
   // remember the element's own overflow once, so back-to-back runs can't leave it clipped
   if (el._hOverflow == null) el._hOverflow = el.style.overflow;
   el.style.overflow = 'clip';
-  const a = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration, easing });
+  const a = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration, easing, delay: wait, fill: 'backwards' });
   el._hAnim = a;
   const done = () => {
     if (el._hAnim !== a) return;

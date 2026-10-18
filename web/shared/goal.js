@@ -182,8 +182,17 @@ function nextSass(hours) {
 
 // How fast the knob catches up (a critically damped spring: it glides, never overshoots)
 const FOLLOW = 38;   // while dragging
+const HOP = 30;      // from dot to dot while dragging
 const SETTLE = 24;   // onto the picked value after a drag, typing or arrow keys
 const GLIDE = 11;    // switching between hours and minutes
+
+// Dragging snaps to the white dots: every hour, every 5 minutes. Creeping slowly along
+// the ring is fine-tuning, and the minutes then go one at a time, until the next quick
+// sweep. Speeds are in minutes a second, smoothed over about a tenth of a second.
+const DOT = { h: 1, m: 5 };
+const CREEP = [0.4, 5];   // slower is holding still, faster is moving on
+const CREEP_FOR = 0.35;   // seconds of creeping before the dots let go
+const FAST = 18;          // this fast, the dots take over again
 
 /**
  * Opens the circular limit picker.
@@ -191,7 +200,7 @@ const GLIDE = 11;    // switching between hours and minutes
  * center: {x, y} where the circle should sit (clamped to the window).
  * Resolves with 'commit' | 'remove' | 'cancel'.
  */
-export function openPicker({ fromEl, returnTo = null, center, size = 320, initialMs = 0, canRemove = false, onCommit, onRemove }) {
+export function openPicker({ fromEl, returnTo = null, center, size = 320, initialMs = 0, canRemove = false, onCommit, onRemove, onClosing = null, focusBack = null }) {
   return new Promise(resolve => {
     const vw = innerWidth;
     const vh = innerHeight;
@@ -203,7 +212,7 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
 
     const initH = Math.min(23, Math.floor(initialMs / 3600000));
     const initM = Math.min(59, Math.round((initialMs % 3600000) / 60000));
-    const st = { h: initH, m: initM, unit: 'h', first: null, autoSwitched: false, dragging: false, closing: false, confirmOpen: false, dragT: 0, pin: null };
+    const st = { h: initH, m: initM, unit: 'h', first: null, autoSwitched: false, dragging: false, closing: false, confirmOpen: false, dragT: 0, pin: null, fine: false, speed: 0, creep: 0, lastT: 0, lastAt: 0 };
 
     const layer = document.createElement('div');
     layer.className = 'pk-layer';
@@ -346,17 +355,14 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
       }
     }
 
-    let pulse = null;
+    // held on a white dot, the knob grows a little (slowly) and stays grown until it leaves the dot
+    const setOnDot = () => knob.classList.toggle('on-dot', st.dragging && st[st.unit] % DOT[st.unit] === 0);
+
     function setValue(unit, v, { fromTyping = false, glide = true } = {}) {
       const nv = Math.max(0, Math.min(MAX[unit], v | 0));
-      const changed = st[unit] !== nv;
       st[unit] = nv;
       if (unit === st.unit && glide) aim(tFor(unit, nv));
-      // a small tap on the knob at each hour, and every 5 minutes
-      if (changed && unit === st.unit && (unit === 'h' || nv % 5 === 0) && !reducedMotion()) {
-        if (pulse) pulse.cancel();
-        pulse = dot.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 220, easing: EASE_OUT });
-      }
+      setOnDot();
       refresh({ fromTyping });
     }
 
@@ -367,6 +373,7 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
       fields.h.classList.toggle('on', unit === 'h');
       fields.m.classList.toggle('on', unit === 'm');
       aim(tFor(unit, st[unit]), GLIDE);
+      setOnDot();
       if (auto && !reducedMotion()) {
         fields.m.animate([{ transform: 'scale(0.86)' }, { transform: 'none' }], { duration: 550, easing: POP });
       }
@@ -402,10 +409,39 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
       st.dragT = t;
       return t;
     }
+    // the nearest dot (the last one, not the ring's end, past it)
+    const dotFor = (unit, t) => Math.min(MAX[unit] - (MAX[unit] % DOT[unit]), Math.round((clamp01(t) * MAX[unit]) / DOT[unit]) * DOT[unit]);
+    // creeping slowly turns on fine-tuning; a quick sweep turns it off
+    function pace(t, now, jump) {
+      const dt = (now - st.lastAt) / 1000;
+      if (jump) {
+        // grabbing a knob that's between dots carries on fine-tuning it
+        st.fine = st.m % DOT.m !== 0 && Math.abs(t - tFor('m', st.m)) * MAX.m < 2.5;
+        st.creep = 0;
+      }
+      if (jump || dt > 0.25) st.speed = 0; // a new grab, or the pointer was resting
+      else if (dt > 0) {
+        const v = (Math.abs(t - st.lastT) * MAX.m) / dt;
+        st.speed += (v - st.speed) * (1 - Math.exp(-dt / 0.12));
+        if (st.speed > FAST) { st.fine = false; st.creep = 0; }
+        else if (st.speed > CREEP[1]) st.creep = 0;
+        else if (st.speed > CREEP[0] && (st.creep += dt) >= CREEP_FOR) st.fine = true;
+      } else return; // same instant: measure the next one from the earlier sample
+      st.lastT = t;
+      st.lastAt = now;
+    }
     function follow(e, jump = false) {
       const t = tFromPointer(e, jump);
-      aim(t, FOLLOW);
-      setValue(st.unit, vFor(st.unit, t), { glide: false });
+      const unit = st.unit;
+      if (unit === 'm') pace(t, e.timeStamp, jump);
+      if (unit === 'm' && st.fine) {
+        aim(t, FOLLOW);
+        setValue(unit, vFor(unit, t), { glide: false });
+      } else {
+        const v = dotFor(unit, t);
+        aim(tFor(unit, v), HOP);
+        setValue(unit, v, { glide: false });
+      }
     }
     function onDown(e) {
       if (e.button !== 0 || st.confirmOpen || st.closing) return;
@@ -427,6 +463,7 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
       if (!st.dragging) return;
       st.dragging = false;
       pk.classList.remove('dragging');
+      setOnDot();
       try { svg.releasePointerCapture(e.pointerId); } catch { /* already released */ }
       aim(tFor(st.unit, st[st.unit]), SETTLE);
       if (st.unit === 'h' && st.first === 'h' && !st.autoSwitched) {
@@ -727,10 +764,12 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
       stopKnob();
       const finish = () => {
         layer.remove();
-        if (fromEl && fromEl.isConnected) fromEl.focus({ preventScroll: true });
+        const to = focusBack ? focusBack() : fromEl;
+        if (to && to.isConnected) to.focus({ preventScroll: true });
         resolve(result);
       };
       layer.classList.add('closing');
+      if (onClosing) onClosing(result);
       // shrink back into the ring when there is one, otherwise into the button
       const back = returnTo && returnTo.isConnected ? returnTo : fromEl && fromEl.isConnected && !fromEl.hidden ? fromEl : null;
       const to = back ? back.getBoundingClientRect() : null;

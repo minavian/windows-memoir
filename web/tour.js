@@ -1,5 +1,7 @@
 // A guided tour: the page dims, a spotlight glides from one feature to the next
-// and a small card explains it. Keys: → / Enter next, ← back, Esc to leave.
+// and a small card explains it. Keys: → / Enter next, ← back, Esc to leave. The
+// arrows are the tour's wherever the focus is (a step can lend them to the page with
+// `arrows(dir)`); only fields that type keep theirs.
 //
 // Steps can be hands-on: what's in the light stays clickable (only for steps with
 // `tasks` or `interactive`), and each task ("Try …") watches for the thing it asks
@@ -22,7 +24,37 @@ function unionRect(els) {
   return { left, top, width: right - left, height: bottom - top };
 }
 
-export function runTour(steps) {
+// boxes as { l, t, r, b }
+const box = el => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+const area = a => Math.max(0, a.r - a.l) * Math.max(0, a.b - a.t);
+const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+const join = (a, b) => ({ l: Math.min(a.l, b.l), t: Math.min(a.t, b.t), r: Math.max(a.r, b.r), b: Math.max(a.b, b.b) });
+const apart = (a, b) => Math.hypot(Math.max(0, a.l - b.r, b.l - a.r), Math.max(0, a.t - b.b, b.t - a.b));
+
+// The tour that's running, if any: the page tells it when what's lit is about to change.
+let relightTour = null;
+
+// relight(after): the page has just put what's lit in its new layout, before its own
+// animation shows it. Growing, the light opens to the new size first and the page's
+// animation waits the returned lead (ms); shrinking (or no change), the page goes first
+// and the light follows once it's done, `after` ms from now. 0 with no tour running.
+export function relight(after = 450) {
+  return relightTour ? relightTour(after) : 0;
+}
+
+// handoff(card, { onMove, onLand }): called with the first card once it's placed, before
+// it's seen, so a welcome screen can turn into it (the tour's dim then appears at once, no
+// fade). It returns true if it does: the card then stays unseen and the light shut until
+// the welcome's card sets off (onMove({ duration, easing }): the light opens on that clock)
+// and lands as this one (onLand).
+// avoid(): what's up on the page right now that the card must leave visible (popovers,
+// menus a try opened). A step's follow() lists what its tries opened elsewhere (the
+// trend graph, a day the highlights opened): it joins the light, so you see it, and the
+// card moves off it. A step with `below` (true, or a function asked each time) has its
+// card under the light when it fits; its
+// alignTo() names what the card then lines up under (left edges), and its flip() says
+// whether the buttons go to the card's top there (they do by default).
+export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
   return new Promise(resolve => {
     const root = document.createElement('div');
     root.className = 'tour';
@@ -47,7 +79,9 @@ export function runTour(steps) {
     const spot = root.querySelector('.tour-spot');
     const blocker = root.querySelector('.tour-block');
     const card = root.querySelector('.tour-card');
+    const head = root.querySelector('.tour-head');
     const body = root.querySelector('.tour-body');
+    const foot = root.querySelector('.tour-foot');
     const dots = [...root.querySelectorAll('.tour-dots i')];
     const back = root.querySelector('.tour-back');
     const next = root.querySelector('.tour-next');
@@ -58,64 +92,144 @@ export function runTour(steps) {
     const doneBy = steps.map(() => new Set()); // tasks done, per step (kept when going back)
     let watchers = [];
     let reflowTimers = [];
+    let shut = false; // the light waits for the welcome's card to set off
+    let lastSpot = null; // where the light was last sent ({ l, t, r, b }), while it's open
+    let holdUntil = 0; // the page is still animating what's lit: the light waits till then
+    const RELIGHT_MS = 300;
 
+    // what a step lights, padded: its target, and what its tries opened elsewhere
+    function lit(step) {
+      const els = step.target ? [].concat(step.target()).filter(Boolean) : [];
+      if (els.length && step.follow) els.push(...[].concat(step.follow()).filter(Boolean));
+      const r = els.length ? unionRect(els) : null;
+      if (!r) return null;
+      const pad = step.pad != null ? step.pad : 8;
+      return { l: r.left - pad, t: r.top - pad, r: r.left + r.width + pad, b: r.top + r.height + pad };
+    }
 
     // spot and card move together, straight away, on one heavy ease
     function place(step, cardH = card.offsetHeight) {
-      const els = step.target ? [].concat(step.target()).filter(Boolean) : [];
-      const r = els.length ? unionRect(els) : null;
-      const pad = step.pad != null ? step.pad : 8;
+      const sp = lit(step);
       // hands-on steps leave a hole in the blocker over the spotlight, so what's lit can be used
-      const open = !!r && !!((step.tasks && step.tasks.length) || step.interactive);
+      const open = !shut && !!sp && !!((step.tasks && step.tasks.length) || step.interactive);
       if (open) {
-        const x0 = Math.max(0, r.left - pad);
-        const y0 = Math.max(0, r.top - pad);
-        const x1 = Math.min(innerWidth, r.left + r.width + pad);
-        const y1 = Math.min(innerHeight, r.top + r.height + pad);
+        const x0 = Math.max(0, sp.l);
+        const y0 = Math.max(0, sp.t);
+        const x1 = Math.min(innerWidth, sp.r);
+        const y1 = Math.min(innerHeight, sp.b);
         blocker.style.clipPath = `path(evenodd, "M0 0H${innerWidth}V${innerHeight}H0Z M${x0} ${y0}H${x1}V${y1}H${x0}Z")`;
       } else {
         blocker.style.clipPath = '';
       }
-      if (r) {
+      if (sp && !shut) {
         const radius = step.radius != null ? step.radius : 18;
         Object.assign(spot.style, {
-          left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px`, borderRadius: `${radius}px`,
+          left: `${sp.l}px`, top: `${sp.t}px`, width: `${sp.r - sp.l}px`, height: `${sp.b - sp.t}px`, borderRadius: `${radius}px`,
         });
         spot.classList.remove('none');
+        lastSpot = sp;
       } else {
-        Object.assign(spot.style, { left: `${innerWidth / 2}px`, top: `${innerHeight / 2}px`, width: '0px', height: '0px', borderRadius: '50%' });
+        // no light (or not yet): shut, at the middle of what it lights, so it opens from there
+        const cx = sp ? (sp.l + sp.r) / 2 : innerWidth / 2;
+        const cy = sp ? (sp.t + sp.b) / 2 : innerHeight / 2;
+        Object.assign(spot.style, { left: `${cx}px`, top: `${cy}px`, width: '0px', height: '0px', borderRadius: '50%' });
         spot.classList.add('none');
+        lastSpot = null;
       }
-      // beside the spotlight when there's room, otherwise below or above it
       const cw = card.offsetWidth;
       const ch = cardH;
-      const gap = 16;
       const M = 14;
       let x;
       let y;
-      if (!r) {
+      if (!sp) {
         x = (innerWidth - cw) / 2;
         y = (innerHeight - ch) / 2;
       } else {
-        const sp = { left: r.left - pad, top: r.top - pad, right: r.left + r.width + pad, bottom: r.top + r.height + pad };
-        if (sp.right + gap + cw <= innerWidth - M) { x = sp.right + gap; y = sp.top; }
-        else if (sp.left - gap - cw >= M) { x = sp.left - gap - cw; y = sp.top; }
-        else if (sp.bottom + gap + ch <= innerHeight - M) { x = sp.left + (sp.right - sp.left - cw) / 2; y = sp.bottom + gap; }
-        else if (sp.top - gap - ch >= M) { x = sp.left + (sp.right - sp.left - cw) / 2; y = sp.top - gap - ch; }
-        else {
-          // no side fits it whole: take the roomiest one (it may overlap the light's
-          // edge a little, never sit in the middle of what you're asked to click)
-          const room = { right: innerWidth - sp.right, left: sp.left, below: innerHeight - sp.bottom, above: sp.top };
-          const side = Object.keys(room).reduce((a, b) => (room[b] > room[a] ? b : a));
-          if (side === 'right') { x = sp.right + gap; y = sp.top; }
-          else if (side === 'left') { x = sp.left - gap - cw; y = sp.top; }
-          else if (side === 'below') { x = sp.left + (sp.right - sp.left - cw) / 2; y = sp.bottom + gap; }
-          else { x = sp.left + (sp.right - sp.left - cw) / 2; y = sp.top - gap - ch; }
-        }
+        const below = typeof step.below === 'function' ? step.below() : !!step.below;
+        ({ x, y } = cardSpot(sp, cw, ch, below, step.alignTo ? step.alignTo() : null));
       }
       x = Math.max(M, Math.min(x, innerWidth - cw - M));
       y = Math.max(M, Math.min(y, innerHeight - ch - M));
       card.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      // under the light, the buttons go to the card's top: nearest the pointer
+      setFlip(!!sp && y >= sp.b - 1 && (!step.flip || step.flip()));
+    }
+
+    // Under the light, Back and Next ride at the top of the card and the dots at its
+    // foot. Each part glides to its new place on the card's own ease; the dots fade
+    // across rather than pass over the words. Transform and opacity only.
+    let flipped = false;
+    function setFlip(on) {
+      if (on === flipped) return;
+      flipped = on;
+      const parts = [head, body, foot];
+      const seen = root.classList.contains('on') && !root.classList.contains('arriving') && !reducedMotion();
+      const top = el => el.getBoundingClientRect().top - card.getBoundingClientRect().top;
+      const before = seen ? parts.map(top) : null;
+      parts.forEach(p => { if (p._flip) { p._flip.cancel(); p._flip = null; } });
+      card.classList.toggle('flip', on);
+      if (!seen) return;
+      parts.forEach((p, i) => {
+        const dy = before[i] - top(p);
+        if (Math.abs(dy) < 0.5) return;
+        const kf = p === head
+          ? [{ transform: `translateY(${dy}px)`, opacity: 1 }, { opacity: 0, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { transform: 'none', opacity: 1 }]
+          : [{ transform: `translateY(${dy}px)` }, { transform: 'none' }];
+        const a = p.animate(kf, { duration: 700, easing: HEAVY });
+        p._flip = a;
+        a.finished.then(() => { if (p._flip === a) p._flip = null; }, () => {});
+      });
+    }
+
+    // one move of the light on another clock than its own (it goes back to its own after)
+    let spotClockT = 0;
+    function spotClock(duration, easing) {
+      if (reducedMotion()) return;
+      clearTimeout(spotClockT);
+      spot.style.transition = `${['left', 'top', 'width', 'height', 'border-radius'].map(p => `${p} ${duration}ms ${easing}`).join(', ')}, opacity 0.4s var(--ease), box-shadow 0.9s var(--ease)`;
+      spotClockT = setTimeout(() => { spot.style.transition = ''; }, duration + 50);
+    }
+
+    // Where the card goes: beside the light, never on it, and never on what's up on the
+    // page (a popover, a menu). Each place beside the light (and beside the light with
+    // those things) is scored: covering the light costs most, then covering what's up,
+    // then being far away. Right, left, below, above, in that order, break ties (below
+    // first, for a step that asks for it).
+    function cardSpot(sp, cw, ch, below = false, align = null) {
+      const gap = 16;
+      const M = 14;
+      const ups = [].concat(avoid()).filter(el => el && el.isConnected).map(box).filter(a => area(a) > 0 && overlap(a, sp) < area(a) * 0.9);
+      const cands = [];
+      const side = below ? { right: 1, left: 2, below: 0, above: 3 } : { right: 0, left: 1, below: 2, above: 3 };
+      const around = (R, rank0) => {
+        const midY = sp.t + (sp.b - sp.t - ch) / 2;
+        const midX = sp.l + (sp.r - sp.l - cw) / 2;
+        [sp.t, midY, sp.b - ch].forEach((y, k) => {
+          cands.push({ x: R.r + gap, y, rank: rank0 + side.right + k * 0.1, near: R });
+          cands.push({ x: R.l - gap - cw, y, rank: rank0 + side.left + k * 0.1, near: R });
+        });
+        [midX, sp.l, sp.r - cw].forEach((x, k) => {
+          cands.push({ x, y: R.b + gap, rank: rank0 + side.below + k * 0.1, near: R });
+          cands.push({ x, y: R.t - gap - ch, rank: rank0 + side.above + k * 0.1, near: R });
+        });
+      };
+      around(sp, 0);
+      // lined up under what the step names, ahead of the other places below
+      if (below && align && align.isConnected) cands.push({ x: box(align).l, y: sp.b + gap, rank: side.below - 0.05 });
+      // past what's up, on the same side, comes next: a card clearing a popover slides along
+      // (its distance counted from the light and what's up together) rather than jumping
+      // to another side of the light
+      if (ups.length) around(ups.reduce(join, sp), 0.5);
+      let best = null;
+      for (const c of cands) {
+        const x = Math.max(M, Math.min(c.x, innerWidth - cw - M));
+        const y = Math.max(M, Math.min(c.y, innerHeight - ch - M));
+        const k = { l: x, t: y, r: x + cw, b: y + ch };
+        let score = overlap(k, sp) * 60 + c.rank * 400 + Math.max(gap, apart(k, c.near || sp)) * 40;
+        for (const u of ups) score += overlap(k, u) * 30;
+        if (!best || score < best.score) best = { x, y, score };
+      }
+      return best;
     }
 
     // new words in (the old ones fade out on top), the card's height eases to fit
@@ -135,7 +249,7 @@ export function runTour(steps) {
       }
       const content = document.createElement('div');
       content.className = 'tour-content';
-      content.innerHTML = `${step.kicker ? `<p class="tour-kicker">${step.kicker}</p>` : ''}<h3 class="tour-title display">${step.title}</h3><p class="tour-text">${step.text}</p>${tasksHtml(step, i)}`;
+      content.innerHTML = `${step.kicker ? `<p class="tour-kicker">${step.kicker}</p>` : ''}<h3 class="tour-title display">${step.title}</h3>${step.text ? `<p class="tour-text">${step.text}</p>` : ''}${tasksHtml(step, i)}`;
       body.appendChild(content);
       const h1 = content.getBoundingClientRect().height;
       const finalH = card.offsetHeight - body.getBoundingClientRect().height + h1;
@@ -153,10 +267,35 @@ export function runTour(steps) {
     }
 
     // the view under the light may change after a click: let the spotlight follow
+    // (once the page has finished animating what's lit, if it said so with relight)
+    function settle() {
+      if (ended || index < 0) return;
+      const left = holdUntil - performance.now();
+      if (left > 1) { reflowTimers.push(setTimeout(settle, left)); return; }
+      place(steps[index]);
+    }
     function reflow() {
       reflowTimers.forEach(clearTimeout);
-      reflowTimers = [450, 950].map(ms => setTimeout(() => { if (!ended && index >= 0) place(steps[index]); }, ms));
+      reflowTimers = [450, 950].map(ms => setTimeout(settle, ms));
     }
+
+    // what's lit is about to change (see relight() above)
+    const relightThis = after => {
+      if (ended || index < 0 || shut) return 0;
+      const step = steps[index];
+      const sp = lit(step);
+      const was = lastSpot;
+      const grows = !!sp && !!was && (sp.l < was.l - 0.5 || sp.t < was.t - 0.5 || sp.r > was.r + 0.5 || sp.b > was.b + 0.5);
+      const lead = grows && !reducedMotion() ? RELIGHT_MS : 0;
+      if (grows) {
+        spotClock(RELIGHT_MS, HEAVY);
+        place(step);
+      }
+      holdUntil = Math.max(holdUntil, performance.now() + lead + after);
+      reflowTimers.push(setTimeout(settle, lead + after));
+      return lead;
+    };
+    relightTour = relightThis;
 
     function complete(i, k) {
       if (ended || doneBy[i].has(k)) return;
@@ -204,34 +343,46 @@ export function runTour(steps) {
         if (ended || index !== i) return;
         const p = progressOf(i);
         setFill(p);
-        if (p >= 1) setTimeout(() => { if (!ended && index === i && progressOf(i) >= 1) setFull(true); }, reducedMotion() ? 0 : 420);
+        if (p >= 1) setTimeout(() => {
+          if (ended || index !== i || progressOf(i) < 1) return;
+          // steps marked autoNext move on by themselves the moment Next has filled up
+          if (steps[i].autoNext && i < steps.length - 1) { go(i + 1, 1); return; }
+          setFull(true);
+        }, reducedMotion() ? 0 : 420);
       };
       if (reducedMotion() || !dot) { land(); return; }
-      // from the tick, along an arc above both, to where the fill is about to reach
-      const a = dot.getBoundingClientRect();
-      const b = next.getBoundingClientRect();
-      const x0 = a.left + a.width / 2;
-      const y0 = a.top + a.height / 2;
-      const x1 = b.left + Math.max(14, Math.min(b.width - 14, b.width * progressOf(i)));
-      const y1 = b.top + b.height / 2;
-      const cx = (x0 + x1) / 2;
-      const cy = Math.min(y0, y1) - 44;
+      // from the tick, along an arc above both, to where the fill is about to reach. It
+      // flies inside the card (card-relative), so it still lands on Next if the card moves;
+      // both ends are read every frame, so it lands on Next even while Next is on its way
+      // to the card's other end.
       const spark = document.createElement('span');
       spark.className = 'tour-spark';
-      root.appendChild(spark);
-      const frames = [];
-      const N = 30;
-      for (let n = 0; n <= N; n++) {
-        const t = n / N;
+      spark.style.opacity = '0';
+      card.appendChild(spark);
+      const t0 = performance.now() + SPARK_DELAY;
+      const fly = now => {
+        if (!spark.isConnected) return;
+        const t = Math.min(1, Math.max(0, (now - t0) / SPARK_MS));
+        const c = card.getBoundingClientRect();
+        const a = dot.getBoundingClientRect();
+        const b = next.getBoundingClientRect();
+        const x0 = a.left + a.width / 2 - c.left;
+        const y0 = a.top + a.height / 2 - c.top;
+        const x1 = b.left + Math.max(14, Math.min(b.width - 14, b.width * progressOf(i))) - c.left;
+        const y1 = b.top + b.height / 2 - c.top;
+        const cx = (x0 + x1) / 2;
+        const cy = Math.min(y0, y1) - 44;
         const u = easeInOut(t);
         const x = (1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * cx + u * u * x1;
         const y = (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * cy + u * u * y1;
         const sc = t < 0.3 ? 0.45 + (t / 0.3) * 0.8 : 1.25 - ((t - 0.3) / 0.7) * 0.6;
         const op = t < 0.12 ? t / 0.12 : t > 0.86 ? (1 - t) / 0.14 : 1;
-        frames.push({ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${sc.toFixed(3)})`, opacity: +op.toFixed(3), offset: t });
-      }
-      const anim = spark.animate(frames, { duration: SPARK_MS, delay: SPARK_DELAY, easing: 'linear', fill: 'backwards' });
-      anim.finished.then(() => spark.remove(), () => spark.remove());
+        spark.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${sc.toFixed(3)})`;
+        spark.style.opacity = op.toFixed(3);
+        if (t < 1) requestAnimationFrame(fly);
+        else spark.remove();
+      };
+      requestAnimationFrame(fly);
       // the fill starts just before the spark lands, so the two meet
       setTimeout(land, SPARK_DELAY + SPARK_MS * 0.8);
     }
@@ -249,6 +400,7 @@ export function runTour(steps) {
       const live = () => !ended && token === mine;
       const step = steps[i];
       index = i;
+      holdUntil = 0;
       dots.forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('past', k < i); });
       back.disabled = i === 0;
       back.classList.toggle('gone', i === 0);
@@ -265,10 +417,34 @@ export function runTour(steps) {
         // very first step: put the card in place before it's ever seen
         card.classList.add('instant');
         spot.classList.add('instant');
+        // from the welcome, its card turns into this one: till then this card stays unseen
+        // and the light shut, so nothing shows twice
+        if (handoff) {
+          shut = true;
+          root.classList.add('handoff', 'arriving');
+        }
         place(step, finalH);
         void card.offsetWidth;
         card.classList.remove('instant');
         spot.classList.remove('instant');
+        if (handoff) {
+          // the card shows in the frame the welcome's lands, with no fade
+          const show = () => {
+            card.style.transition = 'none';
+            root.classList.remove('arriving');
+            void card.offsetWidth;
+            card.style.transition = '';
+          };
+          // the light opens on the welcome card's own clock, so the two arrive together
+          const opens = ({ duration = 0, easing = HEAVY } = {}) => {
+            shut = false;
+            if (ended || index < 0) return;
+            if (duration) spotClock(duration, easing);
+            place(steps[index]);
+          };
+          if (handoff(card, { onMove: opens, onLand: show }) !== true) { opens(); show(); }
+          requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('handoff')));
+        }
         root.classList.add('on');
       } else {
         place(step, finalH);
@@ -287,7 +463,9 @@ export function runTour(steps) {
       ended = true;
       stopWatching();
       reflowTimers.forEach(clearTimeout);
+      if (relightTour === relightThis) relightTour = null;
       document.removeEventListener('click', onPageClick, true);
+      removeEventListener('keydown', onArrow, true);
       removeEventListener('resize', onResize);
       root.classList.remove('on');
       root.classList.add('leaving');
@@ -296,6 +474,24 @@ export function runTour(steps) {
 
     const onResize = () => { if (index >= 0) place(steps[index]); };
     addEventListener('resize', onResize);
+    // The arrows are the tour's, wherever the focus is: Next and Back (a step may lend
+    // them to the page instead, with arrows(dir)). Only fields that type, and the
+    // layers a try opens above the tour (the limit picker, its questions, menus), keep
+    // theirs. Caught before anything on the page sees them.
+    const onArrow = e => {
+      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const t = e.target;
+      if (t instanceof Element && t.closest('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea, select, [contenteditable]:not([contenteditable="false"]), .menu, .pk-layer, .gx-layer')) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (ended || index < 0) return;
+      const dir = e.key === 'ArrowLeft' ? -1 : 1;
+      const step = steps[index];
+      if (step.arrows) step.arrows(dir);
+      else if (dir > 0) next.click();
+      else if (!back.disabled) back.click();
+    };
+    addEventListener('keydown', onArrow, true);
     // a click on the page itself (through the hole) may open or close something
     const onPageClick = e => { if (!root.contains(e.target)) reflow(); };
     document.addEventListener('click', onPageClick, true);
@@ -308,8 +504,6 @@ export function runTour(steps) {
     root.addEventListener('keydown', e => {
       e.stopPropagation();
       if (e.key === 'Escape') { e.preventDefault(); end('skipped'); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); next.click(); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); if (!back.disabled) back.click(); }
       else if (e.key === 'Tab') {
         const list = [...card.querySelectorAll('button')].filter(b => !b.disabled && !b.classList.contains('gone'));
         const k = list.indexOf(document.activeElement);

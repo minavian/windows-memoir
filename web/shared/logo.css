@@ -1,0 +1,61 @@
+/* The Memoir clock (shared/logo.js), in the report and the popup. */
+/* White on a black disc, in every theme (the clock's fades were tuned on that black).
+   The disc is 200 units across with the clock's 168-unit box in its middle: ring
+   centred (84, 84) from radius 59 to 76; the knob at (84, 16.5), 15.5 round with a 7
+   black middle; the hands turn about (84, 92), 11 thick, the minute 48
+   long and the hour 34. The ring and the minute hand fade out in opacity. */
+/* the ink and the knob's middle can be animated (the welcome's clock turns to the Light
+   logo as it lands: welcome-intro.js) */
+@property --lg-ink { syntax: "<number>+"; inherits: true; initial-value: 255 255 255; }
+@property --lg-knob-mid { syntax: "<color>"; inherits: true; initial-value: #111114; }
+@property --lg-hole { syntax: "<percentage>"; inherits: true; initial-value: 4.605%; }
+.logo { --lg-ink: 255 255 255; position: relative; display: block; aspect-ratio: 1; }
+.logo::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #111114; }
+.lg-clock { position: absolute; inset: 8%; }
+.lg-clock > i, .lg-sec > i { position: absolute; display: block; }
+/* the knob rides on its own layer the size of the clock, so a live clock can turn it
+   round the ring (with the ring's fade) once a minute */
+.lg-sec { inset: 0; }
+.logo.hold::before, .logo.hold .lg-clock > i { opacity: 0; }
+/* The ring: its box (radius 76 about (84, 84) in the 168 box), the clockwise fade masked
+   to the band, 59 to 76 (77.632%: --lg-band, so the welcome's opening can thin it from an O). */
+@property --lg-band { syntax: "<percentage>"; inherits: true; initial-value: 77.632%; }
+.lg-ring { inset: 4.762%; border-radius: 50%; }
+.lg-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(rgb(var(--lg-ink) / 0.937), rgb(var(--lg-ink) / 0.84) 45deg, rgb(var(--lg-ink) / 0.676) 125deg,
+    rgb(var(--lg-ink) / 0.5) 205deg, rgb(var(--lg-ink) / 0.332) 285deg, rgb(var(--lg-ink) / 0.181));
+}
+.lg-ring::before, .lg-ring::after {
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent calc(var(--lg-band) - 0.3px), #000 calc(var(--lg-band) + 0.3px), #000 calc(100% - 0.6px), transparent);
+}
+/* the knob covers the ring's seam; its middle is the disc's black */
+.lg-knob { left: 40.774%; top: 0.595%; width: 18.452%; height: 18.452%; border-radius: 50%; background: radial-gradient(circle closest-side, var(--lg-knob-mid) calc(45.161% - 0.4px), rgb(var(--lg-ink)) calc(45.161% + 0.4px)); }
+.lg-min, .lg-hour { left: 46.726%; top: 51.488%; height: 6.548%; border-radius: 99px; }
+.lg-min { width: 35.119%; transform-origin: 9.322% 50%; transform: rotate(-30deg); background: linear-gradient(90deg, rgb(var(--lg-ink)) 9.322%, rgb(var(--lg-ink) / 0.92) 33.729%, rgb(var(--lg-ink) / 0.513) 90.678%); }
+.lg-hour { width: 26.786%; transform-origin: 12.222% 50%; transform: rotate(215deg); background: rgb(var(--lg-ink)); }
+/* .themed follows the theme. On Light it's the master for light backgrounds: no disc, the
+   clock in the theme's ink filling the disc's room (as the master's crop; on the disc it's
+   84% of it), the knob's middle a hole right through to the page (the ring is cut away
+   under it, and turns with the knob on a live clock). On Dark it's white on the disc, as
+   above. The welcome's clock comes out of the black opening white on its disc and turns
+   to this as it lands (welcome-intro.js). */
+:root, [data-wave="light"] { --logo-ink: 29 29 31; --logo-disc: transparent; --logo-inset: 0%; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --logo-ink: 255 255 255; --logo-disc: #111114; --logo-inset: 8%; }
+}
+:root[data-theme="dark"], [data-wave="dark"] { --logo-ink: 255 255 255; --logo-disc: #111114; --logo-inset: 8%; }
+/* Rainbow clock (Appearance, in support of the LGBTQ+ community): the ring in the rainbow's
+   colours with the same clockwise fade, in either theme; the hands and knob keep the ink */
+:root[data-rainbow="on"] .logo.themed .lg-ring::before {
+  background: conic-gradient(rgb(240 90 110 / 0.95), rgb(246 146 70 / 0.88) 50deg, rgb(236 196 60 / 0.8) 110deg,
+    rgb(80 190 120 / 0.68) 170deg, rgb(70 160 230 / 0.54) 235deg, rgb(150 110 220 / 0.38) 300deg, rgb(150 110 220 / 0.2));
+}
+.logo.themed { --lg-ink: var(--logo-ink); --lg-knob-mid: transparent; }
+.logo.themed::before { background: var(--logo-disc); }
+.logo.themed .lg-clock { inset: var(--logo-inset); }
+/* .cut: the ring cut away under the knob's middle (hidden while the knob's middle is filled);
+   a hair wider than the middle, so none of the ring shows through the knob's soft inner edge */
+.logo.themed .lg-ring, .logo.cut .lg-ring { -webkit-mask-image: radial-gradient(var(--lg-hole) var(--lg-hole) at 50% 5.592%, transparent calc(100% + 0.4px), #000 calc(100% + 1.2px)); }

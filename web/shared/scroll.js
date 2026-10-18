@@ -84,6 +84,13 @@ function step(now) {
   if (active.size) raf = requestAnimationFrame(step);
 }
 
+function canScroll(el, axis, direction) {
+  const max = limit(el, axis);
+  const base = destination(el, axis);
+  const actual = position(el, axis);
+  return max > 1 && (direction < 0 ? base > 0 || actual > 0.5 : base < max || actual < max - 0.5);
+}
+
 function findScroller(event, axis, direction) {
   const root = document.scrollingElement;
   const path = event.composedPath().filter(el => el instanceof HTMLElement && el !== document.body && el !== root);
@@ -97,16 +104,19 @@ function findScroller(event, axis, direction) {
       overflow = axis === 'y' ? bodyStyle.overflowY : bodyStyle.overflowX;
     }
     if (!/^(auto|scroll|overlay)$/.test(overflow) && !(el === root && overflow === 'visible')) continue;
-    const max = limit(el, axis);
-    const base = destination(el, axis);
-    const actual = position(el, axis);
-    if (max > 1 && (direction < 0 ? base > 0 || actual > 0.5 : base < max || actual < max - 0.5)) return el;
+    if (canScroll(el, axis, direction)) return el;
     // An isolated list or Settings panel must never scroll the page behind it.
     const overscroll = axis === 'y' ? style.overscrollBehaviorY : style.overscrollBehaviorX;
     if (overscroll === 'contain' || overscroll === 'none') return null;
   }
   return null;
 }
+
+// A wheel gesture stays with what it started on, like the browser's own scrolling:
+// a list that runs out mid-gesture holds the rest of it, and the next gesture
+// (after a short pause) carries on to the page.
+const GESTURE_GAP_MS = 240;
+let latch = null;
 
 export function initSmoothScrolling() {
   if (initialized) return;
@@ -119,7 +129,12 @@ export function initSmoothScrolling() {
     const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     const delta = axis === 'y' ? dy : dx;
     if (!delta) return;
-    const el = findScroller(e, axis, delta);
+    let el = findScroller(e, axis, delta);
+    if (latch && latch.axis === axis && e.timeStamp - latch.time < GESTURE_GAP_MS && latch.el.isConnected && e.composedPath().includes(latch.el)) {
+      latch.time = e.timeStamp;
+      if (!canScroll(latch.el, axis, delta)) { e.preventDefault(); return; }
+      el = latch.el;
+    } else latch = el ? { el, axis, time: e.timeStamp } : null;
     if (!el) return;
     const unit = e.deltaMode === 1 ? 18 : e.deltaMode === 2 ? (axis === 'y' ? el.clientHeight : el.clientWidth) : 1;
     const actual = position(el, axis);
