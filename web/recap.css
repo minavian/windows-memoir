@@ -1819,6 +1819,7 @@ body { overflow: hidden; }
 :root, [data-wave="light"] { --scrim-bright: 0.8; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --scrim-bright: 0.45; } }
 :root[data-theme="dark"], [data-wave="dark"] { --scrim-bright: 0.45; }
+.paused-pill #resume svg { width: 10px; height: 10px; margin-right: 5px; }
 .head-left, .demo-pill { transition: filter 0.5s var(--sheet); }
 .head.dimmed .head-left, .head.dimmed .demo-pill { transition-duration: 0.62s; }
 .head.dimmed .head-left, .head.dimmed .demo-pill { filter: blur(2px) saturate(0.92) brightness(var(--scrim-bright)); pointer-events: none; }

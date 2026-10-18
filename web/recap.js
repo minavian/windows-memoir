@@ -131,6 +131,7 @@ async function init() {
   // first visit: the welcome covers the page while it gets ready
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
+  showPaused();
   // the Rainbow clock lives in this browser's storage (first paint); the tracker's copy (the
   // toolbar icon) catches up if it was turned on before the setting existed
   if (!!settings.rainbow !== rainbowOn()) updateSettings({ rainbow: rainbowOn() }).then(s => { state.settings = s; });
@@ -711,6 +712,11 @@ function toggleEmpty(empty) {
     $('empty-text').textContent = fresh
       ? 'Use your computer as usual and your week will appear here. Nothing ever leaves this computer.'
       : 'No screen time was recorded this week. Try another week, or preview a sample.';
+  }
+  // paused: the reason it's empty, said instead (Resume is at the top)
+  if (empty && isCurrentWeek() && state.settings.paused && !state.demo) {
+    $('empty-title').textContent = 'Tracking is paused';
+    $('empty-text').textContent = 'Nothing is counted while it’s paused. Press Resume at the top to start again.';
   }
   const wasEmpty = board.classList.contains('is-empty');
   if (wasEmpty === empty && card.hidden === !empty) return;
@@ -3840,6 +3846,16 @@ async function linkWith(mode) {
   await chrome.runtime.sendMessage({ type: 'link', mode }).catch(() => {});
 }
 
+// Tracking paused, from anywhere (Settings, Today, the tray, a linked Memoir): the header says so, with Resume, so
+// a still or empty week never looks like Memoir stopped working. Not over the sample week.
+function showPaused() {
+  const on = !!state.settings.paused && !state.demo;
+  const pill = $('paused-pill');
+  if (pill.hidden === !on) return;
+  pill.hidden = !on;
+  if ($('board').classList.contains('is-empty')) render({ soft: true });
+}
+
 function setNukeStep(n) {
   const row = $('data-row');
   const prev = +row.dataset.step;
@@ -4153,12 +4169,20 @@ function wire() {
     const fromSure = pauseAsking();
     askPause(false);
     state.settings = await updateSettings({ paused: !e.target.checked });
+    showPaused();
     // paused from "Sure?": the toast waits until it has turned back into the switch, so the
     // two don't share frames (and says nothing if tracking was turned back on meanwhile)
     if (fromSure && !reducedMotion()) setTimeout(() => { if (!$('set-tracking').checked) toast('Tracking paused'); }, 380);
     else toast(e.target.checked ? 'Tracking resumed' : 'Tracking paused');
   });
   $('set-tracking').addEventListener('blur', () => askPause(false));
+  $('resume').addEventListener('click', async () => {
+    state.settings = await updateSettings({ paused: false });
+    $('set-tracking').checked = true;
+    showPaused();
+    toast('Tracking resumed');
+    try { await chrome.runtime.sendMessage({ type: 'sync' }); } catch { /* ignore */ }
+  });
   // a press anywhere else takes the question back
   document.addEventListener('pointerdown', e => {
     if (pauseAsking() && !e.target.closest('.pause-switch')) askPause(false);
@@ -4676,6 +4700,7 @@ async function enterDemo() {
   state.demo = true;
   state.demoOverrides = {};
   $('demo-banner').hidden = false;
+  showPaused();
   $('set-demo').checked = true;
   if (state.view.type !== 'week') resetView({ instant: true });
   await render({ direction: 'next' });
@@ -4980,6 +5005,7 @@ function exitDemo(rerender) {
   const melting = meltPill();
   state.demo = false;
   $('demo-banner').hidden = true;
+  showPaused();
   $('set-demo').checked = false;
   state.weekStart = startOfWeek(new Date());
   history.replaceState(null, '', location.pathname);
@@ -5019,6 +5045,7 @@ function onStorageChanged(changes, area) {
   if (changes.link || changes.sync) loadLink();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
+    showPaused();
     if ($('settings').classList.contains('open')) renderSettings();
     else $('set-tracking').checked = !state.settings.paused;
   }

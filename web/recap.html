@@ -59,6 +59,11 @@
           <span>Sample week</span>
           <button class="btn btn-secondary btn-sm" id="exit-demo">Exit</button>
         </div>
+        <!-- tracking paused (Settings, Today, the tray): said here, with Resume (recap.js showPaused) -->
+        <div class="demo-pill paused-pill" id="paused-pill" role="status" hidden>
+          <span>Tracking is paused</span>
+          <button class="btn btn-primary btn-sm" id="resume" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.6v8.8l6.6-4.4z" fill="currentColor"/></svg>Resume</button>
+        </div>
 
         <div class="morph" id="settings">
           <div class="morph-panel" id="settings-panel" role="dialog" aria-label="Settings">
