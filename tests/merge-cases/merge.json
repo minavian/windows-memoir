@@ -14,10 +14,28 @@
       "out": { "s": { "youtube.com": 1500000, "~memoir": 60000 }, "h": { "9": 1560000 }, "hs": { "9": { "youtube.com": 1500000, "~memoir": 60000 } } }
     },
     {
-      "name": "an hour never holds more than an hour: the names share it",
-      "a": { "s": { "app:chrome.exe": 3000000 }, "h": { "14": 3000000 }, "hs": { "14": { "app:chrome.exe": 3000000 } } },
+      "name": "an hour never holds more than an hour: names that counted the same minutes share it",
+      "a": { "s": { "app:code.exe": 3000000 }, "h": { "14": 3000000 }, "hs": { "14": { "app:code.exe": 3000000 } } },
       "b": { "s": { "youtube.com": 2400000 }, "h": { "14": 2400000 }, "hs": { "14": { "youtube.com": 2400000 } } },
-      "out": { "s": { "app:chrome.exe": 2000000, "youtube.com": 1600000 }, "h": { "14": 3600000 }, "hs": { "14": { "app:chrome.exe": 2000000, "youtube.com": 1600000 } } }
+      "out": { "s": { "app:code.exe": 2000000, "youtube.com": 1600000 }, "h": { "14": 3600000 }, "hs": { "14": { "app:code.exe": 2000000, "youtube.com": 1600000 } } }
+    },
+    {
+      "name": "a browser and its sites are the same minutes: the hour counts them once (Windows' Chrome and its sites, the extension's sites)",
+      "a": { "s": { "app:chrome.exe": 2400000, "youtube.com": 2400000, "app:code.exe": 900000 }, "h": { "10": 3300000 }, "hs": { "10": { "app:chrome.exe": 2400000, "youtube.com": 2400000, "app:code.exe": 900000 } } },
+      "b": { "s": { "youtube.com": 2280000, "github.com": 120000 }, "h": { "10": 2400000 }, "hs": { "10": { "youtube.com": 2280000, "github.com": 120000 } } },
+      "out": { "s": { "app:chrome.exe": 2400000, "youtube.com": 2400000, "app:code.exe": 900000, "github.com": 120000 }, "h": { "10": 3420000 }, "hs": { "10": { "app:chrome.exe": 2400000, "youtube.com": 2400000, "app:code.exe": 900000, "github.com": 120000 } } }
+    },
+    {
+      "name": "an hour only the browser counted (Memoir for Windows closed): its sites are the hour",
+      "a": { "s": { "app:code.exe": 1200000 }, "h": { "9": 1200000 }, "hs": { "9": { "app:code.exe": 1200000 } } },
+      "b": { "s": { "youtube.com": 1800000, "reddit.com": 300000 }, "h": { "11": 2100000 }, "hs": { "11": { "youtube.com": 1800000, "reddit.com": 300000 } } },
+      "out": { "s": { "app:code.exe": 1200000, "youtube.com": 1800000, "reddit.com": 300000 }, "h": { "9": 1200000, "11": 2100000 }, "hs": { "9": { "app:code.exe": 1200000 }, "11": { "youtube.com": 1800000, "reddit.com": 300000 } } }
+    },
+    {
+      "name": "sites beyond the browser's own time count too (another browser, or the app closed halfway), never past an hour",
+      "a": { "s": { "app:chrome.exe": 3000000, "youtube.com": 3000000 }, "h": { "15": 3000000 }, "hs": { "15": { "app:chrome.exe": 3000000, "youtube.com": 3000000 } } },
+      "b": { "s": { "youtube.com": 3000000, "github.com": 1200000 }, "h": { "15": 4200000 }, "hs": { "15": { "youtube.com": 3000000, "github.com": 1200000 } } },
+      "out": { "s": { "app:chrome.exe": 2571428, "youtube.com": 2571428, "github.com": 1028571 }, "h": { "15": 3599999 }, "hs": { "15": { "app:chrome.exe": 2571428, "youtube.com": 2571428, "github.com": 1028571 } } }
     },
     {
       "name": "titles: the larger time per title, hour by hour; the incoming link wins; deleted-titles lists join",

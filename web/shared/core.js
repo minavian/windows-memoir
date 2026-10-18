@@ -396,7 +396,35 @@ export function cloneDay(d) {
   return { s: { ...d.s }, h: d.h.slice(), hs, ti, th, tu, tp: (d.tp || []).slice() };
 }
 
-export const dayTotal = d => Object.values(d.s).reduce((a, b) => a + b, 0);
+// ---------- each minute once: Windows apps, and the sites in browsers ----------
+// Memoir for Windows files a browser's time twice: under the browser (an app, with all its time) and under the
+// site in front, as Memoir in a browser does. So the report can list apps and sites apart, and the two can
+// merge site by site. Everything that adds time up (totals, the limit, categories, hours) counts it once: a
+// browser keeps only the time its sites don't account for. Memoir for Windows has the same (SyncData.cs).
+export const BROWSER_APP = /^app:(chrome|msedge|firefox|brave|vivaldi|opera|thorium|chromium|zen|comet|arc|whale|browser|yandex|iridium|librewolf|waterfox|floorp)\.exe$/i;
+export const isBrowserApp = d => typeof d === 'string' && BROWSER_APP.test(d);
+const sumOf = m => Object.values(m || {}).reduce((a, b) => a + b, 0);
+// what an hour went to, each minute once
+export function hourParts(slot) {
+  if (!slot) return {};
+  let browsers = 0, sites = 0;
+  for (const [d, ms] of Object.entries(slot)) { if (isBrowserApp(d)) browsers += ms; else if (!isApp(d)) sites += ms; }
+  if (!browsers || !sites) return slot;
+  const keep = Math.max(0, browsers - sites) / browsers;
+  const out = {};
+  for (const [d, ms] of Object.entries(slot)) { const v = isBrowserApp(d) ? Math.round(ms * keep) : ms; if (v > 0) out[d] = v; }
+  return out;
+}
+export const hourTotal = slot => sumOf(hourParts(slot));
+// a day's names, each minute once (a day kept without hours by older versions: its names as they are)
+export function dayParts(d) {
+  const hours = Object.values(d.hs || {});
+  if (!hours.length) return d.s;
+  const out = {};
+  for (const slot of hours) for (const [k, ms] of Object.entries(hourParts(slot))) out[k] = (out[k] || 0) + ms;
+  return out;
+}
+export const dayTotal = d => sumOf(dayParts(d));
 
 // ---------- days from outside: an import, or Memoir for Windows once linked ----------
 // One set of rules for both, and Memoir for Windows has the same in C# (src/Sync.cs): the merge
@@ -462,16 +490,18 @@ export function cleanDay(v) {
 // Days kept without per-hour detail by older versions keep whichever record holds more.
 const hourlyTotal = d => Object.values(d.hs).reduce((t, slot) => t + Object.values(slot).reduce((x, y) => x + y, 0), 0);
 export function mergeDay(a, b) {
-  if (Math.abs(hourlyTotal(a) - dayTotal(a)) > 1000 || Math.abs(hourlyTotal(b) - dayTotal(b)) > 1000) return dayTotal(b) > dayTotal(a) ? b : a;
+  if (Math.abs(hourlyTotal(a) - sumOf(a.s)) > 1000 || Math.abs(hourlyTotal(b) - sumOf(b.s)) > 1000) return sumOf(b.s) > sumOf(a.s) ? b : a;
   const out = { s: {}, h: new Array(24).fill(0), hs: {}, ti: {}, th: {}, tu: {}, tp: [...new Set([...(a.tp || []), ...(b.tp || [])])] };
   for (let h = 0; h < 24; h++) {
     const slot = {};
     for (const from of [a.hs[h], b.hs[h]]) for (const [d, ms] of Object.entries(from || {})) slot[d] = Math.max(slot[d] || 0, ms);
     if (!Object.keys(slot).length) continue;
-    const sum = Object.values(slot).reduce((x, y) => x + y, 0);
-    if (sum > HOUR_MS) for (const d of Object.keys(slot)) slot[d] = Math.floor(slot[d] * HOUR_MS / sum);
+    // (a browser and its sites are the same minutes: the hour's time counts them once)
+    const total = hourTotal(slot);
+    if (total > HOUR_MS) for (const d of Object.keys(slot)) slot[d] = Math.floor(slot[d] * HOUR_MS / total);
     out.hs[h] = slot;
-    for (const [d, ms] of Object.entries(slot)) { out.s[d] = (out.s[d] || 0) + ms; out.h[h] += ms; }
+    for (const [d, ms] of Object.entries(slot)) out.s[d] = (out.s[d] || 0) + ms;
+    out.h[h] = hourTotal(slot);
   }
   for (const from of [a.ti, b.ti]) {
     for (const [d, pages] of Object.entries(from)) {

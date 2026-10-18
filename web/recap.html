@@ -319,9 +319,15 @@
         <div class="heat-wrap" id="heat-wrap"><div class="heat" id="heat" role="grid" aria-label="Screen time by hour of day. Use arrow keys to move and Enter to open an hour."></div><div class="heat-sel" id="heat-sel" aria-hidden="true"><div class="hs-dim"><i class="hs-b" data-k="l"></i><i class="hs-b" data-k="r"></i><i class="hs-b" data-k="t"></i><i class="hs-b" data-k="b"></i></div><i class="hs-e" data-k="t"></i><i class="hs-e" data-k="b"></i><i class="hs-e" data-k="l"></i><i class="hs-e" data-k="r"></i><i class="hs-c" data-k="tl"></i><i class="hs-c" data-k="tr"></i><i class="hs-c" data-k="bl"></i><i class="hs-c" data-k="br"></i></div></div>
       </section>
 
-      <section class="card sites-card lift" data-anim style="--i:6">
+      <section class="card sites-card lift" id="sites-card" data-anim style="--i:6">
         <header class="panel-head">
           <h2 class="section-title">Most used</h2>
+          <!-- with Windows apps and websites both here: one list or the other, never the two added (recap.js ofKind) -->
+          <div class="segmented scope-seg kind-seg" id="kind" role="group" aria-label="Show apps, or the websites in browsers" hidden>
+            <span class="thumb"></span>
+            <button type="button" data-kind="apps" aria-pressed="true">Apps</button>
+            <button type="button" data-kind="sites" aria-pressed="false">Browsers</button>
+          </div>
           <span class="caption" id="sites-cap">This week · click a category to change it</span>
         </header>
         <ol class="sites" id="sites"></ol>

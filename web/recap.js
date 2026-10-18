@@ -2,7 +2,7 @@ import {
   CATEGORIES, CATEGORY_BY_ID, PRIVATE_KEY, isPrivate, isPage, siteName, categorize, dayKey, dateFromKey, addDays, startOfWeek,
   weekDayKeys, getDays, getSession, unsavedMs, getSettings, updateSettings, getCategoryOverrides,
   setCategoryOverride, getOrigins, formatDuration, formatBytes, formatTimeOfDay, hourLabel, hourRange, escapeHtml,
-  storageKeyForDay, normalizeDay, cloneDay, dayTotal, listDayKeys, normalizeSite, isExcluded, uses24h,
+  storageKeyForDay, normalizeDay, cloneDay, dayTotal, dayParts, listDayKeys, normalizeSite, isExcluded, uses24h,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, goalLevel, retentionCutoffKey, resetLimit,
   withData, domainFromUrl, safeKey, cleanUrl, EXPORT_FORMAT, GOAL_MIN_MS, GOAL_MAX_MS,
   isApp, siteKey, cleanDay, mergeDay, anonymizeDay, setApps, listDayRecordKeys, recordDate,
@@ -261,6 +261,11 @@ function mergeSession(day, session, now = new Date()) {
   day.h[h] += extra;
   const slot = day.hs[h] || (day.hs[h] = {});
   slot[session.domain] = (slot[session.domain] || 0) + extra;
+  // (Memoir for Windows: a site in front is filed under its browser too, counted once like the rest)
+  if (session.browser && session.browser !== session.domain) {
+    day.s[session.browser] = (day.s[session.browser] || 0) + extra;
+    slot[session.browser] = (slot[session.browser] || 0) + extra;
+  }
 }
 
 async function loadWeek(weekStart) {
@@ -289,14 +294,16 @@ function summarize({ keys, days, prevDays }) {
   const now = new Date();
 
   const dayTotals = days.map(dayTotal);
-  const dayPrivate = days.map(d => d.s[PRIVATE_KEY] || 0);
+  // what each day went to, each minute once (a browser and its sites counted once: core.js hourParts)
+  const parts = days.map(dayParts);
+  const dayPrivate = parts.map(p => p[PRIVATE_KEY] || 0);
   const dayVisible = dayTotals.map((t, i) => t - dayPrivate[i]);
   const total = sum(dayTotals);
   const privateTotal = sum(dayPrivate);
   const totalVisible = total - privateTotal;
-  const dayCats = days.map(d => {
+  const dayCats = parts.map(p => {
     const c = {};
-    for (const [dom, ms] of Object.entries(d.s)) {
+    for (const [dom, ms] of Object.entries(p)) {
       if (isPrivate(dom)) continue;
       const cat = categorize(dom, overrides);
       c[cat] = (c[cat] || 0) + ms;
@@ -305,8 +312,10 @@ function summarize({ keys, days, prevDays }) {
   });
 
   const sites = {};
-  for (const d of days) for (const [dom, ms] of Object.entries(d.s)) if (!isPrivate(dom)) sites[dom] = (sites[dom] || 0) + ms;
+  for (const p of parts) for (const [dom, ms] of Object.entries(p)) if (!isPrivate(dom)) sites[dom] = (sites[dom] || 0) + ms;
   const siteList = Object.entries(sites).filter(([, ms]) => ms >= 1000).sort((a, b) => b[1] - a[1]);
+  // Most used: every app and site with all its own time (a browser with all of it), shown apart (Apps | Browsers)
+  const nameList = namesOf(days);
 
   const cats = {};
   for (const c of dayCats) for (const [id, ms] of Object.entries(c)) cats[id] = (cats[id] || 0) + ms;
@@ -341,7 +350,7 @@ function summarize({ keys, days, prevDays }) {
   const over = keys.map((k, i) => evaluated[i] && dayTotals[i] > limits[i]);
 
   return {
-    keys, days, dayTotals, dayVisible, dayPrivate, dayCats, total, totalVisible, privateTotal, siteList, cats,
+    keys, days, dayTotals, dayVisible, dayPrivate, dayCats, total, totalVisible, privateTotal, siteList, nameList, cats,
     activeDays, avg, visibleAvg, busiest, calmest, hourTotals, peakHour, prevTotal, halfCount, todayIdx, isCurrent,
     limits, future, evaluated, over,
   };
@@ -1517,7 +1526,7 @@ function buildDayView(wrap, i, soft) {
     strip.appendChild(l);
   }
 
-  const list = siteRows(Object.entries(d.s), soft, [i], { hour: null });
+  const list = siteRows(ofKind(Object.entries(d.s).filter(([dom]) => !isPrivate(dom))), soft, [i], { hour: null });
   list.style.setProperty('--i', 2);
   wrap.append(top, strip, list);
   if (!list.children.length) wrap.appendChild(emptyNote(total > 0 ? 'Only private activity on this day.' : 'No screen time on this day.'));
@@ -1862,13 +1871,14 @@ function scopeDay(s) {
 function scoped(s = state.summary) {
   if (state.scope !== 'day') {
     const sub = state.demo ? 'sample week' : 'this week';
-    return { day: null, cats: s.cats, siteList: s.siteList, total: s.totalVisible, sub, of: 'of the week', when: 'this week' };
+    return { day: null, cats: s.cats, siteList: s.siteList, nameList: s.nameList, total: s.totalVisible, sub, of: 'of the week', when: 'this week' };
   }
   const i = scopeDay(s);
-  const siteList = Object.entries(s.days[i].s).filter(([d, ms]) => !isPrivate(d) && ms >= 1000).sort((a, b) => b[1] - a[1]);
+  const siteList = Object.entries(dayParts(s.days[i])).filter(([d, ms]) => !isPrivate(d) && ms >= 1000).sort((a, b) => b[1] - a[1]);
+  const nameList = namesOf([s.days[i]]);
   const today = s.keys[i] === dayKey(new Date());
   const name = today ? 'today' : longDay.format(dateFromKey(s.keys[i]));
-  return { day: i, cats: s.dayCats[i], siteList, total: s.dayVisible[i], sub: name, of: `of ${name}`, when: today ? 'today' : `on ${name}` };
+  return { day: i, cats: s.dayCats[i], siteList, nameList, total: s.dayVisible[i], sub: name, of: `of ${name}`, when: today ? 'today' : `on ${name}` };
 }
 let scopeShownDay = null;
 let scopeTried = false; // visited Week before returning to Day (for the tour)
@@ -2508,6 +2518,47 @@ function regroup(list, key, build) {
 
 // ----- most used -----
 
+// Apps (Memoir for Windows' apps, browsers among them with all their time) or Browsers (the sites and pages in
+// them): two lists of the same minutes, so each is whole on its own and they're never added together. With only
+// one kind (the extension on its own), there's no switch.
+const isAppName = d => isApp(d) || (!!window.memoir?.windows && d === '~memoir');   // (here, Memoir's own window)
+function namesOf(days) {
+  const names = {};
+  for (const d of days) for (const [dom, ms] of Object.entries(d.s)) if (!isPrivate(dom)) names[dom] = (names[dom] || 0) + ms;
+  return Object.entries(names).filter(([, ms]) => ms >= 1000).sort((a, b) => b[1] - a[1]);
+}
+const KIND_KEY = 'memoir-kind';
+function shownKind() {
+  let kind = null;
+  try { kind = localStorage.getItem(KIND_KEY); } catch { /* not kept */ }
+  return kind === 'apps' || kind === 'sites' ? kind : window.memoir?.windows ? 'apps' : 'sites';
+}
+// the list for the kind shown (the switch follows what there is: both kinds, or none to choose from)
+function ofKind(list, showSwitch = false) {
+  const apps = list.filter(([d]) => isAppName(d)), sites = list.filter(([d]) => !isAppName(d));
+  const both = apps.length > 0 && sites.length > 0;
+  if (showSwitch) setKindSwitch(both);
+  if (!both) return list;
+  return shownKind() === 'apps' ? apps : sites;
+}
+function setKindSwitch(on) {
+  const seg = $('kind');
+  const kind = shownKind();
+  $('sites-card').classList.toggle('kinds', on);
+  if (seg.hidden === !on && seg.dataset.kind === kind) return;
+  seg.hidden = !on;
+  seg.dataset.kind = kind;
+  seg.style.setProperty('--k', kind === 'sites' ? 1 : 0);
+  for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
+}
+function setKind(kind) {
+  if (kind === shownKind() && $('kind').dataset.kind === kind) return;
+  try { localStorage.setItem(KIND_KEY, kind); } catch { /* this visit only */ }
+  if (!state.summary) return;
+  renderSites(state.summary, true);
+  if (state.view.type === 'day') renderDetail({ soft: true });
+}
+
 function renderSites(s, soft) {
   // the rows are about to be rebuilt: a site's pages close back into their row first
   if (pages.isOpen) closePagePop();
@@ -2526,7 +2577,7 @@ function buildSites(s, soft) {
   const sc = scoped(s);
   const cap = `${sc.sub.charAt(0).toUpperCase()}${sc.sub.slice(1)} · click a category to change it`;
   if ($('sites-cap').textContent !== cap) swapText($('sites-cap'), cap);
-  const top = sc.siteList.slice(0, 60);
+  const top = ofKind(sc.nameList, true).slice(0, 60);
   const max = top.length ? top[0][1] : 1;
   const idxs = sc.day == null ? null : [sc.day];
   // only the rows you can see make an entrance; the rest are simply there
@@ -3930,6 +3981,10 @@ function wire() {
   $('scope').addEventListener('click', e => {
     const b = e.target.closest('button[data-scope]');
     if (b) setScope(b.dataset.scope);
+  });
+  $('kind').addEventListener('click', e => {
+    const b = e.target.closest('button[data-kind]');
+    if (b) setKind(b.dataset.kind);
   });
   $('next-week').addEventListener('click', () => {
     const next = addDays(state.weekStart, 7);

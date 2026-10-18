@@ -1,7 +1,7 @@
 import {
   CATEGORIES, CATEGORY_BY_ID, isPrivate, siteName, categorize, dayKey, addDays, getDays, normalizeDay,
   getSettings, updateSettings, getCategoryOverrides, getSession, unsavedMs, getOrigins,
-  formatDuration, storageKeyForDay, dayTotal,
+  formatDuration, storageKeyForDay, dayTotal, dayParts,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, setApps, recordDate,
 } from './shared/core.js';
 import {
@@ -100,9 +100,10 @@ async function main() {
   chrome.storage.onChanged.addListener(onStorage);
 }
 
-// Today's time per site, including the seconds the tracker hasn't saved yet.
+// Today's time per site, including the seconds the tracker hasn't saved yet (each minute once: with Memoir for
+// Windows, a browser and its sites are the same minutes)
 function liveSites() {
-  const sites = { ...state.today.s };
+  const sites = { ...dayParts(state.today) };
   const s = state.session;
   if (s && !state.paused) {
     const extra = unsavedMs(s);

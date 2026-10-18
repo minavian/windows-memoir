@@ -97,25 +97,48 @@ namespace Memoir {
 
         private static double Sum(object map) { return Json.Map(map).Values.Sum(x => Json.Number(x)); }
         private static double HourlyTotal(Dictionary<string, object> d) { return Json.Map(d["hs"]).Values.Sum(slot => Sum(slot)); }
-        public static double DayTotal(Dictionary<string, object> d) { return Sum(d["s"]); }
+
+        // Each minute once (core.js hourParts): this app files a browser's time twice, under the browser (an app,
+        // with all its time) and under the site in front, as Memoir in a browser does. Whatever adds time up
+        // counts it once: a browser keeps only the time its sites don't account for.
+        public static readonly Regex BrowserApp = new Regex(@"^app:(chrome|msedge|firefox|brave|vivaldi|opera|thorium|chromium|zen|comet|arc|whale|browser|yandex|iridium|librewolf|waterfox|floorp)\.exe$", RegexOptions.IgnoreCase);
+        public static bool IsBrowserApp(string d) { return d != null && BrowserApp.IsMatch(d); }
+        public static Dictionary<string, double> HourParts(IDictionary<string, double> slot) {
+            double browsers = 0, sites = 0;
+            foreach (var pair in slot) { if (IsBrowserApp(pair.Key)) browsers += pair.Value; else if (!IsApp(pair.Key)) sites += pair.Value; }
+            var parts = new Dictionary<string, double>();
+            if (browsers == 0 || sites == 0) { foreach (var pair in slot) parts[pair.Key] = pair.Value; return parts; }
+            double keep = Math.Max(0, browsers - sites) / browsers;
+            // (JavaScript's Math.round, not .NET's banker's rounding: both sides must agree to the millisecond)
+            foreach (var pair in slot) { double v = IsBrowserApp(pair.Key) ? Math.Floor(pair.Value * keep + 0.5) : pair.Value; if (v > 0) parts[pair.Key] = v; }
+            return parts;
+        }
+        public static double HourTotal(IDictionary<string, double> slot) { return HourParts(slot).Values.Sum(); }
+        private static Dictionary<string, double> Slot(object map) { var slot = new Dictionary<string, double>(); foreach (var pair in Json.Map(map)) slot[pair.Key] = Json.Number(pair.Value); return slot; }
+        // a day's time, each minute once (a day kept without hours by older versions: its names' times)
+        public static double DayTotal(Dictionary<string, object> d) {
+            var hours = Json.Map(Json.Get(d, "hs"));
+            return hours.Count == 0 ? Sum(Json.Get(d, "s")) : hours.Values.Sum(slot => HourTotal(Slot(slot)));
+        }
 
         // A day in both (each normalized): the larger time for each name in each hour, never the sum; no hour
         // holds more than an hour (past that the two counted the same minutes under different names, so they
         // share it); titles the same way, hour by hour; the incoming (b) link wins; deleted-titles lists join.
         // A day kept without hourly detail by older versions: the fuller record wins whole.
         public static Dictionary<string, object> MergeDay(Dictionary<string, object> a, Dictionary<string, object> b) {
-            if (Math.Abs(HourlyTotal(a) - DayTotal(a)) > 1000 || Math.Abs(HourlyTotal(b) - DayTotal(b)) > 1000) return Json.Clone(DayTotal(b) > DayTotal(a) ? b : a);
+            if (Math.Abs(HourlyTotal(a) - Sum(a["s"])) > 1000 || Math.Abs(HourlyTotal(b) - Sum(b["s"])) > 1000) return Json.Clone(Sum(b["s"]) > Sum(a["s"]) ? b : a);
             var s = new Dictionary<string, object>(); var h = new double[24]; var hs = new Dictionary<string, object>();
             for (int hour = 0; hour < 24; hour++) {
                 string key = hour.ToString();
                 var slot = new Dictionary<string, double>();
                 foreach (var from in new[] { a, b }) foreach (var pair in Json.Map(Json.Get(Json.Map(from["hs"]), key))) slot[pair.Key] = Math.Max(slot.ContainsKey(pair.Key) ? slot[pair.Key] : 0, Json.Number(pair.Value));
                 if (slot.Count == 0) continue;
-                double sum = slot.Values.Sum();
-                if (sum > HourMs) foreach (string name in slot.Keys.ToArray()) slot[name] = Math.Floor(slot[name] * HourMs / sum);
+                // (a browser and its sites are the same minutes: the hour's time counts them once)
+                double total = HourTotal(slot);
+                if (total > HourMs) foreach (string name in slot.Keys.ToArray()) slot[name] = Math.Floor(slot[name] * HourMs / total);
                 var stored = new Dictionary<string, object>();
-                foreach (var pair in slot) { stored[pair.Key] = pair.Value; s[pair.Key] = Json.Number(Json.Get(s, pair.Key)) + pair.Value; h[hour] += pair.Value; }
-                hs[key] = stored;
+                foreach (var pair in slot) { stored[pair.Key] = pair.Value; s[pair.Key] = Json.Number(Json.Get(s, pair.Key)) + pair.Value; }
+                hs[key] = stored; h[hour] = HourTotal(slot);
             }
             var ti = new Dictionary<string, object>();
             foreach (var from in new[] { a, b }) foreach (var site in Json.Map(from["ti"])) {

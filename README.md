@@ -24,7 +24,7 @@ Memoir starts when you sign in, in the notification area without its window (`--
 
 ## Tracking and data
 
-Only the foreground app counts. After 60 seconds without input, tracking pauses unless that app is playing audio. Locking or sleeping stops the clock. Memoir's own window counts as Memoir, as the extension counts its own pages; its tray menu and the desktop/taskbar are ignored. Time is assigned to local days and hours, including daylight-saving changes.
+Only the foreground app counts. A browser counts as an app, with all its time, and the website in front counts too: the same seconds under both names (`Target.Browser`), so the report can list Apps and Browsers apart; totals, the limit, categories and hours count them once (`SyncData.HourParts`, the extension's `hourParts`). After 60 seconds without input, tracking pauses unless that app is playing audio. Locking or sleeping stops the clock. Memoir's own window counts as Memoir, as the extension counts its own pages; its tray menu and the desktop/taskbar are ignored. Time is assigned to local days and hours, including daylight-saving changes.
 
 Data stays in `Data` beside the executable: `history.json`, a last-valid backup, and cached app icons. The WebView profile stores interface preferences. Page/window titles are off by default; when on, they're also kept hour by hour, as the extension keeps them. Never track entries become anonymous Private time, including their existing history; erasing titles also removes them from the backup. Use Settings to import or export history and change retention.
 

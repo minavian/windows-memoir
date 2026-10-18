@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 namespace Memoir {
     internal sealed class Target {
         public string Domain, Origin, Title, Name, Category;
+        public string Browser;   // a site (or a browser's own page) in front: the browser it's in, filed too (SyncData.HourParts)
         public int ProcessId;
         public bool Audible;
         public Target Copy() { return (Target)MemberwiseClone(); }
@@ -144,7 +145,7 @@ namespace Memoir {
             if (current != null) PublishSession();
         }
         public Dictionary<string, object> Session {
-            get { return current == null ? null : Json.Object("domain", current.Domain, "origin", current.Origin, "title", current.Title, "start", start, "since", since); }
+            get { return current == null ? null : Json.Object("domain", current.Domain, "browser", BrowserKey(current), "origin", current.Origin, "title", current.Title, "start", start, "since", since); }
         }
         private void PublishSession() { if (SessionChanged != null) SessionChanged(Session); }
         public void Pulse(long now) {
@@ -155,10 +156,18 @@ namespace Memoir {
             if (local >= nextReminder) { WeeklyReminder(local); ScheduleReminder(local.AddMinutes(1)); }
             if (now - lastSave >= 30000) { store.Save(); lastSave = now; }
         }
+        // the browser a site is in, filed with it: the same seconds under both names, the hour counting them once
+        // (not when the browser itself is on Never track: its time stays Private, under one name)
+        private string BrowserKey(Target target) {
+            string browser = target.Browser;
+            if (String.IsNullOrEmpty(browser) || browser == target.Domain || !SyncData.IsApp(browser) || Excluded(browser, Json.Get(Settings, "excluded"))) return null;
+            return browser;
+        }
         public void Commit(Target target, long from, long to, Dictionary<string, object> settings) {
             if (to <= from) return;
             bool priv = target.Domain == "~private" || Excluded(target.Domain, Json.Get(settings, "excluded"));
             string domain = priv ? "~private" : target.Domain;
+            string browser = BrowserKey(target);
             string title = !priv && Json.Bool(Json.Get(settings, "titles")) ? target.Title : null;
             var patch = new Dictionary<string, object>();
             while (from < to) {
@@ -174,6 +183,7 @@ namespace Memoir {
                 sites[domain] = Json.Number(Json.Get(sites, domain)) + ms;
                 hours[local.Hour] = Json.Number(hours[local.Hour]) + ms;
                 slot[domain] = Json.Number(Json.Get(slot, domain)) + ms; slots[hour] = slot;
+                if (browser != null) { sites[browser] = Json.Number(Json.Get(sites, browser)) + ms; slot[browser] = Json.Number(Json.Get(slot, browser)) + ms; }
                 rec["s"] = sites; rec["h"] = hours; rec["hs"] = slots;
                 if (!String.IsNullOrEmpty(title)) {
                     var titles = Json.Map(rec["ti"]); var pages = Json.Map(Json.Get(titles, domain));
@@ -213,7 +223,8 @@ namespace Memoir {
         // Runs every second while a limit is set: unlinked, it reads the stored record instead of cloning it.
         public double Total(string day) {
             if (Json.Array(Json.Get(store.Data, "linkPeers")).Length > 0) return SyncData.DayTotal(View(day));
-            return Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "day:" + day)), "s")).Values.Sum(v => Json.Number(v));
+            object own = Json.Get(store.Data, "day:" + day);
+            return own == null ? 0 : SyncData.DayTotal(Normalize(own));   // (a browser and its sites counted once)
         }
         public double Limit(string day) {
             double result = 0; string latest = "";

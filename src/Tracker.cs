@@ -114,7 +114,7 @@ namespace Memoir {
             string page = exact == null ? "" : Json.Text(Json.Get(exact, "page"));
             if (SyncData.IsPage(page)) { domain = page; target.Origin = null; }
             if (exact != null && Json.Bool(Json.Get(exact, "incognito"))) { domain = "~private"; target.Origin = null; }
-            if (domain != null) { target.Domain = domain; target.Origin = BrowserProbe.Origin(url); target.Name = domain; BrowserStatus = "Website detection is active"; }
+            if (domain != null) { target.Domain = domain; target.Origin = BrowserProbe.Origin(url); target.Name = domain; target.Browser = app.Domain; BrowserStatus = "Website detection is active"; }
             else BrowserStatus = "This browser window is recorded as app time until its address is available";
             target.Title = Json.Bool(Json.Get(engine.Settings, "titles")) ? Regex.Replace(Native.Title(hwnd), @"\s[-—]\s(Google Chrome|Microsoft Edge|Mozilla Firefox|Brave|Opera|Vivaldi)$", "") : null;
             if (exact != null) { target.Title = Json.Text(Json.Get(exact, "title")); target.Audible = Json.Bool(Json.Get(exact, "audible")) && !Json.Bool(Json.Get(exact, "muted")); BrowserStatus = "Browser connector is active"; }

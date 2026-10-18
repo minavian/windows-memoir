@@ -28,6 +28,20 @@ namespace Memoir {
             True(Json.Map(Engine.Normalize(s.Data["day:2026-10-03"])["ti"]).Count == 0, "Titles are off by default");
             True(Json.Map(s.Data["origins"]).ContainsKey("example.com"), "Website origin saved locally");
 
+            // a site in a browser: filed under the site and the browser, the same seconds counted once
+            s = Fresh(); e = UTC(s);
+            var tube = App("youtube.com"); tube.Browser = "app:chrome.exe";
+            e.Observe(App("app:code.exe"), t, 0); e.Observe(tube, t + 20000, 0); e.Flush(t + 50000);
+            Eq(Site(s, "2026-10-03", "youtube.com"), 30000, "A site in a browser counts under the site");
+            Eq(Site(s, "2026-10-03", "app:chrome.exe"), 30000, "and under the browser, with all its time");
+            Eq(Hour(s, "2026-10-03", 12), 50000, "The hour counts those seconds once");
+            Eq(e.Total("2026-10-03"), 50000, "So does the day (and the limit)");
+            True(Json.Text(e.Session["browser"]) == "app:chrome.exe", "The live session says which browser");
+            s.Set(Json.Object("settings", Json.Object("excluded", new object[] { "app:chrome.exe" })));
+            e.Observe(tube, t + 60000, 0); e.Flush(t + 70000);
+            Eq(Site(s, "2026-10-03", "app:chrome.exe"), 30000, "A browser on Never track isn't filed again");
+            Eq(e.Total("2026-10-03"), 60000, "and its site's time still counts, once");
+
             s = Fresh(); e = UTC(s); e.Observe(App(), t, 0);
             for (int i = 1; i <= 90; i++) { e.Observe(App(), t + i * 1000, i * 1000); e.Pulse(t + i * 1000); }
             Eq(e.Total("2026-10-03"), 60000, "Idle time stops exactly at sixty seconds"); True(e.Session == null, "Idle clears session");
