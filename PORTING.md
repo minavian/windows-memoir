@@ -9,7 +9,7 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `d2bb440` (minavian/memoir-browser-screen-time: the link with the extension). That commit is the merge base for the next port.
+**Last synced:** 6.0.0, from the extension's commit `3ff332f` (minavian/memoir-browser-screen-time: the link's row in Settings). That commit is the merge base for the next port.
 
 **The link** (SYNC-PLAN.md in the extension's repository): `BrowserLink.cs` (the pipe, many held-open two-way connections; the native host relaying both ways), `Registration.cs` (the host's manifest and HKCU keys at every start; trusted IDs in `extension-ids.txt`), `Sync.cs` (the exchange, per-peer pending dates, rules, markers) and `SyncData.cs` (`CleanDay`, `MergeDay`, `AnonymizeDay`: the extension's core.js in C#). `tests/merge-cases/merge.json` is a copy of the extension's: when it changes there, copy it here, and `tests/run.ps1` checks both agree.
 
@@ -51,11 +51,13 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - Wording: "browsing" becomes "screen time" / "activity", "sites" becomes "apps and websites", and "this browser" becomes "this computer": the summary and highlights, empty states, hour and heatmap tooltips ("Screen time"), the trend note and "Days used", the private-time note, the category list's titles, toasts, the hidden Never-track entries' labels, "Never track it" in the category menu, and the tour steps (the last one points at the clock in the notification area).
 - Tracking detail's text: titles on, "Saves page and window titles, like a video you watched on YouTube or a document you had open. They’re kept as long as your history."; off, "Only app and website names are saved, not titles, like Word or youtube.com."
 - `eraseTitles()`: also call `await window.memoir.request('privacy.titles');`. The native side erases titles from the backup too.
+- The tour's "Sample week, tour and data" step: "sync with the <b>Memoir extension</b>" (not "Memoir for Windows").
+- (Shared since `3ff332f`, no edit: the link row's Windows side in `renderLink`/`pressLink`, from the `sync` record's peers and `link.unlink`.)
 - (Shared since `d2bb440`, no edit: `apps` in `anonymizeSites`, `clearAllData` and Import.)
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.
 
 ### `recap.html`
-- "Track screen time" / "Pause any time from Today or the tray" (tracking switch), "Names only" (detail option), Never-track description in terms of apps and websites, footer "Your data never leaves this computer", empty-state text, `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
+- "Track screen time" / "Pause any time from Today or the tray" (tracking switch), "Names only" (detail option), Never-track description in terms of apps and websites, empty-state text, the link row's starting texts (`link-title` "Memoir extension", `link-desc` "Link it from Memoir in your browser", `link-btn` `hidden`) and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
 
 ### `welcome.js`
 - Tagline "Screen Time"; "This app tracks your screen time and summarizes it."; "Everything stays on this computer."

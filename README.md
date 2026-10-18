@@ -22,6 +22,12 @@ Data stays in `Data` beside the executable: `history.json`, a last-valid backup,
 
 Website detection reads supported browsers' address bars using Windows accessibility, without inspecting webpage content. Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Comet, and Arc are recognized. An inaccessible address bar falls back to the browser app. Without the optional connector, audio detection is at browser-process level, so background-tab audio can keep a foreground browser session active. Private-window detection requires the connector; the fallback cannot reliably distinguish private browsing.
 
+## Linked with the Memoir extension
+
+The Memoir extension for Chrome and Edge links with this app from its own Settings (Your data → Memoir for Windows → Link). They talk through native messaging and a pipe restricted to your Windows account: on this computer only, never online. Each side keeps its own days and stores the other's apart (`link:<device>:<date>`); what you see is the two merged, taking the larger time for each app or website in each hour, so time both saw counts once. Never track, page titles, Keep history, the weekly reminder, the daily limit and categories follow whichever side changed last; Clear all and erasing titles reach both. While this app is open, it sends the limit's and the weekly notifications instead of the browser.
+
+Memoir registers itself as the native host `com.minavian.memoir` each time it starts (your account only, for Chrome, Edge, Chromium, Brave and Vivaldi), trusting the extension IDs in `extension-ids.txt` and the Browser Connector's. Settings → Your data shows the browser linked with this app, whether it's in sync, and Unlink; unlinking from either side keeps everything both have so far.
+
 ## Optional exact browser connector
 
 For Chromium browsers, the small connector supplies the active tab's origin, focus, exact audio/mute status, and private-window status. Private time remains anonymous. It sends no paths or query strings. It uses a native messaging connection and a local pipe restricted to your Windows account; no local web server is opened.
@@ -30,7 +36,7 @@ For Chromium browsers, the small connector supplies the active tab's origin, foc
 2. Run **Register Browser Connector.ps1** from this folder. It registers this copy of Memoir for your Windows account in Chrome, Edge, Chromium, Brave, and Vivaldi. There is no administrator requirement.
 3. Keep Memoir running. If you want private browsing counted anonymously, manually allow the connector in private windows in the browser's extension settings.
 
-Run **Unregister Browser Connector.ps1** to remove those native messaging registrations, then remove the extension in your browser. Firefox works through address-bar detection; this Chromium connector is not a Firefox extension. If you move the Memoir folder, run the registration script again. The original screen-time extension and this connector are separate: import the original extension's export if you want its history in Windows Memoir.
+Run **Unregister Browser Connector.ps1** to remove those native messaging registrations, then remove the extension in your browser. Firefox works through address-bar detection; this Chromium connector is not a Firefox extension. If you move the Memoir folder, run the registration script again. The Memoir extension and this connector are separate: link the extension (above) or import its export to bring its history into Windows Memoir.
 
 ## Build and verification
 

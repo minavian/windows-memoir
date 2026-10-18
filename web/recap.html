@@ -187,6 +187,11 @@
 
                   <div class="p-block">
                     <span class="p-label">Your data</span>
+                    <!-- the Memoir extension linked with this app: In sync (or Linked while the browser is closed); pressed again, Unlink? (recap.js renderLink) -->
+                    <div class="p-row link-row" id="link-row">
+                      <span><b id="link-title">Memoir extension</b><small id="link-desc">Link it from Memoir in your browser</small></span>
+                      <button class="btn btn-secondary btn-xs link-btn" id="link-btn" type="button" aria-describedby="link-desc" hidden><svg class="link-ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4 4.9 8.8 9.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="link-label">Link</span></button>
+                    </div>
                     <div class="data-row" id="data-row" data-step="0">
                       <button class="btn btn-secondary btn-sm keep-btn" id="export" type="button">Export</button>
                       <button class="btn btn-secondary btn-sm keep-btn" id="import" type="button">Import</button>
@@ -200,6 +205,7 @@
                       </button>
                     </div>
                     <button class="never-mind" id="nuke-cancel" type="button" tabindex="-1">Never mind</button>
+                    <small class="nuke-also" id="nuke-also" aria-hidden="true">Memoir in your browser is cleared too.</small>
                     <input type="file" id="import-file" accept="application/json,.json" hidden>
                   </div>
                 </div>

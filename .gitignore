@@ -27,3 +27,6 @@ tests/*.png
 # Release archives
 *.7z
 *.zip
+
+# Debug symbols from test builds
+*.pdb

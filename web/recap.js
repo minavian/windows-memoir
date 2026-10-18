@@ -35,6 +35,7 @@ const shortDay = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const monthDay = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 const fullDate = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 const dateOnly = new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' });
+const timeOnly = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
 const SEG_GAP = 2;
 const D_IN = 66;
@@ -3225,6 +3226,7 @@ function renderSettings() {
   renderLimitRow();
   renderExcluded();
   renderReminder();
+  loadLink();
 }
 
 let exPrimed = false;   // the first fill of the list (when Settings opens) doesn't animate
@@ -3658,12 +3660,111 @@ function measureSure() {
   probe.remove();
 }
 
+// ----- Memoir for Windows (Settings > Your data): link, see it's in sync, unlink -----
+// The extension links (it starts Memoir.exe as its native host; link.js); Memoir for Windows' own Settings
+// show the browsers linked with it and can unlink them.
+// (each on one line, so the row never changes height)
+const LINK_TEXT = {
+  off: ['Link', 'Syncs on this computer, never online'],
+  connecting: ['Linking…', 'Looking for the app…'],
+  insync: ['In sync', ''],
+  offline: ['Linked', 'Syncs when the app is open'],
+  notfound: ['Linked', 'Not on this computer yet'],
+  denied: ['Link', 'Needs your permission first'],
+  update: ['Linked', 'Update the app to sync again'],
+};
+const linkUi = { linked: false, live: null, peer: null, armed: false, timer: 0, tick: 0 };
+function syncedText(at) {
+  if (!at) return 'Syncing…';
+  if (Date.now() - at < 60_000) return 'Synced just now';
+  const d = new Date(at);
+  return d.toDateString() === new Date().toDateString() ? `Synced at ${timeOnly.format(d)}` : `Synced ${monthDay.format(d)}, ${timeOnly.format(d)}`;
+}
+async function loadLink() {
+  if (window.memoir?.windows) {
+    // Windows: the linked browser in sync most recently
+    const { sync } = await chrome.storage.local.get('sync');
+    const peers = Object.entries((sync && sync.peers) || {}).map(([device, p]) => ({ device, ...p }));
+    peers.sort((a, b) => (b.connected - a.connected) || ((b.lastSync || 0) - (a.lastSync || 0)));
+    linkUi.peer = peers[0] || null;
+    linkUi.linked = !!linkUi.peer;
+  } else {
+    const [{ link }, session] = await Promise.all([chrome.storage.local.get('link'), chrome.storage.session.get('linkLive').catch(() => ({}))]);
+    linkUi.linked = !!(link && link.linked);
+    linkUi.live = session.linkLive || null;
+  }
+  renderLink();
+}
+function renderLink() {
+  const btn = $('link-btn');
+  let state, label, desc;
+  if (window.memoir?.windows) {
+    const p = linkUi.peer;
+    const browser = (p && p.name) || 'your browser';
+    $('link-title').textContent = p ? `Memoir in ${browser}` : 'Memoir extension';
+    state = !p ? 'none' : p.connected ? 'insync' : 'offline';
+    label = state === 'insync' ? 'In sync' : 'Linked';
+    desc = !p ? 'Link it from Memoir in your browser' : p.connected ? syncedText(p.lastSync) : `Syncs when ${browser} is open`;
+    btn.hidden = !p;
+  } else {
+    const live = linkUi.live && linkUi.live.state;
+    state = !linkUi.linked ? (live === 'denied' ? 'denied' : 'off') : live && live !== 'off' ? live : 'connecting';
+    [label, desc] = LINK_TEXT[state] || LINK_TEXT.connecting;
+    if (state === 'insync') desc = syncedText(linkUi.live.lastSync);
+  }
+  if (linkUi.armed) { label = 'Unlink?'; desc = 'Both keep what they have so far'; }
+  btn.dataset.state = state;
+  btn.dataset.arm = linkUi.armed ? '1' : '';
+  btn.setAttribute('aria-label', linkUi.armed ? 'Press again to unlink' : label);
+  relabel(btn, label);
+  swapText($('link-desc'), desc);
+  // "Synced just now" turns into "Synced at 12:04" in a minute, while Settings are open
+  clearTimeout(linkUi.tick);
+  if (state === 'insync' && $('settings').classList.contains('open')) linkUi.tick = setTimeout(renderLink, 30_000);
+}
+// a button's label swaps, and its width follows
+function relabel(btn, text) {
+  const el = btn.querySelector('.link-label');
+  if (el.textContent === text) return;
+  const from = btn.getBoundingClientRect().width;
+  el.textContent = text;
+  replay(el, 'swap');
+  const to = btn.getBoundingClientRect().width;
+  if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
+}
+async function pressLink() {
+  if (!linkUi.linked && !window.memoir?.windows) {
+    // the permission has to be asked for in this very click
+    let granted = false;
+    try { granted = await chrome.permissions.request({ permissions: ['nativeMessaging'] }); } catch { /* refused */ }
+    if (!granted) { linkUi.live = { state: 'denied' }; renderLink(); return; }
+    linkUi.linked = true; linkUi.live = { state: 'connecting' };
+    renderLink();
+    await chrome.runtime.sendMessage({ type: 'link', mode: 'merge' }).catch(() => {});
+    return;
+  }
+  if (!linkUi.armed) {
+    linkUi.armed = true;
+    renderLink();
+    clearTimeout(linkUi.timer);
+    linkUi.timer = setTimeout(() => { linkUi.armed = false; renderLink(); }, 5000);
+    return;
+  }
+  linkUi.armed = false;
+  clearTimeout(linkUi.timer);
+  if (window.memoir?.windows) await window.memoir.request('link.unlink', { device: linkUi.peer.device }).catch(() => {});
+  else await chrome.runtime.sendMessage({ type: 'unlink' }).catch(() => {});
+  toast('Unlinked. Both keep what they have');
+  loadLink();
+}
+
 function setNukeStep(n) {
   const row = $('data-row');
   const prev = +row.dataset.step;
   row.dataset.step = String(n);
   clearTimeout(nukeTimer);
   $('nuke-cancel').tabIndex = n === 1 || n === 2 ? 0 : -1;
+  $('nuke-also').classList.toggle('on', linkUi.linked);
   const nuke = $('nuke');
   const label = ['Clear all data', 'Are you sure? Press again to continue', 'Are you absolutely sure? Press again to delete everything', 'Cleared'][n];
   nuke.setAttribute('aria-label', label);
@@ -4229,6 +4330,7 @@ function wire() {
     }
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
+  $('link-btn').addEventListener('click', pressLink);
 
   $('try-demo').addEventListener('click', () => enterDemo());
   $('exit-demo').addEventListener('click', () => exitDemo(true));
@@ -4654,7 +4756,7 @@ async function startTour({ prepared = false, handoff = null } = {}) {
       { text: 'Change the time', watch: either(onChange('#rem-h, #rem-m'), onClick('#rem-ampm'), listen('keydown', e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !!e.target.closest('#rem-h, #rem-m'))) },
     ] },
     { title: 'Your limit and history', text: 'A committed limit can only be undone here. <b>Keep history</b> sets how long days are kept.', target: () => [row('#limit-reset'), block('#retention')], before: toSettings('#retention'), settle: 350, radius: 14 },
-    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
+    { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, sync with the <b>Memoir extension</b>, and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
     { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you use your computer. Double-click the clock in the notification area to come back to Memoir.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
   ];
   await runTour(steps, {
@@ -4800,12 +4902,13 @@ function onStorageChanged(changes, area) {
     for (const [k, c] of Object.entries(changes)) into[k] = { oldValue: k in into ? into[k].oldValue : c.oldValue, newValue: c.newValue };
     return;
   }
-  if (area === 'session' && changes.session) {
-    state.session = changes.session.newValue || null;
-    updateGoal();
+  if (area === 'session') {
+    if (changes.linkLive) { linkUi.live = changes.linkLive.newValue || null; renderLink(); }
+    if (changes.session) { state.session = changes.session.newValue || null; updateGoal(); }
     return;
   }
   if (area !== 'local') return;
+  if (changes.link || changes.sync) loadLink();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
     if ($('settings').classList.contains('open')) renderSettings();
