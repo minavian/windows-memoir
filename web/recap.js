@@ -4,7 +4,7 @@ import {
   setCategoryOverride, getOrigins, formatDuration, formatBytes, formatTimeOfDay, hourLabel, hourRange, escapeHtml,
   storageKeyForDay, normalizeDay, cloneDay, dayTotal, listDayKeys, normalizeSite, isExcluded, uses24h,
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, goalLevel, retentionCutoffKey, resetLimit,
-  withData, domainFromUrl, safeKey, cleanUrl, EXPORT_FORMAT,
+  withData, domainFromUrl, safeKey, cleanUrl, EXPORT_FORMAT, GOAL_MIN_MS, GOAL_MAX_MS,
 } from './shared/core.js';
 import {
   animateNumber, tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath,
@@ -4197,8 +4197,8 @@ function wire() {
     const overlap = Object.keys(parsed.days).filter(k => here[k] && dayTotal(normalizeDay(here[k])) > 0).length;
     const mode = overlap ? await askImportMode(overlap) : 'replace';
     if (!mode) return;
-    let n = 0;
-    try { n = await withData(() => writeImport(parsed, mode)); }
+    let n = 0, limits = false;
+    try { ({ days: n, limits } = await withData(() => writeImport(parsed, mode))); }
     catch { toast('The import couldn’t be completed. Nothing was changed.'); return; }
     if (n > 0) {
       if (state.demo) exitDemo(false);
@@ -4210,7 +4210,7 @@ function wire() {
       await render({});
       updateGoal();
       refreshStats();
-      const days = `${parsed.old ? 'Updated and imported' : 'Imported'} ${n} day${n === 1 ? '' : 's'}`;
+      const days = `${parsed.old ? 'Updated and imported' : 'Imported'} ${n} day${n === 1 ? '' : 's'}${limits ? ' and your limits' : ''}`;
       toast(overlap ? `${days} · ${overlap} ${mode === 'merge' ? 'merged' : 'replaced'}` : days);
     }
   });
@@ -4407,6 +4407,8 @@ async function readImport(file) {
   const categories = {};
   const origins = {};
   const apps = {};
+  const limits = new Map(); // the limit history: from (a day) → limit (ms, or null: none from that day)
+  const today = dayKey(new Date());
   for (const [k, v] of Object.entries(data)) {
     if (/^day:\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v.s === 'object' && Array.isArray(v.h) && v.h.length === 24) {
       const hs = {};
@@ -4451,12 +4453,20 @@ async function readImport(file) {
         if (!APP_KEY.test(d) || !app || typeof app.name !== 'string') continue;
         apps[d] = { name: app.name.slice(0, 160), category: CATEGORY_BY_ID[app.category] ? app.category : 'other', icon: /^[a-f0-9]{24}\.png$/.test(app.icon || '') ? app.icon : null };
       }
+    } else if (k === 'goal' && v && Array.isArray(v.history)) {
+      // past and current limits: a real day (none still to come), and a limit Memoir could have set
+      for (const e of v.history) {
+        if (!e || typeof e.from !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.from) || e.from > today) continue;
+        if (e.limit === null) limits.set(e.from, null);
+        else if (Number.isFinite(e.limit)) limits.set(e.from, Math.round(Math.min(GOAL_MAX_MS, Math.max(GOAL_MIN_MS, e.limit))));
+      }
     }
   }
   if (!Object.keys(days).length) return null;
+  const goal = [...limits].map(([from, limit]) => ({ from, limit })).sort((a, b) => (a.from < b.from ? -1 : 1));
   // files from before page links were saved (no format number) are brought up to date
   const format = json && Number.isInteger(json.format) ? json.format : 1;
-  return { days, categories, origins, apps, old: format < EXPORT_FORMAT };
+  return { days, categories, origins, apps, goal, old: format < EXPORT_FORMAT };
 }
 
 // A day in both: the larger time for each site in each hour, so nothing is ever
@@ -4495,7 +4505,7 @@ function mergeDay(a, b) {
 }
 
 // Runs under the data lock, so the tracker can't save in between.
-async function writeImport({ days, categories, origins, apps = {} }, mode) {
+async function writeImport({ days, categories, origins, apps = {}, goal = [] }, mode) {
   const keys = Object.keys(days);
   const raw = await chrome.storage.local.get([...keys, 'categories', 'origins', 'apps']);
   const patch = {};
@@ -4503,10 +4513,16 @@ async function writeImport({ days, categories, origins, apps = {} }, mode) {
   if (Object.keys(categories).length) patch.categories = { ...(raw.categories || {}), ...categories };
   if (Object.keys(origins).length) patch.origins = { ...(raw.origins || {}), ...origins };
   if (Object.keys(apps).length) patch.apps = { ...(raw.apps || {}), ...apps };
+  // Limits: with none here yet, the file's whole history comes back, its current limit too (committed, so
+  // locked as usual). With a history here, the file only fills the days before it begins: an import can
+  // never change today's limit, so it's no way around a locked one.
+  const here = await getGoalHistory();
+  const earlier = here.length ? goal.filter(e => e.from < here[0].from) : goal;
+  if (earlier.length) patch.goal = { history: [...earlier, ...here] };
   await chrome.storage.local.set(patch);
   if (patch.categories) state.overrides = patch.categories;
   if (state.settings.excluded.length) await anonymizeSites(state.settings.excluded);
-  return keys.length;
+  return { days: keys.length, limits: !!patch.goal };
 }
 
 // Merge or replace: a popover that grows out of the Import button.

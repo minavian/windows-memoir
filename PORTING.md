@@ -9,7 +9,7 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `53e8106` (minavian/memoir-browser-screen-time). That commit is the merge base for the next port.
+**Last synced:** 6.0.0, from the extension's commit `91fbfdf` (minavian/memoir-browser-screen-time; `53e8106` plus limits in Import). That commit is the merge base for the next port.
 
 ## Sync procedure (a three-way merge per file)
 
@@ -130,7 +130,7 @@ The last row differs on purpose: Windows observes every second instead of relyin
 
 ```
 powershell -File tests\run.ps1        # 63 tracking/privacy + 11 connector checks
-node tests\interface.cjs              # 40 interface checks (Playwright + Chrome)
+node tests\interface.cjs              # 42 interface checks (Playwright + Chrome)
 powershell -File tests\tray.ps1       # 49 native tray menu checks
 powershell -File build.ps1            # builds Memoir.exe; the previous exe moves to build-tools
 ```

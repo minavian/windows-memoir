@@ -96,6 +96,18 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.evaluate(()=>window.testView==='window.report'),'Today opens native report');
     verify(!page.isClosed(),'Today no longer closes the desktop host');
     await page.screenshot({path:path.join(__dirname,'today.png')});
+    // 6.0: the export carries the limit history, and importing it into a Memoir with no limit brings it all back
+    await page.setViewportSize({width:1360,height:850}); await page.goto('https://memoir.example/recap.html'); await page.waitForTimeout(2000);
+    await page.evaluate(()=>{testData.goal={history:[{from:'2026-01-05',limit:10800000},{from:'2026-02-01',limit:null}]};});
+    const [download]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.getElementById('export').click())]);
+    const exportFile=path.join(__dirname,'runs','limits-export.json'); fs.mkdirSync(path.dirname(exportFile),{recursive:true}); await download.saveAs(exportFile);
+    verify(JSON.stringify(JSON.parse(fs.readFileSync(exportFile,'utf8')).data.goal.history)===JSON.stringify([{from:'2026-01-05',limit:10800000},{from:'2026-02-01',limit:null}]),'Export carries the limit history');
+    await page.evaluate(()=>{delete testData.goal;});
+    await page.setInputFiles('#import-file',exportFile);
+    if(await page.locator('#import-pop [data-mode="merge"]').waitFor({state:'visible',timeout:2500}).then(()=>true,()=>false)){await page.waitForTimeout(400);await page.click('#import-pop [data-mode="merge"]');}
+    await page.waitForFunction(()=>testData.goal?.history?.length===2,null,{timeout:6000}).catch(()=>{});
+    verify(await page.evaluate(()=>testData.goal?.history?.[0]?.limit===10800000&&testData.goal.history[1].limit===null),'Import brings the limits back');
+    fs.rmSync(exportFile);
     // How Memoir works and the privacy policy: Windows' own words, and a way back to the report
     for(const [file,words] of [['how-it-works.html','Memoir itself'],['privacy.html','Data folder next to Memoir']]) {
       await page.setViewportSize({width:1360,height:850}); await page.goto(`https://memoir.example/${file}`); await page.waitForTimeout(1500);
