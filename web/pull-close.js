@@ -22,7 +22,7 @@ if (btn && morph) {
   track.className = 'pull-track';
   morph.append(label, track);
   // pulled up: full screen's corners (outward), or, full screen already, inward
-  btn.insertAdjacentHTML('beforeend', '<svg class="g-full" viewBox="0 0 20 20" aria-hidden="true"><path class="gf-in" d="M4.5 8V4.5H8M12 4.5h3.5V8M15.5 12v3.5H12M8 15.5H4.5V12"/><path class="gf-out" d="M8 4.5V8H4.5M12 4.5V8h3.5M12 15.5V12h3.5M8 15.5V12H4.5"/></svg>');
+  btn.insertAdjacentHTML('beforeend', '<svg class="g-full" viewBox="0 0 20 20" aria-hidden="true"><path class="gf-in" d="M4.5 8.5V7a2.5 2.5 0 0 1 2.5-2.5h1.5M11.5 4.5H13a2.5 2.5 0 0 1 2.5 2.5v1.5M15.5 11.5V13a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 15.5H7A2.5 2.5 0 0 1 4.5 13v-1.5"/><path class="gf-out" d="M8 4.5V6a2 2 0 0 1-2 2H4.5M12 4.5V6a2 2 0 0 0 2 2h1.5M12 15.5V14a2 2 0 0 1 2-2h1.5M8 15.5V14a2 2 0 0 0-2-2H4.5"/></svg>');
   const text = label.querySelector('.pull-text');
 
   const settingsOpen = () => morph.classList.contains('open');

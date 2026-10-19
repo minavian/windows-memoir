@@ -439,7 +439,7 @@ export function faviconTile(domain, color) {
   return tile;
 }
 
-export const ARROW_SVG = '<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 8.6 8.4 3.6M4.4 3.4h4.2v4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+export const ARROW_SVG = '<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 8.6 8.4 3.6M4.4 3.4h2.7a1.5 1.5 0 0 1 1.5 1.5v2.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
