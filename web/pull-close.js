@@ -1,11 +1,13 @@
-// Memoir for Windows has no title bar, so the report's Settings button closes it too. Pull it down and let go:
-// Memoir closes to the notification area, where it keeps counting (as closing its window always did). Resting the
-// mouse by it for about a second (the corner where a window's close button would be) shows how: it nudges down,
-// turns into a red X and says "Pull to close". A click still opens Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs back instead and says so
+// Memoir for Windows has no title bar, so the report's Settings button does what its buttons did. Pull it down and
+// let go: Memoir closes to the notification area, where it keeps counting (as closing its window always did). Pull
+// it up: full screen, or back (as F11 does). Resting the mouse by it for about a second (the corner where a window's
+// close button would be) shows how: it nudges down, turns into a red X and says "Pull to close". A click still opens
+// Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs back instead and says so
 // (memoir:pulled). Styles in desktop-chrome.css; loaded on the report only (desktop-bridge.js).
 const btn = document.getElementById('settings-btn');
 const morph = document.getElementById('settings');
 const DOWN = 84;          // px down to close
+const UP = 20;            // px up for full screen (a maximized window has its gear about 30 px from the screen's top)
 const NEAR = 40;          // px around the button that count as resting by it (up to the window's corner)
 const LINGER = 1000;      // ms resting there before the hint
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -19,12 +21,17 @@ if (btn && morph) {
   const track = document.createElement('span');
   track.className = 'pull-track';
   morph.append(label, track);
+  // pulled up: full screen's corners (outward), or, full screen already, inward
+  btn.insertAdjacentHTML('beforeend', '<svg class="g-full" viewBox="0 0 20 20" aria-hidden="true"><path class="gf-in" d="M4.5 8V4.5H8M12 4.5h3.5V8M15.5 12v3.5H12M8 15.5H4.5V12"/><path class="gf-out" d="M8 4.5V8H4.5M12 4.5V8h3.5M12 15.5V12h3.5M8 15.5V12H4.5"/></svg>');
   const text = label.querySelector('.pull-text');
 
   const settingsOpen = () => morph.classList.contains('open');
   const tourStep = () => document.documentElement.hasAttribute('data-pull-tour');
+  const fullScreen = () => document.documentElement.classList.contains('win-full');
   const allowed = () => !settingsOpen() && !document.querySelector('.wel') && (!document.body.classList.contains('touring') || tourStep());
-  const words = armed => (armed ? 'Release to close' : 'Pull to close');
+  const words = (up, armed) => (up
+    ? (fullScreen() ? (armed ? 'Release to leave full screen' : 'Pull up to leave full screen') : (armed ? 'Release for full screen' : 'Pull up for full screen'))
+    : (armed ? 'Release to close' : 'Pull to close'));
   const say = what => {
     if (text.textContent === what) return;
     text.textContent = what;
@@ -34,7 +41,7 @@ if (btn && morph) {
   // ---------- the hint ----------
   let near = false, linger = 0, hinted = false;
   function showHint(nudge = true) {
-    if (!hinted) { hinted = true; morph.classList.add('pull-hint'); btn.classList.add('pull-x'); say(words(false)); }
+    if (!hinted) { hinted = true; morph.classList.add('pull-hint'); btn.classList.add('pull-x'); say(words(false, false)); }
     // a little tug down, twice, as if pulled
     if (nudge && !reduced()) {
       const tug = [{ translate: '0 0' }, { translate: '0 9px', offset: 0.28 }, { translate: '0 0', offset: 0.56 }, { translate: '0 4px', offset: 0.76 }, { translate: '0 0' }];
@@ -43,7 +50,7 @@ if (btn && morph) {
   }
   function hideHint(force = false) {
     if (!hinted || (pull && pull.active && !force)) return;
-    hinted = false; morph.classList.remove('pull-hint'); btn.classList.remove('pull-x');
+    hinted = false; morph.classList.remove('pull-hint', 'pull-going-up'); btn.classList.remove('pull-x', 'pull-up');
   }
   const isNear = (x, y) => { const r = btn.getBoundingClientRect(); return x >= r.left - NEAR && y <= r.bottom + NEAR; };
   addEventListener('pointermove', e => {
@@ -61,11 +68,11 @@ if (btn && morph) {
 
   // ---------- the pull ----------
   let pull = null, swallow = false;
-  // a little give past the line
-  const travel = dy => (dy <= DOWN ? dy * 0.8 : DOWN * 0.8 + (dy - DOWN) * 0.22);
+  // down: a little give past the line; up: only a little way (the window's edge is right there)
+  const travel = dy => (dy >= 0 ? (dy <= DOWN ? dy * 0.8 : DOWN * 0.8 + (dy - DOWN) * 0.22) : -Math.min(14, -dy * 0.35));
   btn.addEventListener('pointerdown', e => {
     if (e.button !== 0 || !allowed()) return;
-    pull = { id: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, armed: false };
+    pull = { id: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, armed: false, up: false };
     try { btn.setPointerCapture(e.pointerId); } catch { /* gone already */ }
   });
   btn.addEventListener('pointermove', e => {
@@ -73,22 +80,29 @@ if (btn && morph) {
     const dy = e.clientY - pull.y0;
     if (!pull.active) {
       // a click, or a move sideways: not a pull
-      if (dy < 6 || Math.abs(e.clientX - pull.x0) > dy) return;
+      if (Math.abs(dy) < 6 || Math.abs(e.clientX - pull.x0) > Math.abs(dy)) return;
       pull.active = true; clearTimeout(linger);
       morph.classList.add('pulling'); showHint(false);
     }
-    const armed = dy >= DOWN;
-    morph.style.setProperty('--pull', `${travel(Math.max(0, dy)).toFixed(1)}px`);
+    const up = dy < 0, armed = up ? -dy >= UP : dy >= DOWN;
+    if (up !== pull.up) {
+      pull.up = up;
+      btn.classList.toggle('pull-up', up); btn.classList.toggle('pull-x', !up);
+      morph.classList.toggle('pull-going-up', up);
+    }
+    morph.style.setProperty('--pull', `${travel(dy).toFixed(1)}px`);
     pull.armed = armed;
     morph.classList.toggle('pull-armed', armed);
-    say(words(armed));
+    say(words(up, armed));
   });
   const finish = (e, cancelled) => {
     if (!pull || (e && e.pointerId !== pull.id)) return;
-    const { active, armed } = pull; pull = null;
+    const { active, armed, up } = pull; pull = null;
     if (!active) return;                       // a click: Settings, as ever
     swallow = true; setTimeout(() => { swallow = false; }, 400);
-    if (armed && !cancelled) close(); else springBack();
+    if (!armed || cancelled) springBack();
+    else if (up) { window.memoir.request('window.fullscreen').catch(() => {}); springBack(); }
+    else close();
   };
   btn.addEventListener('pointerup', e => finish(e, false));
   btn.addEventListener('pointercancel', e => finish(e, true));
@@ -106,9 +120,11 @@ if (btn && morph) {
   }, true);
 
   function springBack() {
-    morph.classList.remove('pulling', 'pull-armed');
+    morph.classList.remove('pulling', 'pull-armed', 'pull-going-up');
     morph.style.setProperty('--pull', '0px');
-    say(words(false));
+    btn.classList.remove('pull-up');
+    if (hinted) btn.classList.add('pull-x');
+    say(words(false, false));
     if (!near && !tourStep()) setTimeout(() => { if (!near && !(pull && pull.active)) hideHint(true); }, 380);
   }
   function close() {

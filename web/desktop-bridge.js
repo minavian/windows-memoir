@@ -13,7 +13,7 @@
   chromeCss.rel = 'stylesheet'; chromeCss.href = 'desktop-chrome.css';
   document.head.append(chromeCss);
   const windowState = state => {
-    root.classList.toggle('win-max', !!state.maximized); root.classList.toggle('win-inactive', !state.active);
+    root.classList.toggle('win-max', !!state.maximized); root.classList.toggle('win-full', !!state.fullScreen); root.classList.toggle('win-inactive', !state.active);
     document.querySelector('.win-maximize')?.setAttribute('aria-label', state.maximized ? 'Restore' : 'Maximize');
   };
   const listeners = new Set();
@@ -87,7 +87,7 @@
   // right-click for the window's menu. The report's Settings button, pulled down, closes it (pull-close.js).
   const FIXED = 'button, a, input, select, textarea, label, summary, [role="button"], [role="tab"], [role="radio"], [role="checkbox"], [role="slider"], [tabindex]:not([tabindex="-1"]), [contenteditable], .card, .pop, .menu, .context-menu, .tour, .wel, .mark, .logo, .morph.open, .settings-scrim, .pk-layer, .gx-layer';
   const MOVE_BAND = 64;   // px from the top
-  const frees = e => e.clientY <= MOVE_BAND && e.target instanceof Element && !e.target.closest(FIXED) && !e.target.closest('.win-edges');
+  const frees = e => e.clientY <= MOVE_BAND && !root.classList.contains('win-full') && e.target instanceof Element && !e.target.closest(FIXED) && !e.target.closest('.win-edges');
   function windowFrame() {
     const edges = document.createElement('div');
     edges.className = 'win-edges';
@@ -116,6 +116,13 @@
   }
   // Today: Esc closes it, as a click elsewhere does (a menu or popover open in it takes Esc first)
   if (flyout) addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) request('window.close').catch(() => {}); });
+  // Alt+F4 closes the window (to the notification area, where Memoir keeps counting) or Today; F11 makes the
+  // window full screen, and back
+  addEventListener('keydown', e => {
+    if (e.repeat || e.ctrlKey || e.metaKey) return;
+    if (e.key === 'F4' && e.altKey) { e.preventDefault(); request('window.close').catch(() => {}); }
+    else if (e.key === 'F11' && !e.altKey && !flyout) { e.preventDefault(); request('window.fullscreen').catch(() => {}); }
+  }, true);
   addEventListener('DOMContentLoaded', () => {
     if (!flyout) windowFrame();
     // painted: the window's loading clock can go (src/Splash.cs), as the report's cards start to come in (fx.js

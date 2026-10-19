@@ -12,7 +12,7 @@
 html.win-chrome .win-edge[data-hit="12"] { cursor: ns-resize !important; }
 html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
 html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
-html.win-max .win-edge { display: none; }
+html.win-max .win-edge, html.win-full .win-edge { display: none; }
 
 /* ---------- pull to close (pull-close.js) ---------- */
 /* the button follows the pull (--pull), and springs back when let go short of the line */
@@ -27,6 +27,13 @@ html.win-chrome #settings-btn.pull-x { background: var(--danger); color: #fff; b
 html.win-chrome #settings-btn.pull-x .g-gear { opacity: 0; transform: rotate(90deg) scale(0.6); }
 html.win-chrome #settings-btn.pull-x .g-close { opacity: 1; transform: scale(1.2); }
 html.win-chrome #settings-btn.pull-x .g-close { width: 20px; height: 20px; }
+/* pulled up: full screen's corners, on the accent */
+html.win-chrome #settings-btn .g-full { opacity: 0; transform: rotate(-90deg) scale(0.6); fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+html.win-chrome #settings-btn .gf-out, html.win-full #settings-btn .gf-in { display: none; }
+html.win-full #settings-btn .gf-out { display: inline; }
+html.win-chrome #settings-btn.pull-up { background: var(--accent); color: var(--on-accent, #fff); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+html.win-chrome #settings-btn.pull-up .g-gear { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+html.win-chrome #settings-btn.pull-up .g-full { opacity: 1; transform: none; width: 19px; height: 19px; }
 html.win-chrome .pull-closing #settings-btn { translate: 0 calc(var(--pull, 0px) + 18px); opacity: 0; transition-duration: 0.17s; }
 
 /* "Pull to close", under it (clear of the header beside it), going with it */
@@ -56,6 +63,8 @@ html.win-chrome .pull-closing #settings-btn { translate: 0 calc(var(--pull, 0px)
 .pull-hint .pull-label { opacity: 1; translate: 0 var(--pull, 0px); scale: 1; }
 .pulling .pull-label { transition-property: opacity, scale, color; }
 .pull-armed .pull-label { color: var(--danger); }
+.pull-going-up .pull-label svg { rotate: 180deg; stroke: var(--accent); }
+.pull-armed.pull-going-up .pull-label { color: var(--accent); }
 .pull-closing .pull-label { opacity: 0; transition-duration: 0.12s; }
 .pull-text { display: inline-block; }
 /* the way it goes, unseen (the tour's light takes it in) */

@@ -6,7 +6,7 @@ namespace Memoir {
     // Memoir has no title bar: the window keeps Windows' frame everywhere else (resize borders, shadow, rounded
     // corners, Snap) and gives its caption area to the page. Dragging the empty top of a page, double-clicking it
     // and right-clicking it ask the window (desktop-bridge.js: window.drag, window.maximize, window.menu); the
-    // report's gear pulled down closes it.
+    // report's gear pulled down closes it, pulled up (or F11) makes it full screen (window.fullscreen).
     internal static class TitleBar {
         public const int CalcSize = 0x0083;
         private const int NcButtonDown = 0x00A1, SysCommand = 0x0112;
@@ -23,6 +23,11 @@ namespace Memoir {
         [DllImport("user32.dll")] private static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr hwnd, IntPtr parameters);
         [DllImport("user32.dll")] private static extern bool EnableMenuItem(IntPtr menu, uint item, uint flags);
         [DllImport("user32.dll")] private static extern bool SetMenuDefaultItem(IntPtr menu, uint item, uint byPosition);
+        [StructLayout(LayoutKind.Sequential)] private struct Placement { public int Length, Flags, ShowCmd, MinX, MinY, MaxX, MaxY; public Rect Normal; }
+        [DllImport("user32.dll")] private static extern bool GetWindowPlacement(IntPtr hwnd, ref Placement placement);
+        [DllImport("user32.dll")] private static extern bool SetWindowPlacement(IntPtr hwnd, ref Placement placement);
+        [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
+        [DllImport("user32.dll")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
 
         // WM_NCCALCSIZE: Windows works out its usual frame, then the client is given back the caption: it starts at
         // the window's top edge, or, maximized (the frame then hangs over the screen's edge), that much lower
@@ -34,9 +39,31 @@ namespace Memoir {
         }
         // the frame is worked out again (once the window exists)
         public static void Refresh(IntPtr hwnd) { SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010); }
+        // Full screen: no frame, the whole screen, over the taskbar; then back to exactly where and how it was
+        // (maximized too). As browsers do: a maximized window is restored first, so the screen's size is its own.
+        public static bool IsFullScreen { get; private set; }
+        private static Placement saved; private static long savedStyle;
+        public static void FullScreen(IntPtr hwnd, bool on) {
+            if (on == IsFullScreen) return;
+            const int style = -16; const long caption = 0xC00000, frame = 0x40000;
+            if (on) {
+                saved = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref saved);
+                savedStyle = GetWindowLongPtr(hwnd, style).ToInt64();
+                if (IsZoomed(hwnd)) SendMessage(hwnd, SysCommand, new IntPtr(0xF120), IntPtr.Zero);   // SC_RESTORE
+                SetWindowLongPtr(hwnd, style, new IntPtr(savedStyle & ~(caption | frame)));
+                var screen = Screen.FromHandle(hwnd).Bounds;
+                SetWindowPos(hwnd, IntPtr.Zero, screen.X, screen.Y, screen.Width, screen.Height, 0x0020 | 0x0004 | 0x0200);   // FRAMECHANGED, NOZORDER, NOOWNERZORDER
+            } else {
+                SetWindowLongPtr(hwnd, style, new IntPtr(savedStyle));
+                Refresh(hwnd);
+                SetWindowPlacement(hwnd, ref saved);
+            }
+            IsFullScreen = on;
+        }
         // the empty top of a page pressed: the window moves (or, from its top edge, resizes) as from a real caption, Snap included
         public static void Drag(IntPtr hwnd, int hit) {
             if (hit != Caption && hit != Top && hit != TopLeft && hit != TopRight) return;
+            if (IsFullScreen) return;
             if (hit != Caption && IsZoomed(hwnd)) return;
             ReleaseCapture(); SendMessage(hwnd, NcButtonDown, new IntPtr(hit), IntPtr.Zero);
         }

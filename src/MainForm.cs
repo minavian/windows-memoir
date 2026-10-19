@@ -330,7 +330,7 @@ namespace Memoir {
             if (control != null) { Controls.Remove(control); control.Dispose(); }
             if (flyoutWeb == null) environment = null;
         }
-        private void MinimizeToTray() { if (exiting) return; CloseTrayMenu(); Hide(); ReleaseWeb(); engine.Flush(Engine.Now); store.Save(); releaseTimer.Start(); WriteDiagnostics(); }
+        private void MinimizeToTray() { if (exiting) return; CloseTrayMenu(); SetFullScreen(false); Hide(); ReleaseWeb(); engine.Flush(Engine.Now); store.Save(); releaseTimer.Start(); WriteDiagnostics(); }
         public async void RestoreWindow() { if (exiting) return; CloseTrayMenu(); releaseTimer.Stop(); ApplySavedTheme(); Show(); WindowState = FormWindowState.Normal; Activate(); Native.ToFront(Handle); tracker.RefreshForeground(true); await LoadView(); }
         private void CloseTrayMenu() { if (trayMenu != null) closeTrayMenu.Set(); }
         // what the menu shows (the theme, paused or not): a menu made ready for something else isn't used
@@ -443,7 +443,8 @@ namespace Memoir {
                     // the page's title bar (TitleBar.cs)
                     case "window.state": result = today ? Json.Object("maximized", false, "active", true) : WindowFacts(); break;
                     case "window.painted": if (!today) HideSplash(); break;
-                    case "window.maximize": Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
+                    case "window.fullscreen": Answer(from, Json.Object("id", id, "result", true)); if (!today) BeginInvoke(new Action(delegate { SetFullScreen(!TitleBar.IsFullScreen); })); return;
+                    case "window.maximize": Answer(from, Json.Object("id", id, "result", true)); if (today || TitleBar.IsFullScreen) return; BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
                     case "window.close": Answer(from, Json.Object("id", id, "result", true)); if (today) HideFlyout(); else BeginInvoke(new Action(delegate { Close(); })); return;
                     case "window.drag": { int hit = (int)Json.Number(Json.Get(data, "hit"), TitleBar.Caption); Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { TitleBar.Drag(Handle, hit); })); return; }
                     case "window.menu": Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { TitleBar.Menu(Handle); })); return;
@@ -479,7 +480,14 @@ namespace Memoir {
             try { Invoke(new Action(delegate { if (args.Mode == PowerModes.Suspend) { engine.Suspend(Engine.Now); store.Save(); } else if (args.Mode == PowerModes.Resume) tracker.Resume(); })); } catch { }
         }
         private string StartupCommand() { return Startup.Command(directory, dataDirectory, fixedData); }
-        private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "active", ActiveForm == this); }
+        private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "fullScreen", TitleBar.IsFullScreen, "active", ActiveForm == this); }
+        // F11, or the report's gear pulled up: full screen, and back (TitleBar.FullScreen); square corners while it lasts
+        private void SetFullScreen(bool on) {
+            if (!IsHandleCreated || (on && !Visible) || on == TitleBar.IsFullScreen) return;
+            TitleBar.FullScreen(Handle, on);
+            int corners = on ? 1 : 0; DwmSetWindowAttribute(Handle, 33, ref corners, 4);   // DWMWCP_DONOTROUND, or the default
+            PostWindowState();
+        }
         private void PostWindowState() { if (IsHandleCreated) Send(web, Json.Object("event", "window", "state", WindowFacts())); }
         protected override void OnHandleCreated(EventArgs args) { base.OnHandleCreated(args); TitleBar.Refresh(Handle); }
         protected override void WndProc(ref Message message) {
