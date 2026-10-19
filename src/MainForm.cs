@@ -458,7 +458,7 @@ namespace Memoir {
                     case "clipboard.write": string text = Json.Text(Json.Get(data, "text")); if (text.Length == 0) Clipboard.Clear(); else Clipboard.SetText(text); break;
                     // Start with Windows (Startup.cs)
                     case "startup.get": result = Json.Object("available", Startup.Available(fixedData), "on", Startup.Available(fixedData) && Startup.IsOn()); break;
-                    case "startup.set": if (!Startup.Available(fixedData)) throw new InvalidOperationException("Not for this copy."); result = Json.Object("available", true, "on", Startup.Set(Json.Bool(Json.Get(data, "on")), StartupCommand())); break;
+                    case "startup.set": if (!Startup.Available(fixedData)) throw new InvalidOperationException("Not for this copy."); result = Json.Object("available", true, "on", Startup.Choose(store, Json.Bool(Json.Get(data, "on")), StartupCommand())); break;
                     case "theme":
                         store.Set(Json.Object("windowsAppearance", data)); store.Save(); ApplySavedTheme(); ApplyColorScheme(); break;
                     case "status": result = Json.Object("browser", tracker.BrowserStatus, "paused", engine.Paused, "uiLoaded", web != null, "dataDirectory", dataDirectory); break;

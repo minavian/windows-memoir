@@ -100,6 +100,9 @@ namespace Memoir {
         private static bool Put(string source, string target) {
             Directory.CreateDirectory(target);
             Stop(target);
+            // the Memoir the browsers link with, run from a folder of its own, is closed too: one Memoir counts, not two
+            string other = Registration.DataDirectory();
+            if (other != null && !Same(other, Path.Combine(target, "Data"))) Quit(other);
             bool migrated = BringHistory(target);
             var previous = Recorded(target);
             if (Same(source, target)) { List(target, previous); return migrated; }
@@ -116,6 +119,8 @@ namespace Memoir {
             RemoveEmpty(Path.Combine(target, "web"));
             File.WriteAllText(Path.Combine(target, Record), Json.Encode(Json.Object("version", Version, "files", files.ToArray())), new UTF8Encoding(false));
             List(target, files);
+            // in the Start menu (Windows Search), in its Rainbow colours if the history kept says so
+            StartMenu.Make(target, Json.Bool(Json.Get(Look(Path.Combine(target, "Data")), "rainbow")) ? Path.Combine(target, "Memoir-rainbow.ico") : "");
             return migrated;
         }
         // A file still held by Windows (a Memoir that hasn't let go yet) can be renamed out of the way, and goes later

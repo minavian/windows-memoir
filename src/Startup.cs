@@ -44,16 +44,28 @@ namespace Memoir {
                 using (var approved = Registry.CurrentUser.OpenSubKey(Approved, true)) if (approved != null) approved.DeleteValue(Name, false);
             } catch { }
         }
-        // At every start: the first time, it's turned on; after that, a moved folder takes the entry with it (when on)
+        // At every start: the first time, it's turned on; after that, a moved folder takes the entry with it, and an
+        // entry that's gone (uninstalled, then installed again with the history kept or brought along) comes back,
+        // unless it was turned off in Settings (windowsStartup.off). Windows' Startup apps switch doesn't remove it.
         public static void Start(Store store, string command) {
             try {
-                if (!(Json.Get(store.Data, "windowsStartup") is System.Collections.Generic.Dictionary<string, object>)) {
+                var started = Json.Get(store.Data, "windowsStartup") as System.Collections.Generic.Dictionary<string, object>;
+                if (started == null) {
                     Set(true, command);
                     store.Set(Json.Object("windowsStartup", Json.Object("since", Engine.Now))); store.Save();
                     return;
                 }
-                using (var run = Registry.CurrentUser.OpenSubKey(Run, true)) { var now = run == null ? null : run.GetValue(Name) as string; if (now != null && now != command) run.SetValue(Name, command); }
+                string now;
+                using (var run = Registry.CurrentUser.OpenSubKey(Run)) now = run == null ? null : run.GetValue(Name) as string;
+                if (now == null) { if (!Json.Bool(Json.Get(started, "off"))) Set(true, command); }
+                else if (now != command) using (var run = Registry.CurrentUser.OpenSubKey(Run, true)) run.SetValue(Name, command);
             } catch { }
+        }
+        // Settings' switch: remembered, so an entry it turned off stays off
+        public static bool Choose(Store store, bool on, string command) {
+            var started = Json.Map(Json.Get(store.Data, "windowsStartup"));
+            store.Set(Json.Object("windowsStartup", Json.Object("since", Json.Get(started, "since", Engine.Now), "off", !on))); store.Save();
+            return Set(on, command);
         }
     }
 }

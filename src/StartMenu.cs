@@ -36,6 +36,10 @@ namespace Memoir {
                 if (File.Exists(ShortcutPath) && !String.Equals(Icon(), Icon(target, icon), StringComparison.OrdinalIgnoreCase)) Write(target, appDirectory, icon);
             } catch { }
         }
+        // Installing: the shortcut is made (or made again), whatever an earlier copy's history says
+        public static void Make(string appDirectory, string icon) {
+            try { Write(Path.Combine(appDirectory, "Memoir.exe"), appDirectory, icon); } catch { }
+        }
         // Uninstalling: the shortcut goes, if it's this Memoir's
         public static void Remove(string appDirectory) {
             try {
