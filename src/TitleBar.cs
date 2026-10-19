@@ -34,38 +34,37 @@ namespace Memoir {
         public static int ProposedTop(IntPtr lparam) { return ((CalcSizeParams)Marshal.PtrToStructure(lparam, typeof(CalcSizeParams))).Proposed.Top; }
         public static void GiveCaption(IntPtr hwnd, IntPtr lparam, int top) {
             var p = (CalcSizeParams)Marshal.PtrToStructure(lparam, typeof(CalcSizeParams));
-            p.Proposed.Top = top + (IsZoomed(hwnd) && !IsFullScreen ? GetSystemMetrics(33) + GetSystemMetrics(92) : 0); // SM_CYFRAME + SM_CXPADDEDBORDER
+            p.Proposed.Top = top + (IsZoomed(hwnd) ? GetSystemMetrics(33) + GetSystemMetrics(92) : 0); // SM_CYFRAME + SM_CXPADDEDBORDER
             Marshal.StructureToPtr(p, lparam, false);
         }
         // the frame is worked out again (once the window exists)
         public static void Refresh(IntPtr hwnd) { SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010); }
-        // Full screen: no frame and no edge, the whole screen, over the taskbar; then back to exactly where and how it
-        // was. Both ways go through maximized, which Windows animates, so it grows and shrinks smoothly like a
-        // double-click on the top: in, maximize (Begin), then, once that's played, drop the frame and cover the screen
-        // (Cover); out, put the frame back and restore (End), unless it was maximized to begin with.
+        // Full screen: the whole screen, over the taskbar, no edge; then back to exactly where and how it was. Both
+        // ways go through maximized, which Windows animates, so it grows and shrinks smoothly like a double-click on
+        // the top: in, maximize (Begin), then, once that's played, cover the screen (Cover); out, restore (End), unless
+        // it was maximized to begin with. It stays a maximized window throughout, its frame kept: covering the screen
+        // only lets the frame hang past the screen's bottom edge as it already does past the others, so nothing is
+        // rebuilt (taking the frame off made the page flick) and, with the taskbar hidden, nothing moves at all.
         public static bool IsFullScreen { get; private set; }
-        private static Placement saved; private static long savedStyle; private static bool wasZoomed;
-        private const int StyleIndex = -16; private const long CaptionStyle = 0xC00000, FrameStyle = 0x40000;
+        private static Placement saved; private static bool wasZoomed;
         // returns whether Windows is animating to maximized (wait for it before Cover)
         public static bool Begin(IntPtr hwnd) {
             saved = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref saved);
-            savedStyle = GetWindowLongPtr(hwnd, StyleIndex).ToInt64(); wasZoomed = IsZoomed(hwnd);
+            wasZoomed = IsZoomed(hwnd);
             if (wasZoomed) return false;
             SendMessage(hwnd, SysCommand, new IntPtr(0xF030), IntPtr.Zero);   // SC_MAXIMIZE
             return true;
         }
         public static void Cover(IntPtr hwnd) {
             IsFullScreen = true;
-            SetWindowLongPtr(hwnd, StyleIndex, new IntPtr(GetWindowLongPtr(hwnd, StyleIndex).ToInt64() & ~(CaptionStyle | FrameStyle)));
             var screen = Screen.FromHandle(hwnd).Bounds;
-            SetWindowPos(hwnd, IntPtr.Zero, screen.X, screen.Y, screen.Width, screen.Height, 0x0020 | 0x0004 | 0x0200);   // FRAMECHANGED, NOZORDER, NOOWNERZORDER
+            int x = GetSystemMetrics(32) + GetSystemMetrics(92), y = GetSystemMetrics(33) + GetSystemMetrics(92);   // the frame: SM_CXFRAME, SM_CYFRAME + padding
+            SetWindowPos(hwnd, IntPtr.Zero, screen.X - x, screen.Y - y, screen.Width + 2 * x, screen.Height + 2 * y, 0x0004 | 0x0010 | 0x0200);   // NOZORDER, NOACTIVATE, NOOWNERZORDER
         }
         // animate: restore as Windows does (a window about to hide goes straight back)
         public static void End(IntPtr hwnd, bool animate) {
             if (!IsFullScreen) return;
             IsFullScreen = false;
-            SetWindowLongPtr(hwnd, StyleIndex, new IntPtr(GetWindowLongPtr(hwnd, StyleIndex).ToInt64() | (savedStyle & (CaptionStyle | FrameStyle))));
-            Refresh(hwnd);
             if (!wasZoomed && animate) {
                 // where it goes back to is where it was (taking the frame off and on moves Windows' own note of it)
                 var now = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref now);

@@ -486,21 +486,17 @@ namespace Memoir {
         private string StartupCommand() { return Startup.Command(directory, dataDirectory, fixedData); }
         private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "fullScreen", TitleBar.IsFullScreen, "active", ActiveForm == this); }
         // F11, or the report's gear pulled up: full screen, and back, through maximized so Windows animates both ways
-        // (TitleBar.Begin, Cover, End). Square, with no edge line, while it lasts.
+        // (TitleBar.Begin, Cover, End). A maximized window, so square and with no edge line.
         private bool fullScreenOpening;
         private void SetFullScreen(bool on, bool animate = true) {
             if (!IsHandleCreated || fullScreenOpening || (on && !Visible) || on == TitleBar.IsFullScreen) return;
-            if (!on) { FullScreenLook(false); TitleBar.End(Handle, animate); PostWindowState(); return; }
-            Action cover = delegate { fullScreenOpening = false; if (!Visible || exiting) { TitleBar.Abandon(Handle); return; } FullScreenLook(true); TitleBar.Cover(Handle); PostWindowState(); };
+            if (!on) { TitleBar.End(Handle, animate); PostWindowState(); return; }
+            Action cover = delegate { fullScreenOpening = false; if (!Visible || exiting) { TitleBar.Abandon(Handle); return; } TitleBar.Cover(Handle); PostWindowState(); };
             if (!TitleBar.Begin(Handle) || !animate || !TitleBar.Animated()) { cover(); return; }
             fullScreenOpening = true;
             var played = new Timer { Interval = 260 };   // Windows' maximize, about a quarter of a second
             played.Tick += delegate { played.Dispose(); cover(); };
             played.Start();
-        }
-        private void FullScreenLook(bool on) {
-            int corners = on ? 1 : 0; DwmSetWindowAttribute(Handle, 33, ref corners, 4);                  // DWMWCP_DONOTROUND, or the default
-            int edge = on ? unchecked((int)0xFFFFFFFE) : unchecked((int)0xFFFFFFFF); DwmSetWindowAttribute(Handle, 34, ref edge, 4);   // no border line, or the default
         }
         private void PostWindowState() { if (IsHandleCreated) Send(web, Json.Object("event", "window", "state", WindowFacts())); }
         protected override void OnHandleCreated(EventArgs args) { base.OnHandleCreated(args); TitleBar.Refresh(Handle); }
