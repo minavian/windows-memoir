@@ -135,6 +135,16 @@ a.p-author { text-decoration: none; }
 .ap-copy-label.swap { animation: swap 0.35s var(--ease-out); }
 /* a title and the address alone (no line between) */
 .ap-title + .ap-mail { margin-top: 10px; }
+/* the address and the website, one under the other: the same width, a line between */
+.author-pop .ap-mail { align-self: stretch; justify-content: space-between; }
+.ap-sep { align-self: stretch; height: 1px; margin: 12px 2px 11px; border: 0; background: var(--sep); animation: context-row-in 0.32s var(--ease-out) 230ms backwards; }
+.ap-sep ~ .ap-title { animation-delay: 250ms; }
+.ap-sep ~ .ap-text { animation-delay: 280ms; }
+.ap-sep ~ .ap-mail { animation-delay: 310ms; }
+/* a website: a link that looks like the Copy button, with an arrow out */
+a.ap-copy { display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-decoration: none; }
+.ap-arrow { width: 10px; height: 10px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.25s var(--ease-out); }
+a.ap-copy:hover .ap-arrow, a.ap-copy:focus-visible .ap-arrow { transform: translate(1px, -1px); }
 /* or the Copy button alone (the privacy page's address) */
 .author-pop.copy-only { padding: 0; }
 /* the popover is the button: no second pill (and no shadow) inside it */

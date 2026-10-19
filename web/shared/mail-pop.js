@@ -1,7 +1,8 @@
-// A name or an address that opens a small popover with an email address to copy: the
-// report's "Made by" name in Settings (where bug reports go) and the privacy page's address.
-// Markup: a trigger (.p-author) and a .pop.author-pop holding .ap-copy, and .ap-addr
-// unless it's the Copy button alone (.copy-only, as on the privacy page). Styles in
+// A name or a word that opens a small popover on hover: the report's "Made by" name in
+// Settings (where bug reports go, and my website), the wordmark beside it (Memoir's
+// website) and the privacy page's address. Markup: a trigger (.p-author) and a
+// .pop.author-pop holding links and buttons: .ap-copy copies the address, and .ap-addr shows
+// it, unless it's the button alone (.copy-only, as for the wordmark). Styles in
 // shared/pop.css.
 //
 // Hovered, it opens after a beat (hover intent, only from rest: coming back while it's
@@ -12,15 +13,18 @@
 import { MorphPopover, replay } from './fx.js';
 
 /**
- * address: the email. mailto: the address's link (it can carry a subject). onCopyFail:
- * when the clipboard refuses.
+ * address: the email to copy (none: a popover of links). mailto: the address's link (it can
+ * carry a subject). onCopyFail: when the clipboard refuses.
  * dismiss: Escape and a click elsewhere close it, and it stays on its trigger as the page
  * scrolls (the report handles those itself, among its other popovers).
  */
-export function mailPop(trigger, pop, { address, mailto = `mailto:${address}`, onCopyFail = null, dismiss = false } = {}) {
-  const addr = pop.querySelector('.ap-addr');
-  const copy = pop.querySelector('.ap-copy');
-  const first = addr || copy;
+export function mailPop(trigger, pop, { address = '', mailto = `mailto:${address}`, onCopyFail = null, dismiss = false } = {}) {
+  const addr = pop.querySelector('.ap-addr[href^="mailto:"]');
+  const copy = pop.querySelector('.ap-copy[data-copy]');
+  // what Tab steps through inside it (a link that repeats the button beside it is skipped: tabindex -1)
+  const stops = [...pop.querySelectorAll('a[href], button')].filter(el => el.tabIndex >= 0);
+  const first = stops[0];
+  const last = stops[stops.length - 1];
   const popover = new MorphPopover(pop, { radius: 16, onClose: () => trigger.setAttribute('aria-expanded', 'false') });
   if (addr) addr.href = mailto;
   let timer = 0;
@@ -59,9 +63,11 @@ export function mailPop(trigger, pop, { address, mailto = `mailto:${address}`, o
   pop.addEventListener('keydown', e => {
     if (e.key !== 'Tab') return;
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); focusTrigger(); }
-    else if (!e.shiftKey && document.activeElement === copy) { e.preventDefault(); close(); focusTrigger(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); close(); focusTrigger(); }
   });
-  copy.addEventListener('click', async () => {
+  // a website opened from it: the popover's done
+  pop.addEventListener('click', e => { if (e.target.closest('a[target="_blank"]')) setTimeout(() => close(), 120); });
+  if (copy) copy.addEventListener('click', async () => {
     const label = copy.querySelector('.ap-copy-label');
     try {
       await navigator.clipboard.writeText(address);

@@ -224,7 +224,7 @@
                   </div>
                 </div>
               </div>
-              <p class="p-foot"><span class="wordmark-plain">Memoir</span> · Made by <button class="p-author" id="author" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="author-pop">Mina Vian</button> · <a class="p-author" href="privacy.html" target="_blank" rel="noopener">Your data never leaves this computer</a></p>
+              <p class="p-foot"><button class="p-author" id="memoir-site" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="site-pop"><span class="wordmark-plain">Memoir</span></button> · Made by <button class="p-author" id="author" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="author-pop">Mina Vian</button> · <a class="p-author" href="privacy.html" target="_blank" rel="noopener">Your data never leaves this computer</a></p>
             </div>
           </div>
           <button class="icon-btn morph-trigger" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-panel">
@@ -382,8 +382,19 @@
     <p class="ap-text">Send here!</p>
     <div class="ap-mail">
       <a class="ap-addr" id="ap-addr" href="mailto:iamminavian@gmail.com">iamminavian@gmail.com</a>
-      <button class="ap-copy" id="ap-copy" type="button" aria-label="Copy email address"><span class="ap-copy-label">Copy</span></button>
+      <button class="ap-copy" id="ap-copy" type="button" data-copy aria-label="Copy email address"><span class="ap-copy-label">Copy</span></button>
     </div>
+    <hr class="ap-sep">
+    <p class="ap-title">Looking for my website?</p>
+    <p class="ap-text">See more here!</p>
+    <div class="ap-mail">
+      <a class="ap-addr" href="https://minavian.com" target="_blank" rel="noopener" tabindex="-1">minavian.com</a>
+      <a class="ap-copy" href="https://minavian.com" target="_blank" rel="noopener" aria-label="Open minavian.com"><span class="ap-copy-label">Open</span><svg class="ap-arrow" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5h5.5V8M9.2 2.8 2.8 9.2"/></svg></a>
+    </div>
+  </div>
+  <!-- the wordmark beside it: Memoir's website -->
+  <div class="pop author-pop copy-only" id="site-pop" role="dialog" aria-label="Memoir’s website" hidden>
+    <a class="ap-copy" href="https://memoir.minavian.com" target="_blank" rel="noopener"><span class="ap-copy-label">View Memoir website</span><svg class="ap-arrow" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5h5.5V8M9.2 2.8 2.8 9.2"/></svg></a>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

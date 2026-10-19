@@ -84,13 +84,16 @@ const pages = {
 const importPop = new MorphPopover($('import-pop'), { radius: 16 });
 const linkPop = new MorphPopover($('link-pop'), { radius: 16 });
 const guidePop = new MorphPopover($('guide-pop'), { radius: 16 });
-// the author's name in Settings: where bug reports go (shared/mail-pop.js)
+// the author's name in Settings: where bug reports go, and my website; the wordmark beside it: Memoir's
+// website (shared/mail-pop.js)
 const author = mailPop($('author'), $('author-pop'), {
   address: 'iamminavian@gmail.com',
   mailto: `mailto:iamminavian@gmail.com?subject=${encodeURIComponent(`Memoir ${chrome.runtime.getManifest().version} bug report`)}`,
   onCopyFail: address => toast(`Couldn’t copy. The address is ${address}`),
 });
-const authorPop = author.popover;
+const memoirSite = mailPop($('memoir-site'), $('site-pop'));
+const footPops = [[author, 'author', 'author-pop'], [memoirSite, 'memoir-site', 'site-pop']];
+const footOpen = () => footPops.find(([p]) => p.popover.isOpen);
 
 // On the first load (and when the board switches between an empty week and a
 // full one) the cards come in 110 ms apart (see the end of recap.css) and what's
@@ -3200,7 +3203,7 @@ function closeSettings(focusTrigger = false) {
   answerImport(null, true);
   closeLink(true);
   closeGuide(true);
-  closeAuthor(true);
+  closeFootPops(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
   $('settings-btn').setAttribute('aria-label', 'Settings');
   if (focusTrigger) $('settings-btn').focus({ preventScroll: true });
@@ -4003,7 +4006,7 @@ function wire() {
     const tourBack = document.querySelector('.tour.on .tour-back');
     if (tourBack) return () => { if (!tourBack.disabled && !tourBack.classList.contains('gone')) tourBack.click(); };
     const open = document.querySelector('.pk-layer, .gx-layer, .context-menu:not([hidden])') || !$('cat-menu').hidden || catPop.isOpen || pages.isOpen
-      || importAnswer || authorPop.isOpen || $('settings').classList.contains('open') || state.view.type !== 'week';
+      || importAnswer || footOpen() || $('settings').classList.contains('open') || state.view.type !== 'week';
     return open ? () => (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) : null;
   };
   for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick']) {
@@ -4027,7 +4030,7 @@ function wire() {
       else if (importAnswer) { answerImport(null); $('import').focus({ preventScroll: true }); }
       else if (linkPop.isOpen) { closeLink(); $('link-btn').focus({ preventScroll: true }); }
       else if (guidePop.isOpen) { closeGuide(); guideFrom?.focus({ preventScroll: true }); }
-      else if (authorPop.isOpen) { closeAuthor(); focusAuthor(); }
+      else if (footOpen()) { const [p] = footOpen(); p.close(); p.focusTrigger(); }
       else if ($('settings').classList.contains('open')) {
         if ($('data-row').dataset.step !== '0') setNukeStep(0);
         else if (pauseAsking()) askPause(false);
@@ -4166,11 +4169,11 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop, #site-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
     if (guidePop.isOpen && !e.target.closest('#guide-pop, .link-btn, #link-more')) closeGuide();
-    if (authorPop.isOpen && !e.target.closest('#author-pop, #author')) closeAuthor();
+    for (const [p, id, popId] of footPops) if (p.popover.isOpen && !e.target.closest(`#${id}, #${popId}`)) p.close();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
     if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
     // another row with pages opens its own (the click does that); anywhere else closes it
@@ -4490,7 +4493,7 @@ function wire() {
     if (!$('import-pop').hidden) importPop.place($('import').getBoundingClientRect());
     if (!$('link-pop').hidden) linkPop.place($('link-btn').getBoundingClientRect());
     if (!$('guide-pop').hidden && guideFrom) guidePop.place(guideFrom.getBoundingClientRect());
-    if (!$('author-pop').hidden) authorPop.place($('author').getBoundingClientRect());
+    for (const [p, id, popId] of footPops) if (!$(popId).hidden) p.popover.place($(id).getBoundingClientRect());
   }, { passive: true });
   $('nuke').addEventListener('click', async () => {
     const step = +$('data-row').dataset.step;
@@ -4752,10 +4755,9 @@ function answerImport(mode, instant = false) {
   if (resolve) resolve(mode);
 }
 
-// ----- the author's name in Settings (its popover: shared/mail-pop.js) -----
+// ----- the author's name and the wordmark in Settings (their popovers: shared/mail-pop.js) -----
 
-function focusAuthor() { author.focusTrigger(); }
-function closeAuthor(instant = false) { author.close(instant); }
+function closeFootPops(instant = false) { for (const [p] of footPops) p.close(instant); }
 
 async function enterDemo() {
   if (state.demo) return;

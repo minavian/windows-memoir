@@ -91,9 +91,21 @@
     <p>Mina Vian · <button class="p-author" id="mail" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="mail-pop">iamminavian@gmail.com</button></p>
   </main>
 
-  <!-- your address, to copy: just the button (shared/mail-pop.js, as the report's "Made by" name) -->
-  <div class="pop author-pop copy-only" id="mail-pop" role="dialog" aria-label="Copy my email" hidden>
-    <button class="ap-copy" type="button" aria-label="Copy my email"><span class="ap-copy-label">Copy</span></button>
+  <!-- my address to copy, and my website (shared/mail-pop.js, as the report's "Made by" name) -->
+  <div class="pop author-pop" id="mail-pop" role="dialog" aria-labelledby="mp-title" hidden>
+    <p class="ap-title" id="mp-title">Want to reach me?</p>
+    <p class="ap-text">Send here!</p>
+    <div class="ap-mail">
+      <a class="ap-addr" href="mailto:iamminavian@gmail.com" tabindex="-1">iamminavian@gmail.com</a>
+      <button class="ap-copy" type="button" data-copy aria-label="Copy my email"><span class="ap-copy-label">Copy</span></button>
+    </div>
+    <hr class="ap-sep">
+    <p class="ap-title">Looking for my website?</p>
+    <p class="ap-text">See more here!</p>
+    <div class="ap-mail">
+      <a class="ap-addr" href="https://minavian.com" target="_blank" rel="noopener" tabindex="-1">minavian.com</a>
+      <a class="ap-copy" href="https://minavian.com" target="_blank" rel="noopener" aria-label="Open minavian.com"><span class="ap-copy-label">Open</span><svg class="ap-arrow" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5h5.5V8M9.2 2.8 2.8 9.2"/></svg></a>
+    </div>
   </div>
 </body>
 </html>
