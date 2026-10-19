@@ -138,6 +138,7 @@ async function init() {
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
   showPaused();
+  renderUpdate({ announce: true });
   // Appearance lives in this place's storage (first paint), with a copy in settings that a linked Memoir
   // shares: changed there while this page was closed, it comes here now (shared/appearance.js)
   syncAppearance().then(changed => { if (changed) updateAppearanceUI(); });
@@ -3915,6 +3916,41 @@ async function linkWith(mode) {
   await chrome.runtime.sendMessage({ type: 'link', mode }).catch(() => {});
 }
 
+// ---------- a newer Memoir for Windows ----------
+// Memoir for Windows never looks online. A linked browser's Memoir, which its store keeps up to date, says which is
+// the newest Memoir for Windows (windowsLatest, link.js); an older one here says so in Settings until it's put off
+// for that version (Not now), and once in a toast.
+const versionOf = v => String(v || '').split(/[^0-9.]/)[0].split('.').map(n => parseInt(n, 10) || 0);
+function isNewer(a, b) {
+  const x = versionOf(a), y = versionOf(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
+let updateShown = null;
+async function renderUpdate({ announce = false } = {}) {
+  if (!window.memoir?.windows) return;
+  const { sync, updateDismissed, updateAnnounced } = await chrome.storage.local.get(['sync', 'updateDismissed', 'updateAnnounced']);
+  const manifest = chrome.runtime.getManifest();
+  const here = manifest.version_name || manifest.version;
+  let latest = null;
+  for (const peer of Object.values((sync && sync.peers) || {})) {
+    const v = peer && peer.windowsLatest;
+    if (/^\d{1,4}(\.\d{1,4}){1,3}$/.test(v || '') && isNewer(v, here) && (!latest || isNewer(v, latest))) latest = v;
+  }
+  const show = latest && updateDismissed !== latest ? latest : null;
+  if (show === updateShown) return;
+  updateShown = show;
+  const row = $('update-row');
+  if (show) $('update-version').textContent = show;
+  // the block makes room for it (or closes up) rather than jumping
+  animateHeight(row.parentElement, () => { row.hidden = !show; });
+  if (show && !row.hidden && !reducedMotion()) row.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 80, easing: EASE_OUT, fill: 'backwards' });
+  if (show && announce && updateAnnounced !== show) {
+    toast(`Memoir for Windows ${show} is out: Settings has it`);
+    chrome.storage.local.set({ updateAnnounced: show }).catch(() => {});
+  }
+}
+
 // Tracking paused, from anywhere (Settings, Today, the tray, a linked Memoir): the header says so, with Resume, so
 // a still or empty week never looks like Memoir stopped working. Not over the sample week.
 function showPaused() {
@@ -4260,6 +4296,8 @@ function wire() {
     else toast(e.target.checked ? 'Tracking resumed' : 'Tracking paused');
   });
   $('set-tracking').addEventListener('blur', () => askPause(false));
+  // a newer Memoir for Windows: Not now puts it off until the next one (renderUpdate)
+  $('update-x').addEventListener('click', () => { if (updateShown) chrome.storage.local.set({ updateDismissed: updateShown }).catch(() => {}); });
   $('resume').addEventListener('click', async () => {
     state.settings = await updateSettings({ paused: false });
     $('set-tracking').checked = true;
@@ -5190,6 +5228,7 @@ function onStorageChanged(changes, area) {
   }
   if (area !== 'local') return;
   if (changes.link || changes.sync) loadLink();
+  if (changes.sync || changes.updateDismissed) renderUpdate();
   if (changes.linkTour) maybeLinkTour();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };

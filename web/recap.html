@@ -197,6 +197,14 @@
 
                   <div class="p-block">
                     <span class="p-label">Your data</span>
+                    <!-- Memoir for Windows only: a newer version is out, as a linked browser's Memoir says (recap.js renderUpdate) -->
+                    <div class="p-row update-row" id="update-row" hidden>
+                      <span><b>A newer Memoir for Windows</b><small>Version <span id="update-version"></span> is out. Your history stays when you install it.</small></span>
+                      <span class="update-actions">
+                        <a class="btn btn-primary btn-xs" id="update-get" href="https://memoir.minavian.com" target="_blank" rel="noopener">Get it</a>
+                        <button class="icon-btn update-x" id="update-x" type="button" aria-label="Not now" title="Not now"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.6 3.6l4.8 4.8M8.4 3.6 3.6 8.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+                      </span>
+                    </div>
                     <!-- Memoir in browser: a row for each browser linked with this app (copies of this one), In sync or Linked; pressed
                          again, Unlink? Nothing linked, its Guide shows how to connect one (recap.js renderLink, openGuide) -->
                     <div class="link-rows" id="link-rows">

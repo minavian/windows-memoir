@@ -2057,6 +2057,11 @@ body { overflow: hidden; }
 /* it comes in as the header's pills do, when a linked Memoir for Windows first brings apps */
 .kind-seg { animation: pop-in 0.4s var(--pop) backwards; }
 
+/* Memoir for Windows: a newer version is out (renderUpdate) */
+.update-row .update-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.update-row .update-x { width: 26px; height: 26px; }
+.update-row .update-x svg { width: 12px; height: 12px; }
+
 /* ---------- leaving the sample week: the pill melts into the gear (meltPill) ---------- */
 /* lives in the header just under the gear (which is z-index 2 there) */
 .melt { position: fixed; inset: 0; z-index: 1; pointer-events: none; }

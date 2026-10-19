@@ -23,6 +23,7 @@ namespace Memoir {
         private static readonly Regex IconFile = new Regex("^[a-f0-9]{24}\\.png$");
         private static readonly Regex OwnDay = new Regex("^day:(\\d{4}-\\d{2}-\\d{2})$");
         private static readonly Regex DeviceId = new Regex("^[a-z0-9-]{8,64}$");
+        private static readonly Regex VersionText = new Regex(@"^\d{1,4}(\.\d{1,4}){1,3}$");
         private static readonly Regex DateKey = new Regex("^\\d{4}-\\d{2}-\\d{2}$");
         // (Appearance too: theme, rainbow, cursor and cursorSmooth are copies of the page's choices, web/shared/appearance.js)
         public static readonly string[] SettingsFields = { "paused", "titles", "retention", "weeklyReminder", "reminderDay", "reminderMinutes", "theme", "rainbow", "cursor", "cursorSmooth" };
@@ -165,6 +166,8 @@ namespace Memoir {
             }
             string name = Json.Text(Json.Get(message, "name"), "Memoir extension"); known["name"] = name.Length > 80 ? name.Substring(0, 80) : name;
             known["version"] = Json.Text(Json.Get(message, "version")); known["browser"] = peer.Browser; known["connected"] = true;
+            // the newest Memoir for Windows that browser's Memoir knows of (Settings says when it's newer than this one)
+            string latest = Json.Text(Json.Get(message, "windowsLatest")); if (VersionText.IsMatch(latest)) known["windowsLatest"] = latest; else known.Remove("windowsLatest");
             Peer old; if (live.TryGetValue(device, out old) && old != peer) Requeue(device, record);
             live[device] = peer; deviceOf[peer.Id] = device; rulesDue.Add(device);
             Save(record); Send(device);
