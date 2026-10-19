@@ -13,6 +13,10 @@ const ICONS = {
   report: '<rect x="2" y="2" width="12" height="12" rx="3"/><path d="M5 10V8m3 2V5m3 5V7"/>',
   pause: '<path d="M5.5 3v10M10.5 3v10"/>',
   play: '<path d="m5 2.5 8 5.5-8 5.5Z"/>',
+  // Memoir for Windows' window: full screen (corners out), leaving it (corners in), closing
+  expand: '<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>',
+  shrink: '<path d="M6 2.5V6H2.5M10 2.5V6h3.5M10 13.5V10h3.5M6 13.5V10H2.5"/>',
+  close: '<path d="M4 4l8 8M12 4l-8 8"/>',
   category: '<path d="M8.35 2.35A1.2 1.2 0 0 0 7.5 2H3.2A1.2 1.2 0 0 0 2 3.2v4.3a1.2 1.2 0 0 0 .35.85l5.22 5.22a1.46 1.46 0 0 0 2.06 0l3.94-3.94a1.46 1.46 0 0 0 0-2.06Z"/><circle cx="5.3" cy="5.3" r=".55"/>',
 };
 const glyph = name => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.copy}</svg>`;
@@ -149,6 +153,13 @@ export function initContextMenu({ getItems = () => [], beforeOpen = () => {}, on
     result.push(...extra);
     if (result.length) result.push({ separator: true });
     result.push({ label: refreshLabel, icon: 'refresh', hint: shortcut('R'), action: () => location.reload() });
+    // Memoir for Windows (no title bar): what its buttons did. Today, by the clock, only closes.
+    if (window.memoir?.windows) {
+      const full = document.documentElement.classList.contains('win-full');
+      result.push({ separator: true });
+      if (!window.memoir.flyout) result.push({ label: full ? 'Exit full screen' : 'Full screen', icon: full ? 'shrink' : 'expand', hint: 'F11', action: () => window.memoir.request('window.fullscreen') });
+      result.push({ label: 'Close', icon: 'close', hint: 'Alt+F4', action: () => window.memoir.request('window.close') });
+    }
     return result;
   }
 

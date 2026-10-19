@@ -75,6 +75,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - On How Memoir works and the privacy policy (pages with `main > .brand`): a "‹ Back to Memoir" link above the name, and Esc, back to the report. `MainForm` opens these pages in the same window.
 - No title bar on any page (`desktop-chrome.css`, `desktop-bridge.js`, `src/TitleBar.cs`): invisible strips along the top edge resize the window; the empty top 64 px of a page moves it (double-click maximizes, right-click opens the window menu); Alt+F4 closes and F11 toggles full screen (`window.fullscreen`). Pages keep the extension's own spacing.
 - The report's gear closes the window (`web/pull-close.js`, loaded by `desktop-bridge.js` on `recap.html`): pulled down past 84 px it closes, pulled up 20 px it toggles full screen, and resting by it for a second shows the hint (a nudge, a red X, "Pull to close"). It adds `.pull-label`, `.pull-track` and a `.g-full` icon to `#settings`; a port that changes the gear's markup (`#settings-btn`, `.g-gear`, `.g-close`) must keep them working.
+- `shared/context-menu.js`: on Windows the right-click menu ends with Full screen (or Exit full screen, F11) and Close (Alt+F4); in Today, Close only. Icons `expand`, `shrink`, `close`.
 - `recap.js`'s tour: a step "Pull to close" before "That’s the tour", with its watcher `onPulled` (it sets `data-pull-tour`, so a pull springs back and fires `memoir:pulled`).
 
 ## Data contract
