@@ -941,7 +941,8 @@ function renderChart(s, soft) {
     if (state.queue) requestAnimationFrame(() => requestAnimationFrame(apply));
     else apply();
   });
-  if (state.view.type === 'week') setChartHeader(false);
+  // another week: its average a day fades in for the last one's (the first paint and the minute's updates just set it)
+  if (state.view.type === 'week') setChartHeader(!soft && !state.firstRender && !state.queue);
 }
 
 // ----- detail views: a day, an hour on a day, or an hour across the week -----
@@ -3919,8 +3920,18 @@ async function linkWith(mode) {
 function showPaused() {
   const on = !!state.settings.paused && !state.demo;
   const pill = $('paused-pill');
-  if (pill.hidden === !on) return;
-  pill.hidden = !on;
+  const leaving = pill.classList.contains('leaving');
+  if (on ? !pill.hidden && !leaving : pill.hidden || leaving) return;
+  pill.getAnimations().forEach(a => a.cancel());
+  pill.classList.remove('leaving');
+  if (on) pill.hidden = false;
+  // resumed: it shrinks away as it popped in, rather than vanishing under the pointer
+  else if (reducedMotion()) pill.hidden = true;
+  else {
+    pill.classList.add('leaving');
+    pill.animate([{ opacity: 1, scale: 1 }, { opacity: 0, scale: 0.85 }], { duration: 220, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).finished
+      .then(() => { if (pill.classList.contains('leaving')) { pill.classList.remove('leaving'); pill.hidden = true; pill.getAnimations().forEach(a => a.cancel()); } }, () => {});
+  }
   if ($('board').classList.contains('is-empty')) render({ soft: true });
 }
 

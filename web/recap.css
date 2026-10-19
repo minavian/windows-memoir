@@ -2054,6 +2054,8 @@ body { overflow: hidden; }
 /* Apps / Browsers on Most used (only with both): the caption moves under the title */
 .sites-card.kinds .panel-head { flex-wrap: wrap; align-items: center; row-gap: 4px; }
 .sites-card.kinds #sites-cap { order: 3; flex-basis: 100%; }
+/* it comes in as the header's pills do, when a linked Memoir for Windows first brings apps */
+.kind-seg { animation: pop-in 0.4s var(--pop) backwards; }
 
 /* ---------- leaving the sample week: the pill melts into the gear (meltPill) ---------- */
 /* lives in the header just under the gear (which is z-index 2 there) */
