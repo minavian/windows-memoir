@@ -2,7 +2,24 @@
 
 Made by Mina Vian. Version 6.0.0.
 
-Open **Memoir.exe** in this folder. Keep the `web` folder, the three WebView2 DLLs, `Memoir.exe.config`, `Memoir.ico` and `Memoir-rainbow.ico` beside it. No installer or administrator access is needed. The app uses Windows' .NET Framework 4.8 and Microsoft Edge WebView2 Runtime, which are installed on this computer.
+People install Memoir with **Memoir Setup.exe** (one file, about 1 MB; see Installing and uninstalling). This folder runs as it is too: open **Memoir.exe**, with the `web` folder, the three WebView2 DLLs, `Memoir.exe.config`, `Memoir.ico` and `Memoir-rainbow.ico` beside it. Neither needs administrator access. The app uses Windows' .NET Framework 4.8 and Microsoft Edge WebView2 Runtime, which come with Windows 10 and 11.
+
+## Installing and uninstalling
+
+**Installing** takes no clicks. Memoir Setup.exe unpacks Memoir into a temporary folder and runs `Memoir.exe --install` from there (`src/Setup.cs`, `installer/Bootstrap.cs`). A small window with no title bar (`web/setup.html`) shows the clock coming in while Memoir is copied to `%LOCALAPPDATA%\Programs\Memoir` and added to Windows' list of installed apps (`HKCU\...\Uninstall\Memoir`: Settings → Apps and Control Panel show it with its icon, version, size and publisher). The clock then winds once and says it's ready, and Memoir opens in its place. On that first start Memoir adds its Start menu shortcut and Start with Windows, as it always does.
+- A Memoir already installed there is closed, updated ("Updating Memoir") and opened again, with its history kept.
+- A Memoir that was run from a folder of its own (the one that last linked with the browsers) has its history copied over, once, to a new install with none. That Memoir is closed first, and its own folder is left as it was.
+- The window follows Windows' light or dark.
+
+**Uninstalling** starts from Windows' list: `Memoir.exe --uninstall` copies itself to a temporary folder and runs from there, so every file can go. Its window follows the Memoir being removed (theme, Rainbow clock, cursor).
+- The clock comes in smiling and its hands droop, from 10:10 to 8:20. It asks "Did MEMOIR do something wrong?" with the email for feedback (Copy, or a click to write) and a switch to keep the history (off).
+- Hovering Keep Memoir cheers the clock up; hovering Uninstall makes it droop further and tremble a little. Keep Memoir, or Esc, makes it smile, say "Yay, MEMOIR stays!" and go.
+- Uninstall removes Memoir at once. The question folds away, the clock grows into a big clock in the middle and turns round once, then "Thank you" shows there and the window goes.
+- Everything Memoir put on this computer goes: its files, its history (unless kept), the Start menu shortcut, Start with Windows, the browsers' link (only if it points at this Memoir) and its entry in the list.
+- `--uninstall --quiet` (the list's QuietUninstallString, for tools such as winget) does the same without a window, keeping the history.
+- Only an installed Memoir uninstalls (`install.json` beside it lists its files): a folder run as it is says so and deletes nothing.
+
+Tests point every place at their own: `MEMOIR_TEST_INSTALL_DIR`, `MEMOIR_TEST_UNINSTALL_KEY` (a key under HKCU), `MEMOIR_TEST_NATIVE_HOST`, `MEMOIR_TEST_START_MENU` and `MEMOIR_TEST_STARTUP_KEY`.
 
 Memoir tracks the focused Windows app and websites in supported browsers. The report keeps the extension's welcome, charts, transitions, Light and Dark themes (and the optional Rainbow clock, which also colours the clock in the notification area), custom cursor, and smooth scrolling. How Memoir works and the privacy policy, opened from Settings, describe the Windows app and open in the same window, with a way back. Categories starts on Day. The report header has a Settings button; Today opens from the clock in the notification area.
 
@@ -56,4 +73,4 @@ Run **Unregister Browser Connector.ps1** to remove those native messaging regist
 
 `tests/run.ps1` checks native time accounting, privacy, limits, saving, and browser messaging. `tests/tray.ps1` checks native tray layout and action delivery across all themes. `tests/interface.cjs` checks the interface in Chrome with Playwright, and `tests/connector.cjs` checks the connector. `tests/performance.ps1` measures a minimized verification instance. See **VALIDATION.md** for results and practical limits. Diagnostic mode makes the tray popup discoverable as a window to accessibility inspection tools; normal mode keeps it out of the taskbar.
 
-When distributing the app, include the executable, config, both icons, three DLLs, and `web` folder. Include the connector and registration scripts if desired. Exclude `Data`, test profiles, logs, screenshots of personal history, and SDK/build outputs. Moving or rebuilding the app does not erase existing data.
+`release.ps1` makes **Memoir Setup.exe** (in `release/`, or `-Out <folder>`). It builds Memoir, then takes only what Memoir needs to run: the executable, its config, both icons, the three DLLs, the extension IDs without their notes, and the `web` folder with every developer comment taken out and the code written compactly (`installer/strip.mjs`: terser for JavaScript, its code unchanged; CSS and HTML by a careful pass of its own). The fonts' licences stay beside the fonts, as their licence asks. Nothing else ships: no READMEs, notes, tests, scripts, the Browser Connector, icons only the extension uses, or `Data`. Run `npm install` in `installer/` once first. It warns while `extension-ids.txt` has no Chrome Web Store ID: until the store's ID is added there, a released Memoir links only with the development extension. Moving or rebuilding the app does not erase existing data.

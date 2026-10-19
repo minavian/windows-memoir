@@ -33,6 +33,17 @@ namespace Memoir {
             } catch { }
             return IsOn();
         }
+        // Uninstalling: the entry goes, if it's this Memoir's
+        public static void Remove(string appDirectory) {
+            try {
+                using (var run = Registry.CurrentUser.OpenSubKey(Run, true)) {
+                    var now = run == null ? null : run.GetValue(Name) as string;
+                    if (now == null || now.IndexOf(Path.Combine(appDirectory, "Memoir.exe"), StringComparison.OrdinalIgnoreCase) < 0) return;
+                    run.DeleteValue(Name, false);
+                }
+                using (var approved = Registry.CurrentUser.OpenSubKey(Approved, true)) if (approved != null) approved.DeleteValue(Name, false);
+            } catch { }
+        }
         // At every start: the first time, it's turned on; after that, a moved folder takes the entry with it (when on)
         public static void Start(Store store, string command) {
             try {

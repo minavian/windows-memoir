@@ -16,7 +16,9 @@ namespace Memoir {
     internal static class Registration {
         public const string HostName = "com.minavian.memoir";
         private static readonly Regex ExtensionId = new Regex("^[a-p]{32}$");
-        private static string Folder { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoir", "NativeHost"); } }
+        // tests keep theirs apart (MEMOIR_TEST_NATIVE_HOST), and leave the browsers' keys alone
+        private static string TestFolder { get { string test = Environment.GetEnvironmentVariable("MEMOIR_TEST_NATIVE_HOST"); return String.IsNullOrEmpty(test) ? null : test; } }
+        private static string Folder { get { return TestFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoir", "NativeHost"); } }
         // Each Chromium browser looks for native hosts in its own folder under HKCU\Software: these when that browser
         // is here (Chrome and Edge always), and any other folder a scan finds holding a Chromium launch beacon
         // (BLBeacon) or other apps' native hosts. Firefox's and WebView2's look alike but can't run the extension.
@@ -58,8 +60,29 @@ namespace Memoir {
                 File.WriteAllText(manifest, Json.Encode(Json.Object("name", HostName, "description", "Memoir for Windows: its link with the Memoir extension, on this computer only",
                     "path", Path.Combine(appDirectory, "Memoir.exe"), "type", "stdio", "allowed_origins", origins)), utf8);
                 File.WriteAllText(Path.Combine(Folder, "data-directory.txt"), Path.GetFullPath(dataDirectory), utf8);
-                foreach (string browser in BrowserFolders()) try { using (var key = Registry.CurrentUser.CreateSubKey(browser + @"\NativeMessagingHosts\" + HostName)) key.SetValue("", manifest); } catch { }
+                if (TestFolder == null) foreach (string browser in BrowserFolders()) try { using (var key = Registry.CurrentUser.CreateSubKey(browser + @"\NativeMessagingHosts\" + HostName)) key.SetValue("", manifest); } catch { }
             } catch { /* the link waits for the next start */ }
+        }
+        // Uninstalling: if the browsers link with this Memoir, that goes (their keys, the host's manifest, the data pointer)
+        public static void Remove(string appDirectory) {
+            try {
+                string manifest = Path.Combine(Folder, HostName + ".json");
+                if (!File.Exists(manifest)) return;
+                string path = Json.Text(Json.Get(Json.Map(Json.Decode(File.ReadAllText(manifest, Encoding.UTF8))), "path"));
+                if (!String.Equals(path, Path.Combine(appDirectory, "Memoir.exe"), StringComparison.OrdinalIgnoreCase)) return;
+                if (TestFolder == null) foreach (string browser in BrowserFolders()) {
+                    string name = browser + @"\NativeMessagingHosts\" + HostName;
+                    try {
+                        using (var key = Registry.CurrentUser.OpenSubKey(name)) if (key == null || !String.Equals(key.GetValue("") as string, manifest, StringComparison.OrdinalIgnoreCase)) continue;
+                        Registry.CurrentUser.DeleteSubKeyTree(name, false);
+                    } catch { }
+                }
+                File.Delete(manifest);
+                File.Delete(Path.Combine(Folder, "data-directory.txt"));
+                if (!Directory.EnumerateFileSystemEntries(Folder).Any()) Directory.Delete(Folder);
+                string parent = Path.GetDirectoryName(Folder);
+                if (TestFolder == null && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any()) Directory.Delete(parent);
+            } catch { }
         }
         // The data folder of the Memoir that registered last (the host connects to its pipe)
         public static string DataDirectory() {

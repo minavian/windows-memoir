@@ -36,6 +36,14 @@ namespace Memoir {
                 if (File.Exists(ShortcutPath) && !String.Equals(Icon(), Icon(target, icon), StringComparison.OrdinalIgnoreCase)) Write(target, appDirectory, icon);
             } catch { }
         }
+        // Uninstalling: the shortcut goes, if it's this Memoir's
+        public static void Remove(string appDirectory) {
+            try {
+                if (!File.Exists(ShortcutPath) || !String.Equals(Target(), Path.Combine(appDirectory, "Memoir.exe"), StringComparison.OrdinalIgnoreCase)) return;
+                File.Delete(ShortcutPath);
+                SHChangeNotify(0x0004, 0x0005, ShortcutPath, IntPtr.Zero);   // SHCNE_DELETE
+            } catch { }
+        }
         private static string Icon(string target, string icon) { return (String.IsNullOrEmpty(icon) ? target : icon) + ",0"; }
         private static void Write(string target, string appDirectory, string icon) {
             Directory.CreateDirectory(Folder);

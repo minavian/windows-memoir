@@ -7,6 +7,7 @@ namespace Memoir {
     internal static class Program {
         [STAThread] private static void Main(string[] args) {
             if (Array.IndexOf(args, "--tray-popup") >= 0) { TrayPopup.Run(args); return; }
+            if (Setup.Command(args)) return;   // installing and uninstalling (Setup.cs)
             string directory = AppDomain.CurrentDomain.BaseDirectory;
             string data = Path.Combine(directory, "Data"), diagnostics = null;
             bool minimized = false, nativeHost = false, fixedData = false; string command = "";

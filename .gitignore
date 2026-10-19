@@ -30,3 +30,8 @@ tests/*.png
 
 # Debug symbols from test builds
 *.pdb
+
+# Release builds (release.ps1) and the stripping tool's packages (npm install in installer/)
+release/
+installer/node_modules/
+installer/package-lock.json

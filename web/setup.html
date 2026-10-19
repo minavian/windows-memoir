@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memoir</title>
+<link rel="stylesheet" href="shared/theme.css">
+<link rel="stylesheet" href="shared/logo.css">
+<link rel="stylesheet" href="setup.css">
+<script src="setup-boot.js"></script>
+</head>
+<body>
+  <main class="st" id="st">
+    <div class="st-head">
+      <span class="logo themed hold st-logo" id="logo" aria-hidden="true"><span class="lg-clock"><i class="lg-ring"></i><i class="lg-sec"><i class="lg-knob"></i></i><i class="lg-min"></i><i class="lg-hour"></i></span></span>
+      <h1 class="st-title" id="title" aria-live="polite"></h1>
+      <p class="st-sub" id="sub"></p>
+    </div>
+    <section class="st-ask" id="ask" hidden>
+      <div class="st-ask-in">
+        <p class="st-sad">Did <span class="wordmark wm-in">Memoir</span> do something wrong?<br><span class="st-sad-2">Send your feedback here, at my email.</span></p>
+        <div class="st-mail">
+          <svg class="st-mail-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.5" width="12" height="9" rx="2.4"/><path d="m3.2 5.2 3.9 2.9a1.5 1.5 0 0 0 1.8 0l3.9-2.9"/></svg>
+          <a class="st-addr" id="addr" href="mailto:iamminavian@gmail.com?subject=Memoir%20feedback">iamminavian@gmail.com</a>
+          <button class="st-copy" id="copy" type="button" aria-label="Copy the email address"><span class="st-copy-label">Copy</span><svg class="st-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.8 8.4l2.5 2.5a.8.8 0 0 0 1.15-.02L12.3 5.4"/></svg></button>
+        </div>
+        <label class="st-keep">
+          <span class="st-keep-text"><span class="st-keep-name">Keep my history</span><span class="st-keep-desc">Here for you if you come back</span></span>
+          <span class="switch"><input type="checkbox" id="keep" aria-label="Keep my history"><span class="track"></span><span class="knob"></span></span>
+        </label>
+        <div class="st-actions">
+          <button class="btn btn-secondary btn-lg" id="stay" type="button">Keep Memoir</button>
+          <button class="btn btn-lg st-go" id="go" type="button">Uninstall</button>
+        </div>
+      </div>
+    </section>
+    <div class="st-error" id="error" hidden>
+      <p class="st-error-text" id="error-text"></p>
+      <button class="btn btn-secondary btn-lg" id="error-close" type="button">Close</button>
+    </div>
+  </main>
+  <script type="module" src="setup.js"></script>
+</body>
+</html>

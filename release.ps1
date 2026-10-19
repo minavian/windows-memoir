@@ -1,0 +1,43 @@
+# Memoir Setup.exe: builds Memoir, takes only what it needs to run (its web files without developer comments, the
+# extension IDs without notes), packs that into one installer (installer\Bootstrap.cs) and writes it to -Out.
+# Needs Node and installer\node_modules (npm install in installer\ once).
+param([string]$Out = (Join-Path $PSScriptRoot 'release'))
+$ErrorActionPreference = 'Stop'
+$root = $PSScriptRoot
+& (Join-Path $root 'build.ps1') | Out-Null
+if (!(Test-Path -LiteralPath (Join-Path $root 'installer\node_modules\terser'))) { throw 'Run npm install in installer\ first.' }
+
+$stage = Join-Path ([IO.Path]::GetTempPath()) ('memoir-release-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$app = Join-Path $stage 'app'
+New-Item -ItemType Directory -Force -Path $app | Out-Null
+try {
+    foreach ($file in @('Memoir.exe', 'Memoir.exe.config', 'Memoir.ico', 'Memoir-rainbow.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll')) {
+        Copy-Item -LiteralPath (Join-Path $root $file) -Destination $app
+    }
+    # the extensions that may link with it: their IDs, one a line, nothing else
+    $ids = @(Get-Content -LiteralPath (Join-Path $root 'extension-ids.txt') | ForEach-Object { ($_ -split '#')[0].Trim() } | Where-Object { $_ -match '^[a-p]{32}$' })
+    [IO.File]::WriteAllText((Join-Path $app 'extension-ids.txt'), (($ids -join "`r`n") + "`r`n"), (New-Object Text.UTF8Encoding $false))
+    if ($ids.Count -lt 2) { Write-Warning 'extension-ids.txt has no Chrome Web Store ID yet: the released Memoir links only with the development extension.' }
+
+    & node (Join-Path $root 'installer\strip.mjs') (Join-Path $root 'web') (Join-Path $app 'web')
+    if ($LASTEXITCODE -ne 0) { throw 'Stripping the web files failed.' }
+    # icons only the browser extension uses
+    foreach ($unused in @('icons\icon48.png', 'icons\rainbow16.png', 'icons\rainbow48.png')) { Remove-Item -LiteralPath (Join-Path $app "web\$unused") -ErrorAction SilentlyContinue }
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $payload = Join-Path $stage 'payload.zip'
+    [IO.Compression.ZipFile]::CreateFromDirectory($app, $payload, [IO.Compression.CompressionLevel]::Optimal, $false)
+
+    New-Item -ItemType Directory -Force -Path $Out | Out-Null
+    $setup = Join-Path $Out 'Memoir Setup.exe'
+    $framework = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
+    $arguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/debug-', ('/out:' + $setup),
+        ('/win32manifest:' + (Join-Path $root 'installer\installer.manifest')), ('/win32icon:' + (Join-Path $root 'Memoir.ico')),
+        ('/resource:' + $payload + ',payload.zip'), '/reference:System.Windows.Forms.dll',
+        ('/reference:' + (Join-Path $framework 'System.IO.Compression.dll')), ('/reference:' + (Join-Path $framework 'System.IO.Compression.FileSystem.dll')),
+        (Join-Path $root 'installer\Bootstrap.cs'))
+    & (Join-Path $framework 'csc.exe') @arguments
+    if ($LASTEXITCODE -ne 0) { throw 'Building Memoir Setup.exe failed.' }
+    $size = [math]::Round((Get-Item -LiteralPath $setup).Length / 1KB)
+    Write-Output "Built $setup ($size KB)"
+} finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }

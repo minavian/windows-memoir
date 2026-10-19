@@ -1,0 +1,9 @@
+{
+  "name": "memoir-release",
+  "private": true,
+  "description": "Strips developer comments from Memoir's web files for release (strip.mjs)",
+  "type": "module",
+  "dependencies": {
+    "terser": "5.36.0"
+  }
+}
