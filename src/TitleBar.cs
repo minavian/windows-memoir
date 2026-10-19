@@ -34,32 +34,54 @@ namespace Memoir {
         public static int ProposedTop(IntPtr lparam) { return ((CalcSizeParams)Marshal.PtrToStructure(lparam, typeof(CalcSizeParams))).Proposed.Top; }
         public static void GiveCaption(IntPtr hwnd, IntPtr lparam, int top) {
             var p = (CalcSizeParams)Marshal.PtrToStructure(lparam, typeof(CalcSizeParams));
-            p.Proposed.Top = top + (IsZoomed(hwnd) ? GetSystemMetrics(33) + GetSystemMetrics(92) : 0); // SM_CYFRAME + SM_CXPADDEDBORDER
+            p.Proposed.Top = top + (IsZoomed(hwnd) && !IsFullScreen ? GetSystemMetrics(33) + GetSystemMetrics(92) : 0); // SM_CYFRAME + SM_CXPADDEDBORDER
             Marshal.StructureToPtr(p, lparam, false);
         }
         // the frame is worked out again (once the window exists)
         public static void Refresh(IntPtr hwnd) { SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010); }
-        // Full screen: no frame, the whole screen, over the taskbar; then back to exactly where and how it was
-        // (maximized too). As browsers do: a maximized window is restored first, so the screen's size is its own.
+        // Full screen: no frame and no edge, the whole screen, over the taskbar; then back to exactly where and how it
+        // was. Both ways go through maximized, which Windows animates, so it grows and shrinks smoothly like a
+        // double-click on the top: in, maximize (Begin), then, once that's played, drop the frame and cover the screen
+        // (Cover); out, put the frame back and restore (End), unless it was maximized to begin with.
         public static bool IsFullScreen { get; private set; }
-        private static Placement saved; private static long savedStyle;
-        public static void FullScreen(IntPtr hwnd, bool on) {
-            if (on == IsFullScreen) return;
-            const int style = -16; const long caption = 0xC00000, frame = 0x40000;
-            if (on) {
-                saved = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref saved);
-                savedStyle = GetWindowLongPtr(hwnd, style).ToInt64();
-                if (IsZoomed(hwnd)) SendMessage(hwnd, SysCommand, new IntPtr(0xF120), IntPtr.Zero);   // SC_RESTORE
-                SetWindowLongPtr(hwnd, style, new IntPtr(savedStyle & ~(caption | frame)));
-                var screen = Screen.FromHandle(hwnd).Bounds;
-                SetWindowPos(hwnd, IntPtr.Zero, screen.X, screen.Y, screen.Width, screen.Height, 0x0020 | 0x0004 | 0x0200);   // FRAMECHANGED, NOZORDER, NOOWNERZORDER
-            } else {
-                SetWindowLongPtr(hwnd, style, new IntPtr(savedStyle));
-                Refresh(hwnd);
-                SetWindowPlacement(hwnd, ref saved);
-            }
-            IsFullScreen = on;
+        private static Placement saved; private static long savedStyle; private static bool wasZoomed;
+        private const int StyleIndex = -16; private const long CaptionStyle = 0xC00000, FrameStyle = 0x40000;
+        // returns whether Windows is animating to maximized (wait for it before Cover)
+        public static bool Begin(IntPtr hwnd) {
+            saved = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref saved);
+            savedStyle = GetWindowLongPtr(hwnd, StyleIndex).ToInt64(); wasZoomed = IsZoomed(hwnd);
+            if (wasZoomed) return false;
+            SendMessage(hwnd, SysCommand, new IntPtr(0xF030), IntPtr.Zero);   // SC_MAXIMIZE
+            return true;
         }
+        public static void Cover(IntPtr hwnd) {
+            IsFullScreen = true;
+            SetWindowLongPtr(hwnd, StyleIndex, new IntPtr(GetWindowLongPtr(hwnd, StyleIndex).ToInt64() & ~(CaptionStyle | FrameStyle)));
+            var screen = Screen.FromHandle(hwnd).Bounds;
+            SetWindowPos(hwnd, IntPtr.Zero, screen.X, screen.Y, screen.Width, screen.Height, 0x0020 | 0x0004 | 0x0200);   // FRAMECHANGED, NOZORDER, NOOWNERZORDER
+        }
+        // animate: restore as Windows does (a window about to hide goes straight back)
+        public static void End(IntPtr hwnd, bool animate) {
+            if (!IsFullScreen) return;
+            IsFullScreen = false;
+            SetWindowLongPtr(hwnd, StyleIndex, new IntPtr(GetWindowLongPtr(hwnd, StyleIndex).ToInt64() | (savedStyle & (CaptionStyle | FrameStyle))));
+            Refresh(hwnd);
+            if (!wasZoomed && animate) {
+                // where it goes back to is where it was (taking the frame off and on moves Windows' own note of it)
+                var now = new Placement { Length = Marshal.SizeOf(typeof(Placement)) }; GetWindowPlacement(hwnd, ref now);
+                now.Normal = saved.Normal; now.ShowCmd = 3; SetWindowPlacement(hwnd, ref now);   // SW_SHOWMAXIMIZED
+                SendMessage(hwnd, SysCommand, new IntPtr(0xF120), IntPtr.Zero);   // SC_RESTORE
+                // (WinForms sizes a restored window again from its own note, a caption taller: the size it had wins)
+                var r = saved.Normal; SetWindowPos(hwnd, IntPtr.Zero, 0, 0, r.Right - r.Left, r.Bottom - r.Top, 0x0002 | 0x0004 | 0x0010);   // NOMOVE, NOZORDER, NOACTIVATE
+            }
+            else SetWindowPlacement(hwnd, ref saved);
+        }
+        // closed while it was still maximizing: back where it was
+        public static void Abandon(IntPtr hwnd) { if (!wasZoomed) SetWindowPlacement(hwnd, ref saved); }
+        // Windows' own setting: are windows animated when they maximize (Settings, Accessibility, Animation effects)?
+        public static bool Animated() { var info = new AnimationInfo { Size = Marshal.SizeOf(typeof(AnimationInfo)) }; return SystemParametersInfo(0x0048, info.Size, ref info, 0) && info.MinAnimate != 0; }
+        [StructLayout(LayoutKind.Sequential)] private struct AnimationInfo { public int Size, MinAnimate; }
+        [DllImport("user32.dll")] private static extern bool SystemParametersInfo(int action, int param, ref AnimationInfo info, int flags);
         // the empty top of a page pressed: the window moves (or, from its top edge, resizes) as from a real caption, Snap included
         public static void Drag(IntPtr hwnd, int hit) {
             if (hit != Caption && hit != Top && hit != TopLeft && hit != TopRight) return;
