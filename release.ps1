@@ -23,6 +23,18 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Stripping the web files failed.' }
     # icons only the browser extension uses
     foreach ($unused in @('icons\icon48.png', 'icons\rainbow16.png', 'icons\rainbow48.png')) { Remove-Item -LiteralPath (Join-Path $app "web\$unused") -ErrorAction SilentlyContinue }
+    # what the licences of what ships ask to travel with it, in one file beside Memoir.exe: the WebView2 SDK's licence
+    # and notice (its three DLLs), and the fonts' licence
+    $sdk = Join-Path $root 'build-tools\webview2'
+    $fonts = Join-Path $app 'web\fonts'
+    $rule = "`r`n" + ('-' * 72) + "`r`n`r`n"
+    $notices = "Memoir includes these, under their own licences.`r`n" + $rule +
+        "Microsoft Edge WebView2 SDK 1.0.4258.31 (Microsoft.Web.WebView2.Core.dll, Microsoft.Web.WebView2.WinForms.dll, WebView2Loader.dll)`r`n`r`n" +
+        (Get-Content -LiteralPath (Join-Path $sdk 'LICENSE.txt') -Raw) + "`r`n" + (Get-Content -LiteralPath (Join-Path $sdk 'NOTICE.txt') -Raw) + $rule +
+        "Inter (web\fonts\InterVariable-memoir.woff2)`r`n`r`n" + (Get-Content -LiteralPath (Join-Path $fonts 'Inter-LICENSE.txt') -Raw) + $rule +
+        "Unbounded (web\fonts\Unbounded-subset.woff2)`r`n`r`n" + (Get-Content -LiteralPath (Join-Path $fonts 'Unbounded-LICENSE.txt') -Raw)
+    [IO.File]::WriteAllText((Join-Path $app 'Third-party notices.txt'), $notices, (New-Object Text.UTF8Encoding $false))
+    Remove-Item -LiteralPath (Join-Path $fonts 'Inter-LICENSE.txt'), (Join-Path $fonts 'Unbounded-LICENSE.txt')
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $payload = Join-Path $stage 'payload.zip'

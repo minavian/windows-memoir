@@ -26,7 +26,7 @@
     <p class="kicker">Privacy policy</p>
     <h1>Everything stays on your computer.</h1>
     <p class="lead">Memoir for Windows has no servers, no accounts, no analytics and no ads. It never sends your data off your computer, so nobody else can see it, including the developer.</p>
-    <p class="when">Effective 18 October 2026</p>
+    <p class="when">Effective 19 October 2026</p>
 
     <h2>What Memoir records</h2>
     <p>To show where your time goes, Memoir keeps these on your computer:</p>
@@ -34,7 +34,7 @@
       <li><b>Which app or website is in front, and for how long.</b> It keeps the app’s name and icon (for example Word), or the website’s name (for example <code>youtube.com</code>), the time you spent there and the hours of the day it was in. A website’s name is read from your browser’s address bar, using Windows’ accessibility features. Memoir doesn’t keep the addresses of the pages you visit, or anything on them.</li>
       <li><b>Page and window titles, only if you turn on “Page titles”</b> in Settings (it’s off unless you turn it on). They are kept as long as the rest of your history, and deleted with it.</li>
       <li><b>Each site’s home address</b> (for example <code>https://www.youtube.com</code>), so its link works.</li>
-      <li><b>Your settings</b>: your daily limit and when it changed, your reminder day and time, categories you changed, what you never track, and your theme and cursor choices.</li>
+      <li><b>Your settings</b>: your daily limit and when it changed, your reminder day and time, categories you changed, what you never track, and your Appearance choices (the theme, the Rainbow clock and the cursor).</li>
     </ul>
     <p>To know when to stop counting, Memoir checks how long it’s been since you last used the mouse or keyboard, and whether the app in front is playing sound. It only learns those, never what you type or click.</p>
     <p><b>What Memoir never records:</b> what you type or click, what’s on your screen, passwords, form entries, cookies or your location.</p>
@@ -42,10 +42,11 @@
 
     <h2>Where it’s kept</h2>
     <ul>
-      <li><b>On this computer only</b>, in the Data folder next to Memoir: your history, a backup copy of it, app icons and the window’s own settings. It is not synced to any account.</li>
-      <li><b>Memoir makes no network requests.</b> Websites show their first letter instead of an icon, so the sites themselves aren’t contacted. Memoir’s window uses Microsoft Edge WebView2, part of Windows, with its background networking turned off; Windows keeps WebView2 up to date, under Microsoft’s privacy statement.</li>
+      <li><b>On this computer only</b>, in the Data folder next to Memoir (installed, that’s AppData\Local\Programs\Memoir\Data): your history, a backup copy of it, app icons, the icons of sites a linked browser passed on, and the window’s own settings. It is not synced to any account.</li>
+      <li><b>Memoir makes no network requests.</b> A website’s icon comes only from a browser you’ve linked, out of that browser’s own icon cache; without one, the site shows its first letter. The sites themselves are never contacted. Memoir’s window uses Microsoft Edge WebView2, part of Windows, with its background networking turned off; Windows keeps WebView2 up to date, under Microsoft’s privacy statement.</li>
       <li><b>Memoir in your browser</b>, once linked, or <b>the optional browser connector</b> passes the tab in front to Memoir over a channel that only your Windows account can open. No local web server is opened.</li>
       <li><b>Notifications</b> (your daily limit, the weekly reminder) are made on your computer.</li>
+      <li><b>Installed</b> with Memoir Setup, Memoir is in your account’s own programs folder (AppData\Local\Programs\Memoir) and in Windows’ list of installed apps. No administrator is needed, and no other account is touched.</li>
       <li><b>Outside its folder</b>, Memoir writes only small settings for your Windows account, none of which holds your data: one entry in Windows’ startup list while Start with Windows is on, a shortcut in your Start menu so Windows Search finds it, and the registrations that let Memoir in your browsers reach it (a folder in AppData\Local\Memoir and a registry key for each browser).</li>
     </ul>
 
@@ -53,7 +54,7 @@
     <p>Memoir for Windows can sync with Memoir in your browser, on this computer, so both show the same week. It works in Chrome, Edge, Brave, Opera, Vivaldi, Arc and other browsers built on Chromium. It’s off until you press <b>Link</b> in Memoir’s Settings in that browser, under Your data. Each linked browser then has its own row in this app’s Settings, under Your data.</p>
     <ul>
       <li><b>On this computer only.</b> The two talk through your browser’s native messaging, which starts Memoir’s own program on your computer, and a named pipe that only your Windows account can open. Nothing goes online, and there is no server in between.</li>
-      <li><b>What goes across:</b> your daily totals (each app’s and site’s time, hour by hour), with page and window titles only if Page titles is on; your rules (Never track, Page titles, Keep history, the weekly reminder, your daily limit and its history, categories you changed, whether tracking is paused, and which limit warnings you’ve had today); each site’s home address; your apps’ names and categories; and a note when you use Clear all or erase saved page titles, so the other side does the same.</li>
+      <li><b>What goes across:</b> your daily totals (each app’s and site’s time, hour by hour), with page and window titles only if Page titles is on; your rules (Never track, Page titles, Keep history, the weekly reminder, your daily limit and its history, categories you changed, whether tracking is paused, and which limit warnings you’ve had today); each site’s home address; your Appearance choices; your apps’ names, categories and icons, to your browser; the icons of the sites you visit, from your browser’s own icon cache, to this app; and a note when you use Clear all or erase saved page titles, so the other side does the same.</li>
       <li><b>The tab in front.</b> While linked, Memoir in your browser tells this app which tab is in front, so both count the same time: its site, and its title, which this app keeps only if Page titles is on. A tab in a private (Incognito) window counts only as Private.</li>
       <li><b>Kept apart.</b> Each side keeps the other’s days apart from its own, and shows the two merged, so the same minutes never count twice. When you link, you choose to merge both histories or to start from today.</li>
       <li><b>More than one browser.</b> If you link Memoir in several browsers or profiles, Memoir for Windows passes each one’s time on to the others.</li>
@@ -72,17 +73,18 @@
       <li><b>Choose how long to keep history</b>: forever, 1 year, 6 months or 3 months. Older days are deleted automatically, page titles included.</li>
       <li><b>Link or unlink</b> Memoir in your browser: link it from its Settings in your browser, and unlink it from either one’s. It’s off unless you link it.</li>
       <li><b>Export</b> everything as a file, or <b>import</b> a file you exported earlier. The file goes wherever you save it; Memoir doesn’t upload it.</li>
-      <li><b>Clear all</b> deletes everything at once. To remove Memoir, turn off Start with Windows, quit it, and delete its folder and its Start menu shortcut; that deletes everything it recorded, Data included. Browsers you linked keep their own copy until you clear it there.</li>
+      <li><b>Clear all</b> deletes everything at once. <b>Uninstalling</b> Memoir, from Windows’ Settings under Apps, removes everything it put on your computer: its files, its history (unless you choose to keep it), its Start menu shortcut, Start with Windows and its link with your browsers. Browsers you linked keep their own copy until you clear it there.</li>
     </ul>
 
     <h2>Links and email</h2>
     <ul>
       <li>Links in the report, to a site or a page, open in your own browser, and only when you click them. Those sites’ own privacy policies then apply.</li>
       <li>The “bug report” link in Settings opens your own email app with a new message. The message’s subject is Memoir’s version number and nothing else is filled in. Nothing is sent until you send it yourself.</li>
+      <li>Uninstalling shows my email address, in case Memoir did something wrong. Copying it, or clicking it to write, sends nothing by itself.</li>
     </ul>
 
     <h2>Updates</h2>
-    <p>Memoir for Windows doesn’t check for updates or download anything. New versions come from Memoir’s website, when you choose to download them. Your records and settings stay as they are after an update.</p>
+    <p>Memoir for Windows doesn’t check for updates or download anything. New versions come from Memoir’s website, when you choose to download them, and the new Memoir Setup updates Memoir in place. Your records and settings stay as they are after an update.</p>
 
     <h2>Changes</h2>
     <p>If this policy changes, the new version will appear here with a new date. If Memoir ever needed to send any data off your computer, it would ask you first.</p>
