@@ -62,16 +62,16 @@ async function main() {
   chrome.runtime.sendMessage({ type: 'sync' }).catch(() => {});
 
   const pastKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), -(i + 1))));
-  const [days, settings, overrides, session, origins, history, { popupIntroduced, apps }] = await Promise.all([
+  const [days, settings, overrides, session, origins, history, { popupIntroduced, apps, appIcons }] = await Promise.all([
     getDays([state.todayKey, ...pastKeys]),
     getSettings(),
     getCategoryOverrides(),
     getSession(),
     getOrigins(),
     getGoalHistory(),
-    chrome.storage.local.get(['popupIntroduced', 'apps']),
+    chrome.storage.local.get(['popupIntroduced', 'apps', 'appIcons']),
   ]);
-  setApps(apps); // Windows apps' names and categories, from a linked Memoir for Windows
+  setApps(apps, appIcons); // Windows apps' names, categories and icons, from a linked Memoir for Windows
   state.today = days[state.todayKey];
   state.overrides = overrides;
   state.session = session;
@@ -406,7 +406,7 @@ function onStorage(changes, area) {
   if (area !== 'local') return;
   // today as shown: this side's own merged with a linked Memoir's
   if (Object.keys(changes).some(k => recordDate(k) === state.todayKey) || changes.linkPeers) getDays([state.todayKey]).then(d => { state.today = d[state.todayKey]; });
-  if (changes.apps) setApps(changes.apps.newValue);
+  if (changes.apps || changes.appIcons) chrome.storage.local.get(['apps', 'appIcons']).then(r => setApps(r.apps, r.appIcons));
   if (changes.categories) state.overrides = changes.categories.newValue || {};
   if (changes.origins) setOrigins(changes.origins.newValue || {});
   if (changes.goal) {

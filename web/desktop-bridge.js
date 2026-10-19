@@ -28,6 +28,7 @@
     if (msg.event === 'window') { windowState(msg.state || {}); return; }
     if (msg.event === 'storage') {
       if (msg.area === 'local' && msg.changes.apps) window.memoir.apps = msg.changes.apps.newValue || {};
+      if (msg.area === 'local' && msg.changes.favicons) window.memoir.favicons = msg.changes.favicons.newValue || {};
       for (const fn of listeners) fn(msg.changes, msg.area);
       return;
     }
@@ -57,8 +58,9 @@
   };
   window.chrome.tabs = { create: ({ url }) => request('link.open', { url }) };
   window.memoir = {
-    windows: true, apps: {}, request,
-    ready: storage.get('apps').then(data => { window.memoir.apps = data.apps || {}; }),
+    // the apps' names, categories and icons; the websites' icons a linked browser sent (both in Data\icons)
+    windows: true, apps: {}, favicons: {}, request,
+    ready: storage.get(['apps', 'favicons']).then(data => { window.memoir.apps = data.apps || {}; window.memoir.favicons = data.favicons || {}; }),
     appName: key => window.memoir.apps[key]?.name || key.slice(4).replace(/\.exe$/, ''),
     today: () => request('window.today'), minimize: () => request('window.minimize'),
   };

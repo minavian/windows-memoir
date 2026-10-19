@@ -130,7 +130,7 @@ namespace Memoir {
                         rec["tp"] = Json.Array(rec["tp"]).Where(d => !Excluded(Json.Text(d), excluded)).ToArray();
                     }
                     data[key] = rec;
-                } else if (key == "apps" || key == "origins" || key == "categories") {
+                } else if (key == "apps" || key == "origins" || key == "categories" || key == "favicons") {
                     var map = Json.Map(data[key]); foreach (string domain in map.Keys.ToArray()) if (Excluded(domain, excluded)) map.Remove(domain);
                 }
             }

@@ -2,7 +2,7 @@
 // Hover motion never overshoots; bounce is saved for things that pop open.
 
 import { smoothScrollTo, stopSmoothScroll } from './scroll.js';
-import { isPage, siteName } from './core.js';
+import { isPage, siteName, isApp, appIcon, ICON_FILE } from './core.js';
 export { initSmoothScrolling } from './scroll.js';
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -307,13 +307,23 @@ function favSlot(task) {
   });
 }
 
+// An icon known at once, with nothing to look up (undefined: look it up): on Windows, the files in Memoir's
+// icons folder, an app's own and the websites' a linked browser sent (`favicons`); in the browser, a Windows
+// app's icon that a linked Memoir for Windows sent.
+function directIcon(domain) {
+  if (window.memoir?.windows) {
+    const file = isApp(domain) ? window.memoir.apps[domain]?.icon : window.memoir.favicons?.[domain];
+    return ICON_FILE.test(file || '') ? `https://memoir-icons.example/${isApp(domain) ? '' : 'sites/'}${file}` : null;
+  }
+  if (isApp(domain)) return appIcon(domain);
+  return undefined;
+}
+
 // Chrome keys icons by the exact address visited (www., port…), so try the
 // address the site was really visited on first, then the usual spellings.
 export function resolveFavicon(domain) {
-  if (window.memoir?.windows) {
-    const icon = window.memoir.apps[domain]?.icon;
-    return Promise.resolve(domain.startsWith('app:') && /^[a-f0-9]{24}\.png$/.test(icon || '') ? `https://memoir-icons.example/${icon}` : null);
-  }
+  const direct = directIcon(domain);
+  if (direct !== undefined) return Promise.resolve(direct);
   if (iconCache.has(domain)) return iconCache.get(domain);
   const p = favSlot(async () => {
     const known = rememberedPage(domain);
@@ -422,6 +432,8 @@ export function faviconTile(domain, color) {
     }
   };
   // known already: in place at once, no entrance (redrawn lists would otherwise blink)
+  const direct = directIcon(domain);
+  if (direct !== undefined) { fill(direct, false); return tile; }
   if (iconKnown.has(domain)) { fill(iconKnown.get(domain), false); return tile; }
   whenSeen(tile, () => resolveFavicon(domain).then(src => { if (tile.isConnected) fill(src, true); }));
   return tile;

@@ -20,13 +20,22 @@ export const PAGE_NAMES = Object.freeze({
 });
 export const isPage = d => Object.hasOwn(PAGE_NAMES, d);
 // Windows apps (from Memoir for Windows: its own, or the extension's once linked), app:name.exe, each with
-// a name, a category and (on Windows) an icon: the `apps` record, or Windows' own list (window.memoir)
+// a name, a category and an icon: the `apps` record, or Windows' own list (window.memoir). The icon is a file
+// name in Memoir for Windows' icons folder; a linked extension keeps the pictures it sent (`appIcons`, as data:
+// URLs, by file name: link.js).
 export const APP_KEY = /^app:[^<>:"/\\|?*\x00-\x1f]+\.exe$/;
+export const ICON_FILE = /^[a-f0-9]{24}\.png$/;
 export const isApp = d => typeof d === 'string' && APP_KEY.test(d);
 let appList = {};
-export const setApps = map => { appList = map && typeof map === 'object' ? map : {}; };
+let appPictures = {};
+export const setApps = (map, icons) => {
+  appList = map && typeof map === 'object' ? map : {};
+  if (icons !== undefined) appPictures = icons && typeof icons === 'object' ? icons : {};
+};
 const appInfo = d => (globalThis.memoir?.apps || appList)[d];
 export const appName = d => appInfo(d)?.name || d.slice(4).replace(/\.exe$/i, '');
+// an app's icon in the extension (a data: URL), or null: its first letter instead
+export const appIcon = d => { const file = appInfo(d)?.icon; return (ICON_FILE.test(file || '') && appPictures[file]) || null; };
 // what a site is called on screen
 export const siteName = d => PAGE_NAMES[d] || (isApp(d) ? appName(d) : d);
 

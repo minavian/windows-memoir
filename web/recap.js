@@ -126,11 +126,11 @@ async function init() {
   if (m) state.weekStart = startOfWeek(dateFromKey(m[1]));
   if (state.weekStart > startOfWeek(new Date())) state.weekStart = startOfWeek(new Date());
 
-  const [settings, overrides, origins, history, keys, session, today, { onboarded, goalTrial, apps }] = await Promise.all([
+  const [settings, overrides, origins, history, keys, session, today, { onboarded, goalTrial, apps, appIcons }] = await Promise.all([
     getSettings(), getCategoryOverrides(), getOrigins(), getGoalHistory(), listDayKeys(), getSession(),
-    getDays([state.todayKey]), chrome.storage.local.get(['onboarded', 'goalTrial', 'apps']),
+    getDays([state.todayKey]), chrome.storage.local.get(['onboarded', 'goalTrial', 'apps', 'appIcons']),
   ]);
-  setApps(apps); // Windows apps' names and categories, from a linked Memoir for Windows
+  setApps(apps, appIcons); // Windows apps' names, categories and icons, from a linked Memoir for Windows
   // first visit: the welcome covers the page while it gets ready
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
@@ -3120,7 +3120,7 @@ async function anonymizeSites(list) {
   if (!list.length) return 0;
   // every day record: this side's own and a linked Memoir's
   const keys = await listDayRecordKeys();
-  const raw = await chrome.storage.local.get([...keys, 'origins', 'categories', 'apps']);
+  const raw = await chrome.storage.local.get([...keys, 'origins', 'categories', 'apps', 'favicons']);
   const patch = {};
   let touched = 0;
   for (const k of keys) {
@@ -3137,6 +3137,10 @@ async function anonymizeSites(list) {
   if (Object.keys(o2).length !== Object.keys(origins).length) patch.origins = o2;
   if (Object.keys(c2).length !== Object.keys(cats).length) { patch.categories = c2; state.overrides = c2; }
   if (Object.keys(a2).length !== Object.keys(apps).length) patch.apps = a2;
+  // (Memoir for Windows: the websites' icons a linked browser sent)
+  const icons = raw.favicons || {};
+  const f2 = Object.fromEntries(Object.entries(icons).filter(([d]) => !isExcluded(d, list)));
+  if (Object.keys(f2).length !== Object.keys(icons).length) patch.favicons = f2;
   if (Object.keys(patch).length) await chrome.storage.local.set(patch);
   return touched;
 }
@@ -3936,7 +3940,7 @@ function setNukeStep(n) {
 async function clearAllData() {
   await withData(async () => {
     const keys = await listDayRecordKeys();
-    await chrome.storage.local.remove([...keys, 'categories', 'origins', 'apps', 'goalNotify']);
+    await chrome.storage.local.remove([...keys, 'categories', 'origins', 'apps', 'appIcons', 'favicons', 'goalNotify']);
     await chrome.storage.session.remove('session');
     // a linked Memoir clears everything from before now too (the marker travels; shared/link.js)
     await chrome.storage.local.set({ wipe: Date.now() });
@@ -5170,9 +5174,9 @@ function onStorageChanged(changes, area) {
   // a day as shown is this side's own merged with a linked Memoir's: either changing redraws it
   const dates = new Set(Object.keys(changes).map(recordDate).filter(Boolean));
   if (dates.has(state.todayKey) || changes.linkPeers) getDays([state.todayKey]).then(d => { state.todayRec = d[state.todayKey]; updateGoal(); });
-  if (changes.apps) setApps(changes.apps.newValue);
+  if (changes.apps || changes.appIcons) chrome.storage.local.get(['apps', 'appIcons']).then(r => { setApps(r.apps, r.appIcons); if (!state.demo) refreshSoon(); });
   if (state.demo) return;
-  if (changes.linkPeers || changes.apps || weekDayKeys(state.weekStart).some(k => dates.has(k))) refreshSoon();
+  if (changes.linkPeers || changes.favicons || weekDayKeys(state.weekStart).some(k => dates.has(k))) refreshSoon();
 }
 
 // New time saved for the week shown: redraw in a moment, but never under a menu or a

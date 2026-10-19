@@ -65,7 +65,7 @@ namespace Memoir {
             Registration.Register(directory, dataDirectory);
             registration = new System.Threading.Timer(delegate { Registration.Register(directory, dataDirectory); }, null, 600000, 600000);
             var version = typeof(MainForm).Assembly.GetName().Version;
-            sync = new Sync(this, store, engine, tracker.Link, version.Major + "." + version.Minor + "." + version.Build, delegate { tracker.SettingsChanged(); });
+            sync = new Sync(this, store, engine, tracker.Link, version.Major + "." + version.Minor + "." + version.Build, Path.Combine(dataDirectory, "icons"), delegate { tracker.SettingsChanged(); });
             // the first browser linked here brings a short tour of what linking does (recap.js maybeLinkTour): Memoir
             // comes to the front for it; a browser linked before this version gets it the next time Memoir opens
             sync.Linked += delegate(string device) {

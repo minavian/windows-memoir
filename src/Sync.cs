@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,10 +13,14 @@ namespace Memoir {
     // larger time per name per hour, so the same minutes measured on both sides never add up. Each extension
     // (one per browser profile) gets this app's own days merged with any other extension's, never its own
     // back. Settings, Never track, the limit's history and moved categories go to whichever side changed them
-    // last; Clear all and Erase titles travel as markers. Runs on the UI thread, where the store lives.
+    // last; Clear all and Erase titles travel as markers. Icons go where they're missing: an extension asks for
+    // the pictures of this app's apps it doesn't have, and this app asks a browser for its websites' icons
+    // (kept in icons\sites, named in `favicons`). Runs on the UI thread, where the store lives.
     internal sealed class Sync {
         public const int Protocol = 1;
         private const int BatchBytes = 600 * 1024;   // well under the 1 MB a browser takes from its native host
+        private const int IconBytes = 64 * 1024;     // one icon, at most (they're 32 to 40 px)
+        private static readonly Regex IconFile = new Regex("^[a-f0-9]{24}\\.png$");
         private static readonly Regex OwnDay = new Regex("^day:(\\d{4}-\\d{2}-\\d{2})$");
         private static readonly Regex DeviceId = new Regex("^[a-z0-9-]{8,64}$");
         private static readonly Regex DateKey = new Regex("^\\d{4}-\\d{2}-\\d{2}$");
@@ -36,9 +41,16 @@ namespace Memoir {
         public event Action<string> Linked;   // a browser linked here for the first time (MainForm: the link tour)
         private readonly List<Action> early = new List<Action>(); // what arrived before the window could take it
         private bool ready;
+        private readonly string iconDirectory, siteIconDirectory;
+        private readonly HashSet<string> siteSeen = new HashSet<string>();     // websites in days, to check for an icon
+        private readonly HashSet<string> siteAsked = new HashSet<string>();    // icons asked for since the app started
+        private bool sitesSeeded;
 
-        public Sync(Control owner, Store store, Engine engine, BrowserLink link, string version, Action settingsApplied) {
+        public Sync(Control owner, Store store, Engine engine, BrowserLink link, string version, string iconDirectory, Action settingsApplied) {
             this.owner = owner; this.store = store; this.engine = engine; this.version = version; this.settingsApplied = settingsApplied;
+            this.iconDirectory = iconDirectory; siteIconDirectory = Path.Combine(iconDirectory, "sites");
+            try { Directory.CreateDirectory(siteIconDirectory); } catch { }
+            PruneSiteIcons();
             settingsSeen = Json.Clone(engine.Settings);
             var record = Record();
             if (Json.Text(Json.Get(record, "device")).Length == 0) record["device"] = Guid.NewGuid().ToString("N");
@@ -90,6 +102,7 @@ namespace Memoir {
 
         // ---------- what changes here goes across ----------
         private void OnChanged(Dictionary<string, object> changes) {
+            if (changes.ContainsKey("favicons")) PruneSiteIcons();
             if (applying) return;
             var record = Record(); var peers = Peers(record); var meta = Meta(record); long now = Engine.Now; bool rules = false;
             // this app's own days (sync only ever writes link:… records, and under `applying`)
@@ -123,6 +136,8 @@ namespace Memoir {
             if (type == "rules") ApplyRules(message, device);
             else if (type == "days") ApplyDays(peer, device, message);
             else if (type == "ack") Acked(device, (long)Json.Number(Json.Get(message, "seq")));
+            else if (type == "iconWants") SendIcons(peer, Json.Get(message, "apps"));
+            else if (type == "icons") KeepSiteIcons(Json.Get(message, "sites"));
             else if (type == "unlink") { Drop(device); peer.Send(Json.Object("type", "unlinked")); }
         }
         private void Hello(Peer peer, Dictionary<string, object> message) {
@@ -201,6 +216,7 @@ namespace Memoir {
             Peer peer; if (!live.TryGetValue(device, out peer)) return;
             var record = Record(); var known = Json.Get(Peers(record), device) as Dictionary<string, object>; if (known == null) return;
             if (rulesDue.Remove(device)) peer.Send(Rules());
+            AskSiteIcons(peer);
             var pending = Pending(known);
             if (pending.Count == 0) { if (Engine.Now - Json.Number(Json.Get(known, "lastSync")) > 30000) { known["lastSync"] = Engine.Now; Save(record); } return; }
             // newest days first, so this week shows up first; batches under 1 MB
@@ -248,6 +264,7 @@ namespace Memoir {
                 incoming = Engine.Normalize(incoming);
                 if (!Trim(date, incoming, meta)) continue;
                 SyncData.AnonymizeDay(incoming, excluded);
+                NoteSites(incoming);
                 string key = LinkKey(device, date);
                 if (SyncData.Canonical(incoming) == SyncData.Canonical(Json.Get(store.Data, key) ?? new Dictionary<string, object>())) continue;
                 patch[key] = incoming; changed.Add(date);
@@ -259,7 +276,68 @@ namespace Memoir {
             bool was = applying; applying = true;
             try { store.Set(patch); } finally { applying = was; }
             peer.Send(Json.Object("type", "ack", "seq", Json.Number(Json.Get(message, "seq"))));
+            AskSiteIcons(peer);
             if (changed.Count > 0 && peers.Count > 1) { soon.Stop(); soon.Start(); }
+        }
+
+        // ---------- icons ----------
+        // An extension asks for the pictures of this app's apps it's missing: the files, as data: URLs
+        private void SendIcons(Peer peer, object wanted) {
+            var batch = new Dictionary<string, object>(); int size = 0;
+            foreach (string file in Json.Array(wanted).OfType<string>().Distinct().Take(500)) {
+                if (!IconFile.IsMatch(file)) continue;
+                byte[] bytes; try { bytes = File.ReadAllBytes(Path.Combine(iconDirectory, file)); } catch { continue; }
+                if (bytes.Length > IconBytes) continue;
+                string data = "data:image/png;base64," + Convert.ToBase64String(bytes);
+                if (size + data.Length > BatchBytes && batch.Count > 0) { peer.Send(Json.Object("type", "icons", "apps", batch)); batch = new Dictionary<string, object>(); size = 0; }
+                batch[file] = data; size += data.Length + file.Length;
+            }
+            if (batch.Count > 0) peer.Send(Json.Object("type", "icons", "apps", batch));
+        }
+        // The websites in days, to look for their icons (a real address: not Private, a page or an app)
+        private void NoteSites(Dictionary<string, object> day) {
+            foreach (string domain in Json.Map(Json.Get(day, "s")).Keys) if (!domain.StartsWith("~") && !SyncData.IsApp(domain)) siteSeen.Add(domain);
+        }
+        // A browser is asked for the icons of websites this app has none for, each once while the app runs (the
+        // last three months' first, when it first connects; then what new days bring)
+        private void AskSiteIcons(Peer peer) {
+            if (!sitesSeeded) {
+                sitesSeeded = true;
+                string since = Engine.Day(engine.Local(Engine.Now).AddDays(-90));
+                foreach (var pair in store.Data) { string date = Engine.RecordDate(pair.Key); if (date != null && String.CompareOrdinal(date, since) >= 0) NoteSites(Json.Map(pair.Value)); }
+            }
+            if (siteSeen.Count == 0) return;
+            var have = Json.Map(Json.Get(store.Data, "favicons")); object excluded = Json.Get(engine.Settings, "excluded");
+            var want = new List<string>();
+            foreach (string domain in siteSeen.ToArray()) {
+                if (want.Count >= 300) break;
+                siteSeen.Remove(domain);
+                if (!have.ContainsKey(domain) && !siteAsked.Contains(domain) && SyncData.SiteKey(domain) == domain && !Engine.Excluded(domain, excluded)) want.Add(domain);
+            }
+            if (want.Count == 0) return;
+            siteAsked.UnionWith(want);
+            peer.Send(Json.Object("type", "iconWants", "sites", want.Cast<object>().ToArray()));
+        }
+        // What the browser sent: each website's icon saved in icons\sites (null: the browser has none)
+        private void KeepSiteIcons(object sites) {
+            var favicons = Json.Clone(Json.Map(Json.Get(store.Data, "favicons"))); bool changed = false;
+            object excluded = Json.Get(engine.Settings, "excluded");
+            foreach (var pair in Json.Map(sites)) {
+                string domain = pair.Key, data = pair.Value as string;
+                if (data == null || !data.StartsWith("data:image/png;base64,", StringComparison.Ordinal)) continue;
+                if (SyncData.SiteKey(domain) != domain || domain.StartsWith("~") || SyncData.IsApp(domain) || Engine.Excluded(domain, excluded)) continue;
+                byte[] bytes; try { bytes = Convert.FromBase64String(data.Substring(22)); } catch { continue; }
+                if (bytes.Length < 8 || bytes.Length > IconBytes || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) continue;
+                string file = Identity.IconName("site:" + domain);
+                try { File.WriteAllBytes(Path.Combine(siteIconDirectory, file), bytes); } catch { continue; }
+                if (Json.Text(Json.Get(favicons, domain)) != file) { favicons[domain] = file; changed = true; }
+            }
+            if (changed) { store.Set(Json.Object("favicons", favicons)); store.Save(); }
+        }
+        // A website's icon goes with its name (Never track, Clear all)
+        private void PruneSiteIcons() {
+            var kept = new HashSet<string>(Json.Map(Json.Get(store.Data, "favicons")).Values.OfType<string>());
+            try { foreach (string path in Directory.GetFiles(siteIconDirectory, "*.png")) if (!kept.Contains(Path.GetFileName(path))) try { File.Delete(path); } catch { } } catch { }
         }
         // Clear all and Erase titles, from either side: nothing from before a marker comes back
         private bool Trim(string date, Dictionary<string, object> day, Dictionary<string, object> meta) {
@@ -363,7 +441,7 @@ namespace Memoir {
                 var rec = Engine.Normalize(store.Data[key]); DropHours(rec, hour);
                 if (SyncData.DayTotal(rec) > 0) store.Set(Json.Object(key, rec)); else store.Remove(key);
             }
-            store.Remove(new object[] { "categories", "origins", "apps", "goalNotify" });
+            store.Remove(new object[] { "categories", "origins", "apps", "favicons", "goalNotify" });
         }
     }
 }
