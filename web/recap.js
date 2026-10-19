@@ -93,7 +93,9 @@ const author = mailPop($('author'), $('author-pop'), {
   onCopyFail: address => toast(`Couldn’t copy. The address is ${address}`),
 });
 const memoirSite = mailPop($('memoir-site'), $('site-pop'));
-const footPops = [[author, 'author', 'author-pop'], [memoirSite, 'memoir-site', 'site-pop']];
+// and "Your data never leaves this computer": the privacy policy
+const privacyLink = mailPop($('privacy-link'), $('privacy-pop'));
+const footPops = [[author, 'author', 'author-pop'], [memoirSite, 'memoir-site', 'site-pop'], [privacyLink, 'privacy-link', 'privacy-pop']];
 const footOpen = () => footPops.find(([p]) => p.popover.isOpen);
 
 // On the first load (and when the board switches between an empty week and a
@@ -4174,7 +4176,7 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop, #site-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
     if (guidePop.isOpen && !e.target.closest('#guide-pop, .link-btn, #link-more')) closeGuide();
