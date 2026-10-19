@@ -22,6 +22,10 @@ Quit Memoir ends tracking and saves the current session. Memoir also saves on Wi
 
 Memoir starts when you sign in, in the notification area without its window (`--tray`), from one value in your account's startup list (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). It's turned on at Memoir's first start; Settings → Start with Windows turns it off and on, and Windows' Startup apps can turn it off too (Settings shows that). A moved folder takes the entry with it at the next start. Paused tracking stays paused after a restart: Memoir starts, counts nothing, and its tray icon shows it's paused. Copies started with `--data-dir` (tests) never touch the startup list; `MEMOIR_TEST_STARTUP_KEY` points them at a test key instead.
 
+## In the Start menu
+
+Memoir is in the Start menu, so Windows Search finds it by name: one shortcut, `Memoir.lnk`, in your account's Start menu programs (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`), made at Memoir's first start (`StartMenu.cs`). After that, a moved folder takes it with it, and a shortcut you deleted stays deleted. Copies started with `--data-dir` (tests) never touch the Start menu; `MEMOIR_TEST_START_MENU` points them at a test folder instead.
+
 ## Tracking and data
 
 Only the foreground app counts. A browser counts as an app, with all its time, and the website in front counts too: the same seconds under both names (`Target.Browser`), so the report can list Apps and Browsers apart; totals, the limit, categories and hours count them once (`SyncData.HourParts`, the extension's `hourParts`). After 60 seconds without input, tracking pauses unless that app is playing audio. Locking or sleeping stops the clock. Memoir's own window counts as Memoir, as the extension counts its own pages; its tray menu and the desktop/taskbar are ignored. Time is assigned to local days and hours, including daylight-saving changes.

@@ -57,6 +57,7 @@ namespace Memoir {
             if (File.Exists(Path.Combine(directory, "Memoir-rainbow.ico"))) rainbowIcon = new Icon(Path.Combine(directory, "Memoir-rainbow.ico"));
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
             if (Startup.Available(fixedData)) Startup.Start(store, StartupCommand());
+            if (StartMenu.Available(fixedData)) StartMenu.Start(store, directory);   // Memoir in the Start menu, for Windows Search
             ApplySavedTheme();
             // the clock: a click opens Today beside it, a right-click the menu, a double-click the window; resting on it
             // gets both ready (so a click shows them at once) and shows its tooltip
