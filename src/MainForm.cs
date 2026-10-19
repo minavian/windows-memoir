@@ -57,7 +57,7 @@ namespace Memoir {
             if (File.Exists(Path.Combine(directory, "Memoir-rainbow.ico"))) rainbowIcon = new Icon(Path.Combine(directory, "Memoir-rainbow.ico"));
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
             if (Startup.Available(fixedData)) Startup.Start(store, StartupCommand());
-            if (StartMenu.Available(fixedData)) StartMenu.Start(store, directory);   // Memoir in the Start menu, for Windows Search
+            if (StartMenu.Available(fixedData)) StartMenu.Start(store, directory, IconFile());   // Memoir in the Start menu, for Windows Search
             ApplySavedTheme();
             // the clock: a click opens Today beside it, a right-click the menu, a double-click the window; resting on it
             // gets both ready (so a click shows them at once) and shows its tooltip
@@ -371,12 +371,15 @@ namespace Memoir {
             catch (Exception error) { trayMenu = null; Log("Tray menu: " + error.GetType().Name); if (!Visible) releaseTimer.Start(); }
         }
         // the clock in the notification area and on the window, in rainbow colours with the Rainbow clock on
+        // (and on the taskbar and in Start, through the Start menu shortcut's icon: StartMenu.FollowIcon)
         private void ApplyIcon() {
             var icon = Json.Bool(Json.Get(engine.Settings, "rainbow")) && rainbowIcon != null ? rainbowIcon : plainIcon;
             if (icon == null) return;
             if (Icon != icon) Icon = icon;
             if (tray != null && tray.Icon != icon) tray.Icon = icon;
+            if (StartMenu.Available(fixedData)) StartMenu.FollowIcon(directory, IconFile());
         }
+        private string IconFile() { return Json.Bool(Json.Get(engine.Settings, "rainbow")) && rainbowIcon != null ? Path.Combine(directory, "Memoir-rainbow.ico") : ""; }
         // A theme chosen in a linked browser (settings.theme) while the page is closed: the window, the loading
         // screen and the tray menu take it now (the page, when open, reports its own, with its colours)
         private void FollowTheme() {

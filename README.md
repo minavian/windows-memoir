@@ -24,7 +24,7 @@ Memoir starts when you sign in, in the notification area without its window (`--
 
 ## In the Start menu
 
-Memoir is in the Start menu, so Windows Search finds it by name: one shortcut, `Memoir.lnk`, in your account's Start menu programs (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`), made at Memoir's first start (`StartMenu.cs`). After that, a moved folder takes it with it, and a shortcut you deleted stays deleted. Copies started with `--data-dir` (tests) never touch the Start menu; `MEMOIR_TEST_START_MENU` points them at a test folder instead.
+Memoir is in the Start menu, so Windows Search finds it by name: one shortcut, `Memoir.lnk`, in your account's Start menu programs (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`), made at Memoir's first start (`StartMenu.cs`). After that, a moved folder takes it with it, and a shortcut you deleted stays deleted. Its icon follows the Rainbow clock (`Memoir-rainbow.ico` while it's on): Windows' taskbar, Start and Search take Memoir's icon from this shortcut, not from the window. Copies started with `--data-dir` (tests) never touch the Start menu; `MEMOIR_TEST_START_MENU` points them at a test folder instead.
 
 ## Tracking and data
 
