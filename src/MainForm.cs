@@ -20,7 +20,12 @@ namespace Memoir {
         private readonly Store store;
         private readonly Engine engine;
         private readonly string directory, dataDirectory, diagnostics;
-        private readonly NotifyIcon tray;
+        private readonly TrayIcon tray;          // the clock in the notification area (TrayIcon.cs)
+        private TrayTip trayTip;                 // its tooltip, in Memoir's look
+        private Flyout flyout;                   // Today, by the clock: the popup, as in the browser (Flyout.cs)
+        private WebView2 flyoutWeb;
+        private bool flyoutLoaded;
+        private readonly Timer flyoutRelease = new Timer();
         private readonly Tracker tracker;
         private readonly Sync sync;
         private Process trayMenu;
@@ -31,7 +36,8 @@ namespace Memoir {
         private DateTime ignoreTrayClickUntil;
         private WebView2 web;
         private Splash splash;   // over the web view until its page has painted (Splash.cs)
-        private CoreWebView2Environment environment;
+        private CoreWebView2Environment environment;   // shared by the window's page and Today's
+        private const string WebOptions = "--disable-background-networking --disable-component-update --disable-features=msEdgeSidebarV2";
         private readonly Icon plainIcon, rainbowIcon;
         private bool exiting, hiddenStart, loading, recovering;
         private int generation, recoveryAttempts;
@@ -52,13 +58,19 @@ namespace Memoir {
             store = new Store(dataDirectory); engine = new Engine(store, TimeZoneInfo.Local);
             if (Startup.Available(fixedData)) Startup.Start(store, StartupCommand());
             ApplySavedTheme();
-            tray = new NotifyIcon { Icon = Icon, Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time", Visible = true };
+            // the clock: a click opens Today beside it, a right-click the menu, a double-click the window; resting on it
+            // gets both ready (so a click shows them at once) and shows its tooltip
+            tray = new TrayIcon { Icon = Icon, Text = TrayName() }; tray.Show();
             ApplyIcon();
-            tray.MouseMove += delegate { WarmTrayMenu(); };
-            tray.MouseClick += delegate(object sender, MouseEventArgs args) { if (DateTime.UtcNow >= ignoreTrayClickUntil && (args.Button == MouseButtons.Left || args.Button == MouseButtons.Right)) ShowTrayMenu(); };
-            tray.DoubleClick += delegate { ignoreTrayClickUntil = DateTime.UtcNow.AddMilliseconds(SystemInformation.DoubleClickTime); RestoreWindow(); };
-            tray.BalloonTipClicked += delegate { RestoreWindow(); };
-            engine.Notification += delegate(string title, string text) { tray.ShowBalloonTip(6000, title, text, ToolTipIcon.Info); store.Save(); };
+            tray.Hover += delegate { WarmTrayMenu(); WarmFlyout(); };
+            tray.Select += delegate { if (DateTime.UtcNow >= ignoreTrayClickUntil) ToggleFlyout(); };
+            tray.Open += delegate { ignoreTrayClickUntil = DateTime.UtcNow.AddMilliseconds(SystemInformation.DoubleClickTime); HideTip(); HideFlyout(); RestoreWindow(); };
+            tray.Menu += delegate { HideTip(); HideFlyout(); ShowTrayMenu(); };
+            tray.PopupOpen += delegate(Point at) { ShowTip(at); };
+            tray.PopupClose += delegate { HideTip(); };
+            tray.BalloonClicked += delegate { RestoreWindow(); };
+            engine.Notification += delegate(string title, string text) { tray.ShowBalloon(title, text); store.Save(); };
+            flyoutRelease.Tick += delegate { flyoutRelease.Stop(); if (flyout != null && !flyout.Visible) ReleaseFlyout(); };
             IntPtr handle = Handle; Native.WTSRegisterSessionNotification(handle, 0);
             tracker = new Tracker(this, store, engine, dataDirectory);
             // the Memoir extension can reach this app (native messaging), and syncs once linked from its Settings
@@ -73,7 +85,7 @@ namespace Memoir {
                 store.Set(Json.Object("linkTour", Json.Object("pending", device))); store.Save(); RestoreWindow();
             };
             if (Json.Get(store.Data, "linkTour") == null) { var peers = Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "sync")), "peers")); if (peers.Count > 0) store.Set(Json.Object("linkTour", Json.Object("pending", peers.Keys.First()))); }
-            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); FollowTheme(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
+            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = TrayName(); ApplyIcon(); FollowTheme(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;
             Shown += async delegate { if (hiddenStart) { Hide(); hiddenStart = false; releaseTimer.Start(); } else await LoadView(); };
@@ -83,7 +95,7 @@ namespace Memoir {
             FormClosing += delegate(object sender, FormClosingEventArgs args) {
                 if (args.CloseReason == CloseReason.WindowsShutDown || args.CloseReason == CloseReason.TaskManagerClosing) exiting = true;
                 if (!exiting) { args.Cancel = true; MinimizeToTray(); return; }
-                ++generation; CloseTrayMenu(); ReleaseWeb(); tracker.Dispose(); diagnosticsTimer.Dispose(); releaseTimer.Dispose(); registration.Dispose(); closeTrayMenu.Dispose(); tray.Visible = false; tray.Dispose(); SystemEvents.PowerModeChanged -= OnPower; Native.WTSUnRegisterSessionNotification(Handle);
+                ++generation; CloseTrayMenu(); ReleaseFlyout(); if (trayTip != null) trayTip.Dispose(); ReleaseWeb(); tracker.Dispose(); diagnosticsTimer.Dispose(); releaseTimer.Dispose(); flyoutRelease.Dispose(); registration.Dispose(); closeTrayMenu.Dispose(); tray.Dispose(); SystemEvents.PowerModeChanged -= OnPower; Native.WTSUnRegisterSessionNotification(Handle);
             };
             diagnosticsTimer = new Timer { Interval = 5000 };
             diagnosticsTimer.Tick += delegate { WriteDiagnostics(); };
@@ -91,7 +103,7 @@ namespace Memoir {
             releaseTimer = new Timer { Interval = 1500 };
             releaseTimer.Tick += delegate {
                 releaseTimer.Stop();
-                if (Visible || web != null || loading || exiting || trayMenu != null) return;
+                if (Visible || web != null || loading || exiting || trayMenu != null || flyout != null) return;
                 GC.Collect(2, GCCollectionMode.Forced, true, true); GC.WaitForPendingFinalizers(); GC.Collect();
                 using (var process = Process.GetCurrentProcess()) Native.SetProcessWorkingSetSize(process.Handle, new IntPtr(-1), new IntPtr(-1));
                 WriteDiagnostics();
@@ -104,23 +116,18 @@ namespace Memoir {
             var control = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor, BackColor = BackColor }; web = control; Controls.Add(control);
             ShowSplash();
             try {
-                var options = new CoreWebView2EnvironmentOptions("--disable-background-networking --disable-component-update --disable-features=msEdgeSidebarV2");
                 bool existingProfile = Directory.Exists(Path.Combine(dataDirectory, "WebView"));
-                environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "WebView"), options);
+                if (environment == null) environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "WebView"), new CoreWebView2EnvironmentOptions(WebOptions));
                 if (current != generation || web != control || control.IsDisposed) return;
                 await control.EnsureCoreWebView2Async(environment);
                 if (current != generation || web != control || control.IsDisposed) return;
                 var core = control.CoreWebView2;
                 ApplyColorScheme();
                 core.NavigationCompleted += delegate { var check = new Timer { Interval = 2500 }; check.Tick += delegate { check.Dispose(); if (web == control) HideSplash(); }; check.Start(); };   // (a page that never says)
-                core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false; core.Settings.AreDevToolsEnabled = !String.IsNullOrEmpty(diagnostics); core.Settings.IsZoomControlEnabled = false;
-                // Not .local: Chromium resolves .local names over the network first, which added ~2 s to every page load.
-                core.SetVirtualHostNameToFolderMapping("memoir.example", Path.Combine(directory, "web"), CoreWebView2HostResourceAccessKind.DenyCors);
-                core.SetVirtualHostNameToFolderMapping("memoir-icons.example", Path.Combine(dataDirectory, "icons"), CoreWebView2HostResourceAccessKind.DenyCors);
+                Configure(core);
                 await MovePreferences(control, existingProfile);
                 if (current != generation || web != control || control.IsDisposed) return;
                 core.WebMessageReceived += OnMessage;
-                core.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs args) { args.State = CoreWebView2PermissionState.Deny; };
                 core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args) {
                     if (args.Uri.StartsWith("https://memoir.example/", StringComparison.Ordinal)) return;
                     args.Cancel = true; OpenLink(args.Uri);
@@ -155,6 +162,120 @@ namespace Memoir {
                 WriteDiagnostics();
             }
         }
+        // What every Memoir page gets: its files (Not .local: Chromium resolves .local names over the network first, which
+        // added ~2 s to every page load), no browser menus or zoom, no permissions
+        private void Configure(CoreWebView2 core) {
+            core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false; core.Settings.AreDevToolsEnabled = !String.IsNullOrEmpty(diagnostics); core.Settings.IsZoomControlEnabled = false;
+            core.SetVirtualHostNameToFolderMapping("memoir.example", Path.Combine(directory, "web"), CoreWebView2HostResourceAccessKind.DenyCors);
+            core.SetVirtualHostNameToFolderMapping("memoir-icons.example", Path.Combine(dataDirectory, "icons"), CoreWebView2HostResourceAccessKind.DenyCors);
+            core.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs args) { args.State = CoreWebView2PermissionState.Deny; };
+        }
+
+        // ---------- Today, by the clock (Flyout.cs) ----------
+        // The mouse rests on the clock: Today's page gets ready, hidden, so a click shows it at once. Unused, it goes
+        // after 20 s; closed, after a minute (Memoir in the background stays small).
+        private void WarmFlyout() {
+            if (exiting) return;
+            if (flyout == null) CreateFlyout();
+            if (!flyout.Visible && (!flyoutRelease.Enabled || flyoutRelease.Interval < 20000)) { flyoutRelease.Stop(); flyoutRelease.Interval = 20000; flyoutRelease.Start(); }
+        }
+        private async void CreateFlyout() {
+            releaseTimer.Stop();
+            var appearance = Appearance.Resolve(Json.Get(store.Data, "windowsAppearance"));
+            var form = new Flyout(BackColor) { Dark = Json.Text(Json.Get(appearance, "theme")) == "dark" };
+            var control = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor, BackColor = BackColor };
+            form.Controls.Add(control); flyout = form; flyoutWeb = control; flyoutLoaded = false;
+            form.Dismissed += delegate { if (flyout == form) FlyoutClosed(); };
+            IntPtr handles = form.Handle; handles = control.Handle;   // ready while hidden: the page loads before it's shown
+            try {
+                if (environment == null) environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "WebView"), new CoreWebView2EnvironmentOptions(WebOptions));
+                if (flyout != form || control.IsDisposed) return;
+                await control.EnsureCoreWebView2Async(environment);
+                if (flyout != form || control.IsDisposed) return;
+                var core = control.CoreWebView2;
+                Configure(core); ApplyColorScheme();
+                core.WebMessageReceived += OnMessage;
+                // Today's page only: links open in the browser, Memoir's other pages in the window
+                core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args) {
+                    if (args.Uri.StartsWith("https://memoir.example/popup.html", StringComparison.Ordinal)) return;
+                    args.Cancel = true; OpenElsewhere(args.Uri);
+                };
+                core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs args) { args.Handled = true; OpenElsewhere(args.Uri); };
+                core.NavigationCompleted += delegate { if (flyout != form) return; flyoutLoaded = true; if (form.Visible) Send(control, Json.Object("event", "flyout", "state", "shown")); };
+                core.ProcessFailed += delegate { if (flyout == form) BeginInvoke(new Action(ReleaseFlyout)); };
+                core.Navigate("https://memoir.example/popup.html?flyout");
+            } catch (Exception error) { Log("Today: " + error.GetType().Name); if (flyout == form) ReleaseFlyout(); }
+        }
+        private void OpenElsewhere(string address) {
+            Uri uri; if (!Uri.TryCreate(address, UriKind.Absolute, out uri)) return;
+            if (uri.Host != "memoir.example") { OpenLink(address); return; }
+            string page = uri.AbsolutePath.TrimStart('/');
+            HideFlyout(); if (page == "recap.html" || page == "how-it-works.html" || page == "privacy.html") { view = page; ReleaseWeb(); RestoreWindow(); }
+        }
+        private void ToggleFlyout() {
+            if (exiting) return;
+            HideTip(); CloseTrayMenu();
+            if (flyout != null && flyout.Visible) { HideFlyout(); return; }
+            // the click on the clock that closed it (it lost the focus to the taskbar a moment ago) doesn't open it again
+            if (flyout != null && (DateTime.UtcNow - flyout.HiddenAt).TotalMilliseconds < 400) return;
+            ShowFlyout();
+        }
+        private void ShowFlyout() {
+            if (exiting) return;
+            if (flyout == null) CreateFlyout();
+            flyoutRelease.Stop(); releaseTimer.Stop();
+            engine.Flush(Engine.Now);
+            flyout.ShowNear(tray.Bounds, Control.MousePosition);
+            if (flyoutLoaded) Send(flyoutWeb, Json.Object("event", "flyout", "state", "shown"));
+        }
+        private void HideFlyout() { if (flyout == null || !flyout.Visible) return; flyout.HideNow(); FlyoutClosed(); }
+        // closed: its page starts again, hidden, so the next opening plays its entrance; unused for a minute, it goes
+        private void FlyoutClosed() {
+            if (flyoutWeb != null && !flyoutWeb.IsDisposed && flyoutWeb.CoreWebView2 != null) { flyoutLoaded = false; try { flyoutWeb.CoreWebView2.Reload(); } catch { } }
+            flyoutRelease.Stop(); flyoutRelease.Interval = 60000; flyoutRelease.Start();
+            tracker.RefreshForeground(true);
+        }
+        private void ReleaseFlyout() {
+            flyoutRelease.Stop();
+            var form = flyout; var control = flyoutWeb; flyout = null; flyoutWeb = null; flyoutLoaded = false;
+            if (control != null) { control.Dispose(); }
+            if (form != null) form.Dispose();
+            if (web == null) environment = null;
+            if (!exiting && !Visible && web == null) releaseTimer.Start();
+        }
+
+        // ---------- the clock's tooltip (TrayTip.cs) ----------
+        private string TrayName() { return engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; }
+        private void ShowTip(Point at) {
+            if (exiting || trayMenu != null || (flyout != null && flyout.Visible)) return;
+            if (trayTip == null) trayTip = new TrayTip();
+            if (splashLogo == null) try { splashLogo = Image.FromFile(Path.Combine(directory, "web", "icons", "icon128.png")); } catch { }
+            if (splashRainbow == null) try { splashRainbow = Image.FromFile(Path.Combine(directory, "web", "icons", "rainbow128.png")); } catch { }
+            var appearance = Appearance.Resolve(Json.Get(store.Data, "windowsAppearance")); var palette = Json.Map(Json.Get(appearance, "palette"));
+            bool dark = Json.Text(Json.Get(appearance, "theme")) == "dark";
+            var icon = tray.Bounds; if (icon.IsEmpty) icon = new Rectangle(at.X - 8, at.Y - 8, 16, 16);
+            engine.Flush(Engine.Now);
+            double ms = engine.Total(Engine.Day(engine.Local(Engine.Now)));
+            string today = ms < 1000 ? "Nothing yet today" : ms < 60000 ? "Under a minute today" : Duration(ms) + " today";
+            trayTip.ShowAt(icon, Json.Bool(Json.Get(engine.Settings, "rainbow")) && splashRainbow != null ? splashRainbow : splashLogo,
+                engine.Paused ? "Tracking paused · " + today : today, dark,
+                CssColor(Json.Text(Json.Get(palette, "surface")), dark ? Color.FromArgb(28, 28, 30) : Color.White),
+                CssColor(Json.Text(Json.Get(palette, "label")), dark ? Color.FromArgb(245, 245, 247) : Color.FromArgb(29, 29, 31)),
+                CssColor(Json.Text(Json.Get(palette, "secondary")), dark ? Color.FromArgb(161, 161, 166) : Color.FromArgb(110, 110, 115)));
+        }
+        private void HideTip() { if (trayTip != null && trayTip.Visible) trayTip.Hide(); }
+        private static string Duration(double ms) { long minutes = (long)(ms / 60000); return minutes >= 60 ? (minutes / 60) + "h " + (minutes % 60) + "m" : minutes + "m"; }
+        // a colour as the page's CSS gives it (#rrggbb, or rgb()/rgba() over the surface)
+        private static Color CssColor(string css, Color fallback) {
+            try {
+                css = (css ?? "").Trim(); if (css.Length == 0) return fallback;
+                if (css.StartsWith("#")) return ColorTranslator.FromHtml(css);
+                var numbers = System.Text.RegularExpressions.Regex.Matches(css, @"[\d.]+").Cast<System.Text.RegularExpressions.Match>().Select(m => double.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                if (css.StartsWith("rgb") && numbers.Length >= 3) return Color.FromArgb((int)numbers[0], (int)numbers[1], (int)numbers[2]);
+            } catch { }
+            return fallback;
+        }
+
         // Once: carry the theme and cursor choices saved under the former memoir.local origin to memoir.example.
         private async Task MovePreferences(WebView2 control, bool existingProfile) {
             string marker = Path.Combine(dataDirectory, "WebView", "preferences-moved");
@@ -196,9 +317,10 @@ namespace Memoir {
         // not Windows': no dark frame under a Light Memoir
         private void ApplyColorScheme() {
             try {
-                if (web == null || web.CoreWebView2 == null) return;
+                var core = web != null && web.CoreWebView2 != null ? web.CoreWebView2 : flyoutWeb != null && !flyoutWeb.IsDisposed ? flyoutWeb.CoreWebView2 : null;   // (one profile: both pages)
+                if (core == null) return;
                 string mode = Json.Text(Json.Get(Appearance.Resolve(Json.Get(store.Data, "windowsAppearance")), "mode"), "auto");
-                web.CoreWebView2.Profile.PreferredColorScheme = mode == "light" ? CoreWebView2PreferredColorScheme.Light : mode == "dark" ? CoreWebView2PreferredColorScheme.Dark : CoreWebView2PreferredColorScheme.Auto;
+                core.Profile.PreferredColorScheme = mode == "light" ? CoreWebView2PreferredColorScheme.Light : mode == "dark" ? CoreWebView2PreferredColorScheme.Dark : CoreWebView2PreferredColorScheme.Auto;
             } catch { }
         }
         private void ReleaseWeb() {
@@ -206,7 +328,7 @@ namespace Memoir {
             var control = web; web = null;
             if (splash != null) { var gone = splash; splash = null; Controls.Remove(gone); gone.Dispose(); }
             if (control != null) { Controls.Remove(control); control.Dispose(); }
-            environment = null;
+            if (flyoutWeb == null) environment = null;
         }
         private void MinimizeToTray() { if (exiting) return; CloseTrayMenu(); Hide(); ReleaseWeb(); engine.Flush(Engine.Now); store.Save(); releaseTimer.Start(); WriteDiagnostics(); }
         public async void RestoreWindow() { if (exiting) return; CloseTrayMenu(); releaseTimer.Stop(); ApplySavedTheme(); Show(); WindowState = FormWindowState.Normal; Activate(); Native.ToFront(Handle); tracker.RefreshForeground(true); await LoadView(); }
@@ -287,9 +409,14 @@ namespace Memoir {
             Uri uri; if (!Uri.TryCreate(address, UriKind.Absolute, out uri) || (uri.Scheme != "https" && uri.Scheme != "http" && uri.Scheme != "mailto") || uri.Host == "memoir.example") return;
             try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); } catch { }
         }
-        private void Post(object payload) { if (web == null || web.IsDisposed || web.CoreWebView2 == null) return; try { web.CoreWebView2.PostWebMessageAsJson(Json.Encode(payload)); } catch { } }
+        // what happens (storage, the session) goes to every page open: the window's and Today's
+        private void Post(object payload) { Send(web, payload); Send(flyoutWeb, payload); }
+        private static void Send(WebView2 view, object payload) { if (view == null || view.IsDisposed || view.CoreWebView2 == null) return; try { view.CoreWebView2.PostWebMessageAsJson(Json.Encode(payload)); } catch { } }
+        private static void Answer(CoreWebView2 core, object payload) { if (core == null) return; try { core.PostWebMessageAsJson(Json.Encode(payload)); } catch { } }
         private void OnMessage(object sender, CoreWebView2WebMessageReceivedEventArgs args) {
             Uri origin; if (!Uri.TryCreate(args.Source, UriKind.Absolute, out origin) || origin.Scheme != "https" || origin.Host != "memoir.example") return;
+            // Today (the flyout by the clock) or the window: each page gets its own answers
+            var from = sender as CoreWebView2; bool today = flyoutWeb != null && !flyoutWeb.IsDisposed && flyoutWeb.CoreWebView2 == from;
             Dictionary<string, object> message;
             try { message = Json.Map(Json.Decode(args.WebMessageAsJson)); } catch { return; }
             object id = Json.Get(message, "id"); string operation = Json.Text(Json.Get(message, "op")); object result = null;
@@ -310,16 +437,16 @@ namespace Memoir {
                     case "session.get": result = Json.Object("session", engine.Session); break;
                     case "session.remove": engine.Stop(Engine.Now); break;
                     case "runtime.sync": engine.Flush(Engine.Now); result = Json.Object("ok", true); break;
-                    case "window.report": Post(Json.Object("id", id, "result", Json.Object("ok", true))); ChangeView("recap.html"); return;
-                    case "window.today": Post(Json.Object("id", id, "result", true)); ChangeView("popup.html"); return;
-                    case "window.minimize": Post(Json.Object("id", id, "result", true)); MinimizeToTray(); return;
+                    case "window.report": Answer(from, Json.Object("id", id, "result", Json.Object("ok", true))); HideFlyout(); ChangeView("recap.html"); return;
+                    case "window.today": Answer(from, Json.Object("id", id, "result", true)); if (!today) ChangeView("popup.html"); return;
+                    case "window.minimize": Answer(from, Json.Object("id", id, "result", true)); if (today) HideFlyout(); else MinimizeToTray(); return;
                     // the page's title bar (TitleBar.cs)
-                    case "window.state": result = WindowFacts(); break;
-                    case "window.painted": HideSplash(); break;
-                    case "window.maximize": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
-                    case "window.close": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { Close(); })); return;
-                    case "window.drag": { int hit = (int)Json.Number(Json.Get(data, "hit"), TitleBar.Caption); Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { TitleBar.Drag(Handle, hit); })); return; }
-                    case "window.menu": Post(Json.Object("id", id, "result", true)); BeginInvoke(new Action(delegate { TitleBar.Menu(Handle); })); return;
+                    case "window.state": result = today ? Json.Object("maximized", false, "active", true) : WindowFacts(); break;
+                    case "window.painted": if (!today) HideSplash(); break;
+                    case "window.maximize": Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
+                    case "window.close": Answer(from, Json.Object("id", id, "result", true)); if (today) HideFlyout(); else BeginInvoke(new Action(delegate { Close(); })); return;
+                    case "window.drag": { int hit = (int)Json.Number(Json.Get(data, "hit"), TitleBar.Caption); Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { TitleBar.Drag(Handle, hit); })); return; }
+                    case "window.menu": Answer(from, Json.Object("id", id, "result", true)); if (today) return; BeginInvoke(new Action(delegate { TitleBar.Menu(Handle); })); return;
                     case "privacy.titles": engine.Flush(Engine.Now); engine.EraseTitles(); store.Save(); break;
                     case "link.open": OpenLink(Json.Text(Json.Get(data, "url"))); break;
                     case "clipboard.read": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;
@@ -335,11 +462,11 @@ namespace Memoir {
                     case "log": Log(Json.Text(Json.Get(data, "message"))); break;
                     default: throw new InvalidOperationException("Unknown desktop request.");
                 }
-                Post(Json.Object("id", id, "result", result));
-            } catch (Exception error) { Log(operation + ": " + error.GetType().Name); Post(Json.Object("id", id, "error", "The desktop action could not be completed: " + error.Message)); }
+                Answer(from, Json.Object("id", id, "result", result));
+            } catch (Exception error) { Log(operation + ": " + error.GetType().Name); Answer(from, Json.Object("id", id, "error", "The desktop action could not be completed: " + error.Message)); }
         }
         private void ApplyTheme(string theme, string surface) {
-            try { Color color = ColorTranslator.FromHtml(surface); BackColor = color; if (web != null) web.DefaultBackgroundColor = color; int dark = theme == "dark" || color.GetBrightness() < .45 ? 1 : 0; DwmSetWindowAttribute(Handle, 20, ref dark, 4); int caption = color.R | (color.G << 8) | (color.B << 16); DwmSetWindowAttribute(Handle, 35, ref caption, 4); } catch { }
+            try { Color color = ColorTranslator.FromHtml(surface); BackColor = color; if (web != null) web.DefaultBackgroundColor = color; if (flyout != null) { flyout.BackColor = color; flyout.Dark = theme == "dark"; } if (flyoutWeb != null && !flyoutWeb.IsDisposed) flyoutWeb.DefaultBackgroundColor = color; int dark = theme == "dark" || color.GetBrightness() < .45 ? 1 : 0; DwmSetWindowAttribute(Handle, 20, ref dark, 4); int caption = color.R | (color.G << 8) | (color.B << 16); DwmSetWindowAttribute(Handle, 35, ref caption, 4); } catch { }
         }
         private void OnDownload(object sender, CoreWebView2DownloadStartingEventArgs args) {
             args.Handled = true;
@@ -353,7 +480,7 @@ namespace Memoir {
         }
         private string StartupCommand() { return Startup.Command(directory, dataDirectory, fixedData); }
         private Dictionary<string, object> WindowFacts() { return Json.Object("maximized", IsHandleCreated && TitleBar.IsZoomed(Handle), "active", ActiveForm == this); }
-        private void PostWindowState() { if (IsHandleCreated) Post(Json.Object("event", "window", "state", WindowFacts())); }
+        private void PostWindowState() { if (IsHandleCreated) Send(web, Json.Object("event", "window", "state", WindowFacts())); }
         protected override void OnHandleCreated(EventArgs args) { base.OnHandleCreated(args); TitleBar.Refresh(Handle); }
         protected override void WndProc(ref Message message) {
             // no Windows caption: the page draws Memoir's own title bar in its place (TitleBar.cs)
@@ -365,7 +492,7 @@ namespace Memoir {
                     else if (command == 1) MinimizeToTray();
                     else if (command == 3) ShowTrayMenu();
                     else if (command == 4) ChangeView("recap.html");
-                    else if (command == 5) ChangeView("popup.html");
+                    else if (command == 5) ShowFlyout();
                     else if (command == 6) { engine.Stop(Engine.Now); var settings = Json.Clone(engine.Settings); settings["paused"] = !engine.Paused; store.Set(Json.Object("settings", settings)); tracker.SettingsChanged(); store.Save(); }
                     else if (command == 7) CloseTrayMenu();
                     else RestoreWindow();

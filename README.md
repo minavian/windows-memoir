@@ -4,7 +4,7 @@ Made by Mina Vian. Version 6.0.0.
 
 Open **Memoir.exe** in this folder. Keep the `web` folder, the three WebView2 DLLs, `Memoir.exe.config`, `Memoir.ico` and `Memoir-rainbow.ico` beside it. No installer or administrator access is needed. The app uses Windows' .NET Framework 4.8 and Microsoft Edge WebView2 Runtime, which are installed on this computer.
 
-Memoir tracks the focused Windows app and websites in supported browsers. The report keeps the extension's welcome, charts, transitions, Light and Dark themes (and the optional Rainbow clock, which also colours the clock in the notification area), custom cursor, and smooth scrolling. How Memoir works and the privacy policy, opened from Settings, describe the Windows app and open in the same window, with a way back. Categories starts on Day. The report header has a Settings button; Today is available from the tray menu.
+Memoir tracks the focused Windows app and websites in supported browsers. The report keeps the extension's welcome, charts, transitions, Light and Dark themes (and the optional Rainbow clock, which also colours the clock in the notification area), custom cursor, and smooth scrolling. How Memoir works and the privacy policy, opened from Settings, describe the Windows app and open in the same window, with a way back. Categories starts on Day. The report header has a Settings button; Today opens from the clock in the notification area.
 
 ## Window
 
@@ -12,7 +12,7 @@ Memoir draws its own title bar, the colour of the page with the window's buttons
 
 ## Minimized behavior
 
-Minimizing or closing the window keeps tracking in the Windows notification area. The web interface and its browser processes unload. A click with either mouse button on the clock opens a small native menu that matches the app theme, with animated entrances, hover states, and closing. Double-click opens the app directly.
+Minimizing or closing the window keeps tracking in the Windows notification area. The web interface and its browser processes unload. The clock there is Memoir's own notification icon (`TrayIcon.cs`, Shell_NotifyIcon version 4). A click opens **Today** beside it: the extension's popup (`popup.html?flyout`) in a small borderless window above the taskbar (`Flyout.cs`), rounded on Windows 11; a click elsewhere, Esc or the clock closes it. Resting the mouse on the clock loads it hidden, so the click shows it at once; it unloads 20 s after that if unused, or a minute after it closes. A right-click opens a small native menu that matches the app theme, with animated entrances, hover states, and closing. A double-click opens the app. Windows' plain tooltip is replaced by Memoir's (`TrayTip.cs`): the clock, its name and today's time, in the theme's colours.
 
 The menu offers Open Memoir, Today, Pause / Resume tracking, and Quit Memoir, with the app's own rounded icons. It gets ready while the mouse is over the clock (a hidden menu process that leaves after 10 seconds unclicked), so a click shows it at once; Open Memoir and Today bring the window to the front, over whatever is open. Arrow keys navigate, Enter selects, and Escape or clicking elsewhere closes it. Windows' reduced-animation setting is respected. System appearance follows Windows.
 

@@ -32,7 +32,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 
 ### Every page
 - `popup.html`, `recap.html`, `how-it-works.html`, `privacy.html`: `<script src="desktop-bridge.js"></script>` right after the theme-boot script.
-- `popup.js` `main()` and `recap.js` `init()`: `await window.memoir.ready;` before anything else, so app names and categories are loaded before the first render.
+- `popup.js` `main()` and `recap.js` `init()`: `await window.memoir.ready;` before anything else, so app names and categories are loaded before the first render. (In Today by the clock, `popup.html?flyout`, `ready` also waits until it's shown, so its entrance plays then: `desktop-bridge.js`.)
 
 ### `shared/fx.js` (shared, no edit; for reference)
 - App icons come from `https://memoir-icons.example/<icon>` when `window.memoir?.windows`. **Keep the `.example` host.** A `.local` host adds about 2 s to every load.

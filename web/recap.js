@@ -4981,7 +4981,7 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
     ] },
     { title: 'Your limit and history', text: 'A committed limit can only be undone here. <b>Keep history</b> sets how long days are kept.', target: () => [row('#limit-reset'), block('#retention')], before: toSettings('#retention'), settle: 350, radius: 14 },
     { title: 'Sample week, tour and data', text: 'Look around with made-up data, replay this tour, read <b>how Memoir works</b>, link <b>Memoir in your browsers</b> (its <b>Guide</b> shows how), and <b>Export</b> or <b>Import</b> your history. The <b>Clear all</b> button asks twice before deleting your data.', target: () => [block('#set-demo'), block('#data-row')], before: toSettings('#data-row'), settle: 350, radius: 14 },
-    { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you use your computer. Double-click the clock in the notification area to come back to Memoir.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
+    { kicker: 'All set', title: 'That’s the tour', text: 'Your own week fills in as you use your computer. Click the clock in the notification area for today at a glance, or double-click it to come back to Memoir.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
   ];
   await runTour(link ? await linkSteps() : steps, {
     handoff,

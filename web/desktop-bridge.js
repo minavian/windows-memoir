@@ -2,10 +2,12 @@
 (() => {
   const native = window.chrome?.webview;
   if (!native) throw new Error('Memoir needs its Windows host.');
-  // Memoir's own title bar (desktop-chrome.css, src/TitleBar.cs): its styles before the page's first paint
+  // Memoir's own title bar (desktop-chrome.css, src/TitleBar.cs): its styles before the page's first paint. Today by
+  // the clock (popup.html?flyout, src/Flyout.cs) has none: it's the browser's popup, in a small window of its own
   const root = document.documentElement;
   const page = location.pathname.split('/').pop();
-  root.classList.add('win-chrome');
+  const flyout = new URLSearchParams(location.search).has('flyout');
+  root.classList.add(flyout ? 'win-flyout' : 'win-chrome');
   root.dataset.winPage = page === 'recap.html' ? 'report' : page === 'popup.html' ? 'today' : 'doc';
   const chromeCss = document.createElement('link');
   chromeCss.rel = 'stylesheet'; chromeCss.href = 'desktop-chrome.css';
@@ -17,6 +19,9 @@
   const listeners = new Set();
   const pending = new Map();
   let sequence = 0;
+  // Today gets ready hidden; it draws (and plays its entrance) once it's shown
+  let shown = null;
+  const firstShown = flyout ? new Promise(resolve => { shown = resolve; }) : null;
   const request = (op, data = {}) => new Promise((resolve, reject) => {
     const id = ++sequence;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('The desktop request timed out.')); }, 30000);
@@ -26,6 +31,7 @@
   native.addEventListener('message', event => {
     const msg = event.data;
     if (msg.event === 'window') { windowState(msg.state || {}); return; }
+    if (msg.event === 'flyout') { if (msg.state === 'shown' && shown) { shown(); shown = null; } return; }
     if (msg.event === 'storage') {
       if (msg.area === 'local' && msg.changes.apps) window.memoir.apps = msg.changes.apps.newValue || {};
       if (msg.area === 'local' && msg.changes.favicons) window.memoir.favicons = msg.changes.favicons.newValue || {};
@@ -59,8 +65,8 @@
   window.chrome.tabs = { create: ({ url }) => request('link.open', { url }) };
   window.memoir = {
     // the apps' names, categories and icons; the websites' icons a linked browser sent (both in Data\icons)
-    windows: true, apps: {}, favicons: {}, request,
-    ready: storage.get(['apps', 'favicons']).then(data => { window.memoir.apps = data.apps || {}; window.memoir.favicons = data.favicons || {}; }),
+    windows: true, apps: {}, favicons: {}, request, flyout,
+    ready: Promise.all([storage.get(['apps', 'favicons']).then(data => { window.memoir.apps = data.apps || {}; window.memoir.favicons = data.favicons || {}; }), firstShown]),
     appName: key => window.memoir.apps[key]?.name || key.slice(4).replace(/\.exe$/, ''),
     today: () => request('window.today'), minimize: () => request('window.minimize'),
   };
@@ -114,8 +120,10 @@
     const scrolled = () => root.classList.toggle('win-scrolled', scrollY > 0);
     addEventListener('scroll', scrolled, { passive: true }); scrolled();
   }
+  // Today: Esc closes it, as a click elsewhere does (a menu or popover open in it takes Esc first)
+  if (flyout) addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) request('window.close').catch(() => {}); });
   addEventListener('DOMContentLoaded', () => {
-    buildTitleBar();
+    if (!flyout) buildTitleBar();
     // painted: the window's loading clock can go (src/Splash.cs), as the report's cards start to come in (fx.js
     // reveal adds .ready); a page without that, two frames in
     let said = false;
