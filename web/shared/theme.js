@@ -45,6 +45,14 @@ function apply(pref) {
   if (pref === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = pref;
 }
+// a choice made elsewhere (a linked Memoir: shared/appearance.js), kept and shown at once
+export function applyThemePref(pref) {
+  try {
+    if (pref === 'auto') localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, pref);
+  } catch { /* ignore */ }
+  apply(pref);
+}
 
 // ---------- theme change: waves ----------
 // Every pick sends a wave across the page, and waves can follow each other without

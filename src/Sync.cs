@@ -24,7 +24,8 @@ namespace Memoir {
         private static readonly Regex OwnDay = new Regex("^day:(\\d{4}-\\d{2}-\\d{2})$");
         private static readonly Regex DeviceId = new Regex("^[a-z0-9-]{8,64}$");
         private static readonly Regex DateKey = new Regex("^\\d{4}-\\d{2}-\\d{2}$");
-        public static readonly string[] SettingsFields = { "paused", "titles", "retention", "weeklyReminder", "reminderDay", "reminderMinutes" };
+        // (Appearance too: theme, rainbow, cursor and cursorSmooth are copies of the page's choices, web/shared/appearance.js)
+        public static readonly string[] SettingsFields = { "paused", "titles", "retention", "weeklyReminder", "reminderDay", "reminderMinutes", "theme", "rainbow", "cursor", "cursorSmooth" };
         private readonly Control owner;
         private readonly Store store;
         private readonly Engine engine;

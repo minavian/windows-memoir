@@ -73,7 +73,7 @@ namespace Memoir {
                 store.Set(Json.Object("linkTour", Json.Object("pending", device))); store.Save(); RestoreWindow();
             };
             if (Json.Get(store.Data, "linkTour") == null) { var peers = Json.Map(Json.Get(Json.Map(Json.Get(store.Data, "sync")), "peers")); if (peers.Count > 0) store.Set(Json.Object("linkTour", Json.Object("pending", peers.Keys.First()))); }
-            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
+            store.Changed += delegate(Dictionary<string, object> changes) { if (changes.ContainsKey("settings")) { tray.Text = engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; ApplyIcon(); FollowTheme(); } Post(Json.Object("event", "storage", "area", "local", "changes", changes)); };
             engine.SessionChanged += delegate(Dictionary<string, object> session) { Post(Json.Object("event", "storage", "area", "session", "changes", Json.Object("session", Json.Object("newValue", session)))); };
             SystemEvents.PowerModeChanged += OnPower;
             Shown += async delegate { if (hiddenStart) { Hide(); hiddenStart = false; releaseTimer.Start(); } else await LoadView(); };
@@ -253,6 +253,15 @@ namespace Memoir {
             if (icon == null) return;
             if (Icon != icon) Icon = icon;
             if (tray != null && tray.Icon != icon) tray.Icon = icon;
+        }
+        // A theme chosen in a linked browser (settings.theme) while the page is closed: the window, the loading
+        // screen and the tray menu take it now (the page, when open, reports its own, with its colours)
+        private void FollowTheme() {
+            string mode = Json.Text(Json.Get(engine.Settings, "theme"));
+            if (web != null || (mode != "auto" && mode != "light" && mode != "dark")) return;
+            if (Json.Text(Json.Get(Json.Map(Json.Get(store.Data, "windowsAppearance")), "mode"), "auto") == mode) return;
+            store.Set(Json.Object("windowsAppearance", Json.Object("mode", mode, "theme", mode == "auto" ? "light" : mode))); store.Save();
+            ApplySavedTheme(); ApplyColorScheme();
         }
         private void ApplySavedTheme() {
             var appearance = Appearance.Resolve(Json.Get(store.Data, "windowsAppearance"));

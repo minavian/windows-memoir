@@ -573,10 +573,17 @@ export async function getSettings() {
   return merged;
 }
 
-export async function updateSettings(patch) {
-  const next = { ...(await getSettings()), ...patch };
-  await chrome.storage.local.set({ settings: next });
-  return next;
+// one change after another: two at once (two switches flipped quickly) would each write the settings they read
+// before the other's, and the second would undo the first
+let settingsWrites = Promise.resolve();
+export function updateSettings(patch) {
+  const write = settingsWrites.then(async () => {
+    const next = { ...(await getSettings()), ...patch };
+    await chrome.storage.local.set({ settings: next });
+    return next;
+  });
+  settingsWrites = write.catch(() => {});
+  return write;
 }
 
 export async function getCategoryOverrides() {

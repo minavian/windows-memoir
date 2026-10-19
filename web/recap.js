@@ -20,6 +20,7 @@ import { runTour, relight } from './tour.js';
 import { createWelcome } from './welcome.js';
 import { playLogo } from './shared/logo.js';
 import { initCursor, setCursorPref, cursorEnabled, cursorSmooth, setCursorSmooth } from './shared/cursor.js';
+import { syncAppearance, adoptAppearance, saveAppearance } from './shared/appearance.js';
 import { createDust } from './shared/dust.js';
 import { initContextMenu } from './shared/context-menu.js';
 import { mailPop } from './shared/mail-pop.js';
@@ -135,9 +136,9 @@ async function init() {
   const welcome = onboarded ? null : createWelcome();
   state.settings = settings;
   showPaused();
-  // the Rainbow clock lives in this browser's storage (first paint); the tracker's copy (the
-  // toolbar icon) catches up if it was turned on before the setting existed
-  if (!!settings.rainbow !== rainbowOn()) updateSettings({ rainbow: rainbowOn() }).then(s => { state.settings = s; });
+  // Appearance lives in this place's storage (first paint), with a copy in settings that a linked Memoir
+  // shares: changed there while this page was closed, it comes here now (shared/appearance.js)
+  syncAppearance().then(changed => { if (changed) updateAppearanceUI(); });
   state.overrides = overrides;
   state.goalHistory = history;
   state.goalTrial = goalTrial || null;
@@ -4201,6 +4202,7 @@ function wire() {
       cards: [...document.querySelectorAll('.board > .card')],
     });
     updateAppearanceUI();
+    saveAppearance({ theme: b.dataset.pref }).then(s => { state.settings = s; });
     if (t) t.ready.then(themeProgress, () => {});
   });
 
@@ -4541,10 +4543,11 @@ function wire() {
     const on = e.target.checked;
     setRainbow(on);
     toast(on ? 'Rainbow clock on' : 'Rainbow clock off');
-    state.settings = await updateSettings({ rainbow: on }); // the toolbar icon follows
+    state.settings = await saveAppearance({ rainbow: on }); // the toolbar icon and a linked Memoir follow
   });
   $('set-cursor').addEventListener('change', e => {
     setCursorPref(e.target.checked);
+    saveAppearance({ cursor: e.target.checked }).then(s => { state.settings = s; });
     lockSmooth();
     toast(e.target.checked ? 'Custom cursor on' : 'Using your system cursor');
   });
@@ -4561,6 +4564,7 @@ function wire() {
   });
   $('set-smooth').addEventListener('change', e => {
     setCursorSmooth(e.target.checked);
+    saveAppearance({ cursorSmooth: e.target.checked }).then(s => { state.settings = s; });
     toast(e.target.checked ? 'Smooth cursor on' : 'Smooth cursor off');
   });
   $('set-demo').addEventListener('change', e => {
@@ -5014,7 +5018,7 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
           { text: 'And back to <b>Apps</b>', watch: onClick('#kind [data-kind="apps"]') },
         ] : undefined },
       { title: 'Each minute once', text: `Your daily average, your limit, the categories and every hour count the time in ${name} once, whichever side saw it.`, target: () => [q('.summary .caption'), q('#stat-avg')], before: toWeek, settle: 0, radius: 14, below: true },
-      { title: 'One set of rules', text: 'Never track, page titles, Keep history, your limit, the weekly reminder and categories follow whichever side changed them last. <b>Clear all</b> on either side clears both; <b>Unlink</b> leaves both what they have.', target: () => q('#link-rows') && q('#link-rows').closest('.p-block'), before: toSettings('#data-row'), settle: 350, radius: 14 },
+      { title: 'One set of rules', text: 'Never track, page titles, Keep history, your limit, the weekly reminder, categories and Appearance follow whichever side changed them last. <b>Clear all</b> on either side clears both; <b>Unlink</b> leaves both what they have.', target: () => q('#link-rows') && q('#link-rows').closest('.p-block'), before: toSettings('#data-row'), settle: 350, radius: 14 },
       { kicker: 'All set', title: 'You’re linked', text: 'Using another browser too? Add Memoir to it and press <b>Link</b> there. <b>Connect another browser</b>, under the rows here, shows how.', before: async () => { await noSettings(); await toWeek(); }, settle: 300 },
     ];
   }
@@ -5164,6 +5168,8 @@ function onStorageChanged(changes, area) {
   if (changes.linkTour) maybeLinkTour();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
+    // Appearance changed in a linked Memoir
+    if (adoptAppearance(changes.settings.newValue)) updateAppearanceUI();
     showPaused();
     if ($('settings').classList.contains('open')) renderSettings();
     else $('set-tracking').checked = !state.settings.paused;

@@ -10,6 +10,7 @@ import {
 import { watchTheme } from './shared/theme.js';
 import { createGoalRing, openPicker } from './shared/goal.js';
 import { initCursor } from './shared/cursor.js';
+import { syncAppearance, adoptAppearance } from './shared/appearance.js';
 import { initContextMenu } from './shared/context-menu.js';
 import { playLogo } from './shared/logo.js';
 import { playOverShow } from './shared/overshow.js';
@@ -72,6 +73,7 @@ async function main() {
     chrome.storage.local.get(['popupIntroduced', 'apps', 'appIcons']),
   ]);
   setApps(apps, appIcons); // Windows apps' names, categories and icons, from a linked Memoir for Windows
+  syncAppearance(); // as a linked Memoir left it (shared/appearance.js)
   state.today = days[state.todayKey];
   state.overrides = overrides;
   state.session = session;
@@ -413,6 +415,7 @@ function onStorage(changes, area) {
     getGoalHistory().then(h => { state.goalHistory = h; updateGoal(split(liveSites()).all); });
   }
   if (changes.settings) {
+    adoptAppearance(changes.settings.newValue);
     const paused = !!(changes.settings.newValue && changes.settings.newValue.paused);
     if (paused !== state.paused) {
       state.paused = paused;
