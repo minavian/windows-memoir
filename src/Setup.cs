@@ -42,11 +42,21 @@ namespace Memoir {
             bool quiet = args.Contains("--quiet");
             int.TryParse(args.Where(a => a.StartsWith("--waiting=")).Select(a => a.Substring(10)).FirstOrDefault(), out waiting);
             string from = args.Where(a => a.StartsWith("--uninstall-from=")).Select(a => a.Substring(17)).FirstOrDefault();
-            if (args.Contains("--install")) { Prepare(); Install(AppDomain.CurrentDomain.BaseDirectory); return true; }
-            if (from != null) { Prepare(); Uninstall(Path.GetFullPath(from), quiet); return true; }
+            if (args.Contains("--install")) { Prepare(); using (var only = Only()) if (only != null) Install(AppDomain.CurrentDomain.BaseDirectory); return true; }
+            if (from != null) { Prepare(); using (var only = quiet ? null : Only()) if (quiet || only != null) Uninstall(Path.GetFullPath(from), quiet); return true; }
             if (args.Contains("--uninstall")) { Prepare(); Relaunch(AppDomain.CurrentDomain.BaseDirectory, quiet); return true; }
             return false;
         }
+        // one installer or uninstaller window at a time: started again (a second click on Uninstall), it brings the
+        // one already open to the front instead
+        private static Mutex Only() {
+            bool first; var mutex = new Mutex(true, "Local\\Memoir-Setup", out first);
+            if (first) return mutex;
+            mutex.Dispose();
+            foreach (string title in new[] { "Memoir Setup", "Uninstall Memoir" }) { IntPtr other = FindWindow(null, title); if (other != IntPtr.Zero) { Native.ToFront(other); break; } }
+            return null;
+        }
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string title);
         private static void Prepare() { Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); }
         private static string Full(string path) { return Path.GetFullPath(path).TrimEnd('\\'); }
         private static bool Same(string a, string b) { return String.Equals(Full(a), Full(b), StringComparison.OrdinalIgnoreCase); }
