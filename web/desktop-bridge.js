@@ -82,48 +82,42 @@
       palette: { surface: token('--surface'), background: token('--bg'), label: token('--label'), secondary: token('--label-2'), hover: token('--fill-1') },
     }).catch(() => {});
   };
-  // the band: drag it to move the window (Snap included), double-click to maximize, right-click for the window's
-  // menu, its top edge to resize; Minimize (to the notification area, as before), Maximize and Close on the right
-  const ICONS = {
-    min: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8"/></svg>',
-    max: '<svg viewBox="0 0 10 10" aria-hidden="true"><rect class="win-max-icon" x="1" y="1" width="8" height="8" rx="1.6"/><g class="win-restore-icon"><rect x="1" y="3" width="6" height="6" rx="1.4"/><path d="M3 1.5h4.1A1.4 1.4 0 0 1 8.5 2.9V7"/></g></svg>',
-    close: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>',
-  };
-  function buildTitleBar() {
-    const band = document.createElement('div');
-    band.className = 'win-band';
-    band.innerHTML = '<div class="win-edge" data-hit="12"></div><div class="win-edge" data-hit="13"></div><div class="win-edge" data-hit="14"></div>';
-    const buttons = document.createElement('div');
-    buttons.className = 'win-buttons';
-    buttons.innerHTML = `<button class="win-min" type="button" tabindex="-1" aria-label="Minimize">${ICONS.min}</button>`
-      + `<button class="win-maximize" type="button" tabindex="-1" aria-label="Maximize">${ICONS.max}</button>`
-      + `<button class="win-close" type="button" tabindex="-1" aria-label="Close">${ICONS.close}</button>`;
-    document.body.append(band, buttons);
-    let last = { at: 0, x: 0, y: 0 };
-    band.addEventListener('mousedown', e => {
+  // No title bar (desktop-chrome.css): the window's top edge still resizes it, and the empty top of a page (above and
+  // around the report's header, a page's heading) moves it, Snap included: drag it there, double-click to maximize,
+  // right-click for the window's menu. The report's Settings button, pulled down, closes it (pull-close.js).
+  const FIXED = 'button, a, input, select, textarea, label, summary, [role="button"], [role="tab"], [role="radio"], [role="checkbox"], [role="slider"], [tabindex]:not([tabindex="-1"]), [contenteditable], .card, .pop, .menu, .context-menu, .tour, .wel, .mark, .logo, .morph.open, .settings-scrim, .pk-layer, .gx-layer';
+  const MOVE_BAND = 64;   // px from the top
+  const frees = e => e.clientY <= MOVE_BAND && e.target instanceof Element && !e.target.closest(FIXED) && !e.target.closest('.win-edges');
+  function windowFrame() {
+    const edges = document.createElement('div');
+    edges.className = 'win-edges';
+    edges.setAttribute('aria-hidden', 'true');
+    edges.innerHTML = '<div class="win-edge" data-hit="12"></div><div class="win-edge" data-hit="13"></div><div class="win-edge" data-hit="14"></div>';
+    document.body.append(edges);
+    edges.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.preventDefault();
       const edge = e.target.closest('.win-edge');
-      if (edge) { request('window.drag', { hit: +edge.dataset.hit }).catch(() => {}); return; }
+      if (edge) request('window.drag', { hit: +edge.dataset.hit }).catch(() => {});
+    });
+    let last = { at: 0, x: 0, y: 0 };
+    addEventListener('mousedown', e => {
+      if (e.button !== 0 || e.defaultPrevented || !frees(e)) return;
+      e.preventDefault();
       // the second press of a double-click maximizes (the first one's drag swallowed its own mouse-up)
       const twice = e.timeStamp - last.at < 500 && Math.abs(e.screenX - last.x) < 6 && Math.abs(e.screenY - last.y) < 6;
       last = twice ? { at: 0, x: 0, y: 0 } : { at: e.timeStamp, x: e.screenX, y: e.screenY };
       request(twice ? 'window.maximize' : 'window.drag', { hit: 2 }).catch(() => {});
     });
-    band.addEventListener('contextmenu', e => { e.preventDefault(); request('window.menu').catch(() => {}); });
-    buttons.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return;
-      request(b.classList.contains('win-min') ? 'window.minimize' : b.classList.contains('win-close') ? 'window.close' : 'window.maximize').catch(() => {});
-    });
-    buttons.addEventListener('contextmenu', e => e.preventDefault());
+    addEventListener('contextmenu', e => { if (frees(e) && !e.defaultPrevented) { e.preventDefault(); request('window.menu').catch(() => {}); } });
     request('window.state').then(windowState).catch(() => {});
-    const scrolled = () => root.classList.toggle('win-scrolled', scrollY > 0);
-    addEventListener('scroll', scrolled, { passive: true }); scrolled();
+    // the report: its Settings button closes the window too
+    if (page === 'recap.html') { const pull = document.createElement('script'); pull.type = 'module'; pull.src = 'pull-close.js'; document.head.append(pull); }
   }
   // Today: Esc closes it, as a click elsewhere does (a menu or popover open in it takes Esc first)
   if (flyout) addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) request('window.close').catch(() => {}); });
   addEventListener('DOMContentLoaded', () => {
-    if (!flyout) buildTitleBar();
+    if (!flyout) windowFrame();
     // painted: the window's loading clock can go (src/Splash.cs), as the report's cards start to come in (fx.js
     // reveal adds .ready); a page without that, two frames in
     let said = false;

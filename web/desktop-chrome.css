@@ -1,32 +1,10 @@
-/* Memoir for Windows' own title bar (desktop-bridge.js builds it; src/TitleBar.cs gives it the window's caption).
-   A clear band across the top to drag the window by, so the page shows through it whatever it does (Settings'
-   scrim, the tour's spotlight), solid in the page's colour only once something scrolls under it; and the
-   window's buttons above everything, in the app's style: small rounded fills, line icons, Close in red. */
-html.win-chrome { --titlebar: 32px; }
+/* Memoir for Windows has no title bar (src/TitleBar.cs gives the window's caption to the page): the page goes right up
+   to the top, with the extension's own spacing. What a title bar did is still there, unseen: the window's top edge
+   resizes it (.win-edge), the empty top of a page moves it and a double-click there maximizes it (desktop-bridge.js),
+   and the report's Settings button, pulled down, closes it (pull-close.js). */
 
-/* room for it: the report and Today keep their own spacing below it; the reading pages start under it */
-html.win-chrome .dash { padding-top: calc(var(--titlebar) + 4px); }
-html.win-chrome .heat { --s: max(6px, min(calc((100cqw - 34px - 24 * var(--gap)) / 24), calc((100dvh - 548px) / 7))); }
-@media (max-width: 1099px), (max-height: 579px) {
-  html.win-chrome .heat { --s: max(6px, calc((100cqw - 34px - 24 * var(--gap)) / 24)); }
-}
-html.win-chrome .app { padding-top: calc(var(--titlebar) + 4px); }
-html.win-chrome[data-win-page="doc"] body { padding-top: var(--titlebar); }
-
-.win-band {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--titlebar);
-  z-index: 30;
-  background: transparent;
-  transition: background-color 0.2s var(--ease);
-  user-select: none;
-  -webkit-user-select: none;
-}
-html.win-scrolled .win-band { background: var(--bg); }
 /* the top edge resizes, as a window's does (not while maximized) */
+.win-edges { position: fixed; top: 0; left: 0; right: 0; height: 0; z-index: 30; }
 .win-edge { position: absolute; top: 0; height: 5px; }
 .win-edge[data-hit="12"] { left: 10px; right: 10px; }
 .win-edge[data-hit="13"] { left: 0; width: 10px; }
@@ -36,39 +14,52 @@ html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
 html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
 html.win-max .win-edge { display: none; }
 
-.win-buttons {
-  position: fixed;
-  top: 0;
+/* ---------- pull to close (pull-close.js) ---------- */
+/* the button follows the pull (--pull), and springs back when let go short of the line */
+html.win-chrome #settings-btn {
+  translate: 0 var(--pull, 0px);
+  transition: transform 0.3s var(--ease-out), background-color 0.25s var(--ease), color 0.25s var(--ease), opacity 0.2s var(--ease), box-shadow 0.25s var(--ease), translate 0.55s cubic-bezier(0.32, 1.24, 0.5, 1);
+}
+html.win-chrome .pulling #settings-btn { --press: 1; transition-property: transform, background-color, color, opacity, box-shadow; }
+html.win-chrome .pull-armed #settings-btn { --press: 1.12; }
+/* the gear turns into a red X, the way it turns into Settings' close */
+html.win-chrome #settings-btn.pull-x { background: var(--danger); color: #fff; box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--danger) 70%, transparent); }
+html.win-chrome #settings-btn.pull-x .g-gear { opacity: 0; transform: rotate(90deg) scale(0.6); }
+html.win-chrome #settings-btn.pull-x .g-close { opacity: 1; transform: scale(1.2); }
+html.win-chrome #settings-btn.pull-x .g-close { width: 20px; height: 20px; }
+html.win-chrome .pull-closing #settings-btn { translate: 0 calc(var(--pull, 0px) + 18px); opacity: 0; transition-duration: 0.17s; }
+
+/* "Pull to close", under it (clear of the header beside it), going with it */
+.pull-label {
+  position: absolute;
+  top: calc(100% + 10px);
   right: 0;
-  height: var(--titlebar);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 6px 0 0;
-  z-index: 2147483000;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  color: var(--label);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 calc(var(--pull, 0px) - 6px);
+  scale: 0.94;
+  transform-origin: top right;
+  transition: opacity 0.2s var(--ease), translate 0.55s cubic-bezier(0.32, 1.24, 0.5, 1), scale 0.3s var(--ease-out), color 0.2s var(--ease);
 }
-.win-buttons button {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 26px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--label-2);
-  font: inherit;
-  transition: background-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.15s var(--ease);
+.pull-label svg { width: 11px; height: 11px; fill: none; stroke: var(--danger); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.pull-hint .pull-label { opacity: 1; translate: 0 var(--pull, 0px); scale: 1; }
+.pulling .pull-label { transition-property: opacity, scale, color; }
+.pull-armed .pull-label { color: var(--danger); }
+.pull-closing .pull-label { opacity: 0; transition-duration: 0.12s; }
+.pull-text { display: inline-block; }
+/* the way it goes, unseen (the tour's light takes it in) */
+.pull-track { position: absolute; top: 100%; right: 0; width: 160px; height: 76px; visibility: hidden; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  html.win-chrome #settings-btn, .pull-label { transition-duration: 0.01s; }
 }
-.win-buttons svg { width: 10px; height: 10px; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
-.win-buttons button:hover { background: var(--fill-1); color: var(--label); }
-.win-buttons button:active { background: var(--fill-2); transform: scale(0.96); }
-.win-buttons .win-close:hover { background: var(--danger); color: #fff; }
-.win-buttons .win-close:active { background: color-mix(in srgb, var(--danger) 85%, #000); }
-.win-buttons button:focus-visible { outline: none; box-shadow: var(--ring); }
-/* Maximize or Restore, as the window is */
-.win-buttons .win-restore-icon, html.win-max .win-buttons .win-max-icon { display: none; }
-html.win-max .win-buttons .win-restore-icon { display: block; }
-/* a window in the background: its buttons quieter, as Windows' own are */
-html.win-inactive .win-buttons button:not(:hover) { color: var(--label-3); }

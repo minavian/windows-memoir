@@ -73,7 +73,9 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 ### `desktop-bridge.js` (Windows only)
 - `chrome.runtime.getManifest()`: `{ version: '6.0.0 for Windows' }` (the report reads it at load for the bug report's subject). Keep it with `src/AssemblyInfo.cs`.
 - On How Memoir works and the privacy policy (pages with `main > .brand`): a "‹ Back to Memoir" link above the name, and Esc, back to the report. `MainForm` opens these pages in the same window.
-- Memoir's own title bar on every page (`desktop-chrome.css`, `src/TitleBar.cs`): a clear band to drag by (double-click maximizes, right-click opens the window menu, its top edge resizes) and Minimize, Maximize and Close in the app's style. It needs room at the top of each page: `.dash` and `.app` start under it, the heatmap's height formula counts it, reading pages get `padding-top`. A new page shown in the window needs the same.
+- No title bar on any page (`desktop-chrome.css`, `desktop-bridge.js`, `src/TitleBar.cs`): invisible strips along the top edge resize the window; the empty top 64 px of a page moves it (double-click maximizes, right-click opens the window menu). Pages keep the extension's own spacing.
+- The report's gear closes the window (`web/pull-close.js`, loaded by `desktop-bridge.js` on `recap.html`): pulled down past 84 px it closes, and resting by it for a second shows the hint (a nudge, a red X, "Pull to close"). It adds `.pull-label` and `.pull-track` to `#settings`; a port that changes the gear's markup (`#settings-btn`, `.g-gear`, `.g-close`) must keep them working.
+- `recap.js`'s tour: a step "Pull to close" before "That’s the tour", with its watcher `onPulled` (it sets `data-pull-tour`, so a pull springs back and fires `memoir:pulled`).
 
 ## Data contract
 

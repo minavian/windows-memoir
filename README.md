@@ -8,7 +8,7 @@ Memoir tracks the focused Windows app and websites in supported browsers. The re
 
 ## Window
 
-Memoir draws its own title bar, the colour of the page with the window's buttons in the app's style; Windows keeps the frame, so resizing, Snap, the shadow and the window menu (right-click the top) work as usual. While the page loads (the window's web view starts fresh each time it opens), the window shows Memoir's clock on the page's own background, breathing gently, and hands over as the report's cards come in; the web view follows Memoir's theme rather than Windows', so nothing flashes another colour first (`Splash.cs`).
+Memoir has no title bar: the page goes right to the top. Windows keeps the frame, so resizing (the top edge too), Snap and the shadow work as usual; the empty top of a page moves the window, a double-click there maximizes it, and a right-click there opens the window menu. The report's gear closes the window (`web/pull-close.js`): pulled down and let go, it closes the window to the notification area. Resting the mouse by it for a second, it nudges down, turns into a red X and says "Pull to close"; a click still opens Settings. While the page loads (the window's web view starts fresh each time it opens), the window shows Memoir's clock on the page's own background, breathing gently, and hands over as the report's cards come in; the web view follows Memoir's theme rather than Windows', so nothing flashes another colour first (`Splash.cs`).
 
 ## Minimized behavior
 

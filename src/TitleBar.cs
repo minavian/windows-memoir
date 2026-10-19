@@ -3,10 +3,10 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Memoir {
-    // Memoir's own title bar. The pages draw it (desktop-bridge.js: a band the colour of the page, and Minimize,
-    // Maximize and Close in the app's style); the window keeps Windows' frame everywhere else (resize borders,
-    // shadow, rounded corners, Snap) and only gives its caption area to the page. Dragging the band,
-    // double-clicking it and right-clicking it ask the window (window.drag, window.maximize, window.menu).
+    // Memoir has no title bar: the window keeps Windows' frame everywhere else (resize borders, shadow, rounded
+    // corners, Snap) and gives its caption area to the page. Dragging the empty top of a page, double-clicking it
+    // and right-clicking it ask the window (desktop-bridge.js: window.drag, window.maximize, window.menu); the
+    // report's gear pulled down closes it.
     internal static class TitleBar {
         public const int CalcSize = 0x0083;
         private const int NcButtonDown = 0x00A1, SysCommand = 0x0112;
@@ -34,7 +34,7 @@ namespace Memoir {
         }
         // the frame is worked out again (once the window exists)
         public static void Refresh(IntPtr hwnd) { SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004 | 0x0010); }
-        // the page's band pressed: the window moves (or, from its top edge, resizes) as from a real caption, Snap included
+        // the empty top of a page pressed: the window moves (or, from its top edge, resizes) as from a real caption, Snap included
         public static void Drag(IntPtr hwnd, int hit) {
             if (hit != Caption && hit != Top && hit != TopLeft && hit != TopRight) return;
             if (hit != Caption && IsZoomed(hwnd)) return;
