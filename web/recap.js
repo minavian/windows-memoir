@@ -3253,6 +3253,22 @@ function setPressed(groupId, match) {
 }
 
 // The line under Appearance fills as the theme change runs (transform only), then fades.
+// A theme rolls in with its wave: picked here (from its button), or in a linked Memoir (from its button when
+// Settings are open, else from the top-right corner, where the sweep starts).
+function themeWave(pref, from) {
+  const r = from ? from.getBoundingClientRect() : null;
+  return setThemePref(pref, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: innerWidth, y: 0 }, {
+    // the Settings panel and, in the tour, its card fill in with one circle from the button
+    panels: [
+      { el: $('settings').classList.contains('open') ? $('settings-panel') : null, parts: [document.querySelector('#settings-panel .panel-inner')] },
+      { el: document.querySelector('.tour.on .tour-card'), parts: [document.querySelector('.tour.on .tour-card')] },
+    ],
+    parts: [...document.querySelectorAll('.board > .card, .head-left, .demo-pill, .morph-trigger')],
+    // the tour's dim fades to the new theme's as the sweep passes it
+    fades: [document.querySelector('.tour.on .tour-spot')],
+    cards: [...document.querySelectorAll('.board > .card')],
+  });
+}
 function themeProgress() {
   const fill = document.querySelector('.tp-fill');
   if (!fill) return;
@@ -4238,18 +4254,7 @@ function wire() {
   $('appearance').addEventListener('click', e => {
     const b = e.target.closest('button[data-pref]');
     if (!b) return;
-    const r = b.getBoundingClientRect();
-    const t = setThemePref(b.dataset.pref, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, {
-      // the Settings panel and, in the tour, its card fill in with one circle from the button
-      panels: [
-        { el: $('settings').classList.contains('open') ? $('settings-panel') : null, parts: [document.querySelector('#settings-panel .panel-inner')] },
-        { el: document.querySelector('.tour.on .tour-card'), parts: [document.querySelector('.tour.on .tour-card')] },
-      ],
-      parts: [...document.querySelectorAll('.board > .card, .head-left, .demo-pill, .morph-trigger')],
-      // the tour's dim fades to the new theme's as the sweep passes it
-      fades: [document.querySelector('.tour.on .tour-spot')],
-      cards: [...document.querySelectorAll('.board > .card')],
-    });
+    const t = themeWave(b.dataset.pref, b);
     updateAppearanceUI();
     saveAppearance({ theme: b.dataset.pref }).then(s => { state.settings = s; });
     if (t) t.ready.then(themeProgress, () => {});
@@ -5234,8 +5239,16 @@ function onStorageChanged(changes, area) {
   if (changes.linkTour) maybeLinkTour();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
-    // Appearance changed in a linked Memoir
-    if (adoptAppearance(changes.settings.newValue)) updateAppearanceUI();
+    // Appearance changed in a linked Memoir: a new theme rolls in with its wave while this page is in sight (a
+    // window minimized to the notification area has no page; a tab in the background just takes it)
+    const pref = changes.settings.newValue && changes.settings.newValue.theme;
+    let waved = false;
+    if ((pref === 'auto' || pref === 'light' || pref === 'dark') && pref !== getThemePref() && document.visibilityState === 'visible') {
+      const t = themeWave(pref, $('settings').classList.contains('open') ? document.querySelector(`#appearance button[data-pref="${pref}"]`) : null);
+      if (t) t.ready.then(themeProgress, () => {});
+      waved = true;
+    }
+    if (adoptAppearance(changes.settings.newValue) || waved) updateAppearanceUI();
     showPaused();
     if ($('settings').classList.contains('open')) renderSettings();
     else $('set-tracking').checked = !state.settings.paused;
