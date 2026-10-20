@@ -5282,7 +5282,7 @@ function hashStr(str) {
 const SAMPLE_SITES = [
   ['youtube.com', 'video', 1.0], ['instagram.com', 'social', 0.7], ['github.com', 'work', 0.75],
   ['docs.google.com', 'work', 0.6], ['mail.google.com', 'work', 0.35], ['reddit.com', 'social', 0.45],
-  ['netflix.com', 'video', 0.4], ['chatgpt.com', 'work', 0.45], ['figma.com', 'work', 0.4],
+  ['netflix.com', 'video', 0.4], ['trello.com', 'work', 0.45], ['figma.com', 'work', 0.4],
   ['shopee.vn', 'shopping', 0.3], ['vnexpress.net', 'news', 0.3], ['duolingo.com', 'learning', 0.2],
   ['wikipedia.org', 'learning', 0.25], ['pinterest.com', 'social', 0.22], ['spotify.com', 'video', 0.15],
   ['chess.com', 'games', 0.22], ['notion.so', 'work', 0.3], ['facebook.com', 'social', 0.4],
@@ -5307,7 +5307,7 @@ const SAMPLE_TITLES = {
   'github.com': ['Pull request #128 · memoir', 'Issues · memoir', 'README.md'],
   'docs.google.com': ['Weekly plan', 'Essay draft', 'Budget 2026'],
   'reddit.com': ['r/webdev', 'r/cats', 'r/chrome_extensions'],
-  'chatgpt.com': ['Recipe ideas', 'Explain CSS grid', 'Trip planning'],
+  'trello.com': ['Launch week', 'Reading list', 'Home projects'],
   'netflix.com': ['Home', 'Watching: a mystery series'],
   'wikipedia.org': ['Hourglass', 'Cherry blossom', 'Memoir'],
 };
