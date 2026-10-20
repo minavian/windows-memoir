@@ -13,31 +13,3 @@ html.win-chrome .win-edge[data-hit="12"] { cursor: ns-resize !important; }
 html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
 html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
 html.win-max .win-edge, html.win-full .win-edge { display: none; }
-
-/* ---------- Today's close button (flyout-close.js) ---------- */
-.fly-side { display: flex; align-items: center; gap: 8px; align-self: center; }
-.fly-close {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--fill-1);
-  color: var(--label-2);
-  cursor: var(--cursor-hand);
-  translate: 0 var(--pull, 0px);
-  transition: background-color 0.2s var(--ease), color 0.2s var(--ease), scale 0.3s var(--ease-out), opacity 0.15s var(--ease), translate 0.5s cubic-bezier(0.32, 1.24, 0.5, 1);
-}
-.fly-close svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
-.fly-close:hover, .fly-close.pulling { background: var(--danger); color: #fff; }
-.fly-close:active { scale: 0.92; }
-.fly-close:focus-visible { outline: none; box-shadow: var(--ring); }
-.fly-close.pulling { transition-property: background-color, color, scale, opacity; }
-.fly-close.armed { scale: 1.12; }
-.fly-close.gone { opacity: 0; translate: 0 calc(var(--pull, 0px) + 14px); }
-/* Today's top row over the cards under it, so the close button stays in sight as it's pulled down over them */
-html.win-flyout .top { position: relative; z-index: 20; }
-.fly-close { position: relative; z-index: 1; }

@@ -123,9 +123,7 @@
     else if (e.key === 'F11' && !e.altKey && !flyout) { e.preventDefault(); request('window.fullscreen').catch(() => {}); }
   }, true);
   addEventListener('DOMContentLoaded', () => {
-    if (!flyout) windowFrame();
-    // Today: a close button at its top right (click it, or pull it down)
-    else { const close = document.createElement('script'); close.type = 'module'; close.src = 'flyout-close.js'; document.head.append(close); }
+    if (!flyout) windowFrame();   // (Today's close button: popup-close.js, as the extension's popup has)
     // painted: the window's loading clock can go (src/Splash.cs), as the report's cards start to come in (fx.js
     // reveal adds .ready); a page without that, two frames in
     let said = false;

@@ -1,26 +1,27 @@
-// Today, by the clock in the notification area (src/Flyout.cs): a close button at its top right, beside Resume. A
-// click closes it, or pull it down and let go, as the report's gear closes the window (pull-close.js); a short pull
-// springs back. A click elsewhere and Esc still close it too. Styles in desktop-chrome.css; loaded in Today only
-// (desktop-bridge.js).
+// The popup's close button, at its top right beside Resume (Memoir for Windows: Today by the clock, src/Flyout.cs).
+// A click closes it, or pull it down and let go, as the report's gear closes its tab or window (pull-close.js); a
+// short pull springs back. A click elsewhere and Esc still close it too. Styles in popup.css.
 const PULL = 56;          // px down to close
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const desktop = !!window.memoir?.windows;
 const top = document.querySelector('.top');
 
-if (top) {
+// (Windows: only Today by the clock, a popup there too)
+if (top && (!desktop || window.memoir.flyout)) {
   const side = document.createElement('div');
-  side.className = 'fly-side';
+  side.className = 'close-side';
   const resume = document.getElementById('resume');
   if (resume) side.append(resume);
   const btn = document.createElement('button');
-  btn.className = 'fly-close';
+  btn.className = 'close-x';
   btn.type = 'button';
-  btn.setAttribute('aria-label', 'Close Today');
+  btn.setAttribute('aria-label', desktop ? 'Close Today' : 'Close');
   btn.title = 'Close (or pull down)';
   btn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
   side.append(btn);
   top.append(side);
 
-  const close = () => window.memoir.request('window.close').catch(() => {});
+  const close = () => (desktop ? window.memoir.request('window.close').catch(() => {}) : window.close());
   let pull = null, swallow = false;
   const travel = dy => (dy <= PULL ? dy * 0.8 : PULL * 0.8 + (dy - PULL) * 0.22);
   btn.addEventListener('pointerdown', e => {
