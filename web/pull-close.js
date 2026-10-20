@@ -3,7 +3,7 @@
 // it up: full screen, or back (as F11 does). Resting the mouse by it for about a second (the corner where a window's
 // close button would be) shows how: it turns into a red X, says "Pull to close" and nudges down, again and again with
 // a short rest between, for as long as the mouse stays there. A click still opens
-// Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs back instead and says so
+// Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs straight back instead and says so
 // (memoir:pulled). Styles in desktop-chrome.css; loaded on the report only (desktop-bridge.js).
 const btn = document.getElementById('settings-btn');
 const morph = document.getElementById('settings');
@@ -130,18 +130,22 @@ if (btn && morph) {
     swallow = false; e.preventDefault(); e.stopImmediatePropagation();
   }, true);
 
-  function springBack() {
+  // home on its spring, at once; `said` stays on the label a moment on the way
+  let saying = 0;
+  function springBack(said = null) {
     morph.classList.remove('pulling', 'pull-armed', 'pull-going-up');
     morph.style.setProperty('--pull', '0px');
     btn.classList.remove('pull-up');
     if (hinted) btn.classList.add('pull-x');
-    say(words(false, false));
+    clearTimeout(saying);
+    say(said || words(false, false));
+    if (said) saying = setTimeout(() => { if (!(pull && pull.active)) say(words(false, false)); }, 1100);
     if (hinted) keepNudging();
     if (!near && !tourStep()) setTimeout(() => { if (!near && !(pull && pull.active)) hideHint(true); }, 380);
   }
   function close() {
     // the tour: it would close here; it springs back and the step ticks off
-    if (tourStep()) { say('That’s it'); document.dispatchEvent(new CustomEvent('memoir:pulled')); setTimeout(springBack, 650); return; }
+    if (tourStep()) { document.dispatchEvent(new CustomEvent('memoir:pulled')); springBack('That’s it'); return; }
     morph.classList.remove('pulling');
     morph.classList.add('pull-closing');
     // the page lets go as the button drops away
