@@ -123,8 +123,8 @@ namespace Memoir {
                 await control.EnsureCoreWebView2Async(environment);
                 if (current != generation || web != control || control.IsDisposed) return;
                 var core = control.CoreWebView2;
-                ApplyColorScheme();
-                core.NavigationCompleted += delegate { var check = new Timer { Interval = 2500 }; check.Tick += delegate { check.Dispose(); if (web == control) HideSplash(); }; check.Start(); };   // (a page that never says)
+                schemePinned = true; ApplyColorScheme();
+                core.NavigationCompleted += delegate { var check = new Timer { Interval = 2500 }; check.Tick += delegate { check.Dispose(); if (web == control) { HideSplash(); Unpin(); } }; check.Start(); };   // (a page that never says)
                 Configure(core);
                 await MovePreferences(control, existingProfile);
                 if (current != generation || web != control || control.IsDisposed) return;
@@ -194,7 +194,7 @@ namespace Memoir {
                 await control.EnsureCoreWebView2Async(environment);
                 if (flyout != form || control.IsDisposed) return;
                 var core = control.CoreWebView2;
-                Configure(core); ApplyColorScheme();
+                Configure(core); schemePinned = true; ApplyColorScheme();
                 core.WebMessageReceived += OnMessage;
                 // Today's page only: links open in the browser, Memoir's other pages in the window
                 core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args) {
@@ -316,12 +316,18 @@ namespace Memoir {
         }
         // the web view's own colours (before a page has any, and its default for "System") follow Memoir's theme,
         // not Windows': no dark frame under a Light Memoir
+        // The web view's light or dark: pinned to Memoir's theme while a page loads (unpinned, the blank web view before
+        // it showed Windows' own dark for a moment: a flash), then Windows' own, once the page has painted. Left pinned,
+        // the page took a pinned Light or Dark for the system's, so a switch to System saw no change and rolled no wave,
+        // then snapped to the system's theme. (A page's own Light or Dark is its data-theme, not this.)
+        private bool schemePinned = true;
+        private void Unpin() { if (!schemePinned) return; schemePinned = false; ApplyColorScheme(); }
         private void ApplyColorScheme() {
             try {
                 var core = web != null && web.CoreWebView2 != null ? web.CoreWebView2 : flyoutWeb != null && !flyoutWeb.IsDisposed ? flyoutWeb.CoreWebView2 : null;   // (one profile: both pages)
                 if (core == null) return;
                 string mode = Json.Text(Json.Get(Appearance.Resolve(Json.Get(store.Data, "windowsAppearance")), "mode"), "auto");
-                core.Profile.PreferredColorScheme = mode == "light" ? CoreWebView2PreferredColorScheme.Light : mode == "dark" ? CoreWebView2PreferredColorScheme.Dark : CoreWebView2PreferredColorScheme.Auto;
+                core.Profile.PreferredColorScheme = !schemePinned || mode == "auto" ? CoreWebView2PreferredColorScheme.Auto : mode == "light" ? CoreWebView2PreferredColorScheme.Light : CoreWebView2PreferredColorScheme.Dark;
             } catch { }
         }
         private void ReleaseWeb() {
@@ -446,7 +452,7 @@ namespace Memoir {
                     case "window.minimize": Answer(from, Json.Object("id", id, "result", true)); if (today) HideFlyout(); else MinimizeToTray(); return;
                     // the page's title bar (TitleBar.cs)
                     case "window.state": result = today ? Json.Object("maximized", false, "active", true) : WindowFacts(); break;
-                    case "window.painted": if (!today) HideSplash(); break;
+                    case "window.painted": if (!today) HideSplash(); Unpin(); break;
                     case "window.fullscreen": Answer(from, Json.Object("id", id, "result", true)); if (!today) BeginInvoke(new Action(delegate { SetFullScreen(!TitleBar.IsFullScreen); })); return;
                     case "window.maximize": Answer(from, Json.Object("id", id, "result", true)); if (today || TitleBar.IsFullScreen) return; BeginInvoke(new Action(delegate { WindowState = TitleBar.IsZoomed(Handle) ? FormWindowState.Normal : FormWindowState.Maximized; })); return;
                     case "window.close": Answer(from, Json.Object("id", id, "result", true)); if (today) HideFlyout(); else BeginInvoke(new Action(delegate { Close(); })); return;
