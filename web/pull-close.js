@@ -1,7 +1,8 @@
 // Memoir for Windows has no title bar, so the report's Settings button does what its buttons did. Pull it down and
 // let go: Memoir closes to the notification area, where it keeps counting (as closing its window always did). Pull
 // it up: full screen, or back (as F11 does). Resting the mouse by it for about a second (the corner where a window's
-// close button would be) shows how: it nudges down, turns into a red X and says "Pull to close". A click still opens
+// close button would be) shows how: it turns into a red X, says "Pull to close" and nudges down, again and again with
+// a short rest between, for as long as the mouse stays there. A click still opens
 // Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs back instead and says so
 // (memoir:pulled). Styles in desktop-chrome.css; loaded on the report only (desktop-bridge.js).
 const btn = document.getElementById('settings-btn');
@@ -10,6 +11,8 @@ const DOWN = 84;          // px down to close
 const UP = 20;            // px up for full screen (a maximized window has its gear about 30 px from the screen's top)
 const NEAR = 40;          // px around the button that count as resting by it (up to the window's corner)
 const LINGER = 1000;      // ms resting there before the hint
+const NUDGE_MS = 950;     // one nudge (a tug down, twice)
+const REST_MS = 650;      // the rest before the next
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 if (btn && morph) {
@@ -39,17 +42,25 @@ if (btn && morph) {
   };
 
   // ---------- the hint ----------
-  let near = false, linger = 0, hinted = false;
-  function showHint(nudge = true) {
+  let near = false, linger = 0, hinted = false, again = 0;
+  // a little tug down, twice, as if pulled
+  function nudge() {
+    if (reduced()) return;
+    const tug = [{ translate: '0 0' }, { translate: '0 9px', offset: 0.28 }, { translate: '0 0', offset: 0.56 }, { translate: '0 4px', offset: 0.76 }, { translate: '0 0' }];
+    for (const el of [btn, label]) el.animate(tug, { duration: NUDGE_MS, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', composite: 'add' });
+  }
+  // and again after a short rest, while the mouse stays by it (not while it's pulled)
+  function keepNudging() {
+    clearTimeout(again);
+    again = setTimeout(() => { if (hinted && near && !(pull && pull.active)) { nudge(); keepNudging(); } }, NUDGE_MS + REST_MS);
+  }
+  function showHint(tug = true) {
     if (!hinted) { hinted = true; morph.classList.add('pull-hint'); btn.classList.add('pull-x'); say(words(false, false)); }
-    // a little tug down, twice, as if pulled
-    if (nudge && !reduced()) {
-      const tug = [{ translate: '0 0' }, { translate: '0 9px', offset: 0.28 }, { translate: '0 0', offset: 0.56 }, { translate: '0 4px', offset: 0.76 }, { translate: '0 0' }];
-      for (const el of [btn, label]) el.animate(tug, { duration: 950, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', composite: 'add' });
-    }
+    if (tug) { nudge(); keepNudging(); }
   }
   function hideHint(force = false) {
     if (!hinted || (pull && pull.active && !force)) return;
+    clearTimeout(again);
     hinted = false; morph.classList.remove('pull-hint', 'pull-going-up'); btn.classList.remove('pull-x', 'pull-up');
   }
   const isNear = (x, y) => { const r = btn.getBoundingClientRect(); return x >= r.left - NEAR && y <= r.bottom + NEAR; };
@@ -125,6 +136,7 @@ if (btn && morph) {
     btn.classList.remove('pull-up');
     if (hinted) btn.classList.add('pull-x');
     say(words(false, false));
+    if (hinted) keepNudging();
     if (!near && !tourStep()) setTimeout(() => { if (!near && !(pull && pull.active)) hideHint(true); }, 380);
   }
   function close() {
