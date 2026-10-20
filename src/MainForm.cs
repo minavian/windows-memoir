@@ -470,8 +470,12 @@ namespace Memoir {
                 Answer(from, Json.Object("id", id, "result", result));
             } catch (Exception error) { Log(operation + ": " + error.GetType().Name); Answer(from, Json.Object("id", id, "error", "The desktop action could not be completed: " + error.Message)); }
         }
+        // The window's frame (its edge and shadow) is Windows' own: told dark or light only when that changes, and then
+        // redrawn once. Told on every theme report, with the hidden caption's colour too, Windows redrew the frame each
+        // time, and its shadow could blink, then go missing.
+        private int frameDark = -1; private IntPtr frameHandle = IntPtr.Zero;
         private void ApplyTheme(string theme, string surface) {
-            try { Color color = ColorTranslator.FromHtml(surface); BackColor = color; if (web != null) web.DefaultBackgroundColor = color; if (flyout != null) { flyout.BackColor = color; flyout.Dark = theme == "dark"; } if (flyoutWeb != null && !flyoutWeb.IsDisposed) flyoutWeb.DefaultBackgroundColor = color; int dark = theme == "dark" || color.GetBrightness() < .45 ? 1 : 0; DwmSetWindowAttribute(Handle, 20, ref dark, 4); int caption = color.R | (color.G << 8) | (color.B << 16); DwmSetWindowAttribute(Handle, 35, ref caption, 4); } catch { }
+            try { Color color = ColorTranslator.FromHtml(surface); BackColor = color; if (web != null) web.DefaultBackgroundColor = color; if (flyout != null) { flyout.BackColor = color; flyout.Dark = theme == "dark"; } if (flyoutWeb != null && !flyoutWeb.IsDisposed) flyoutWeb.DefaultBackgroundColor = color; int dark = theme == "dark" || color.GetBrightness() < .45 ? 1 : 0; if (dark != frameDark || Handle != frameHandle) { frameDark = dark; frameHandle = Handle; DwmSetWindowAttribute(Handle, 20, ref dark, 4); TitleBar.Refresh(Handle); } } catch { }
         }
         private void OnDownload(object sender, CoreWebView2DownloadStartingEventArgs args) {
             args.Handled = true;
