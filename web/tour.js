@@ -53,7 +53,9 @@ export function relight(after = 450) {
 // card moves off it. A step with `below` (true, or a function asked each time) has its
 // card under the light when it fits; its
 // alignTo() names what the card then lines up under (left edges), and its flip() says
-// whether the buttons go to the card's top there (they do by default).
+// whether the buttons go to the card's top there (they do by default). A `live` step's
+// light grows with what it lights as it moves under the hand (the gear pulled down,
+// however far) and goes back with it, never smaller than where it rests; the card stays put.
 export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
   return new Promise(resolve => {
     const root = document.createElement('div');
@@ -107,9 +109,8 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       return { l: r.left - pad, t: r.top - pad, r: r.left + r.width + pad, b: r.top + r.height + pad };
     }
 
-    // spot and card move together, straight away, on one heavy ease
-    function place(step, cardH = card.offsetHeight) {
-      const sp = lit(step);
+    // the light on what a step lights (sp: lit(step))
+    function light(step, sp) {
       // hands-on steps leave a hole in the blocker over the spotlight, so what's lit can be used
       const open = !shut && !!sp && !!((step.tasks && step.tasks.length) || step.interactive);
       if (open) {
@@ -136,6 +137,14 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
         spot.classList.add('none');
         lastSpot = null;
       }
+    }
+
+    // spot and card move together, straight away, on one heavy ease
+    let restSpot = null; // where a live step's light rests: it only grows from there
+    function place(step, cardH = card.offsetHeight) {
+      const sp = lit(step);
+      restSpot = sp;
+      light(step, sp);
       const cw = card.offsetWidth;
       const ch = cardH;
       const M = 14;
@@ -188,6 +197,27 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       clearTimeout(spotClockT);
       spot.style.transition = `${['left', 'top', 'width', 'height', 'border-radius'].map(p => `${p} ${duration}ms ${easing}`).join(', ')}, opacity 0.4s var(--ease), box-shadow 0.9s var(--ease)`;
       spotClockT = setTimeout(() => { spot.style.transition = ''; }, duration + 50);
+    }
+
+    // a live step: the light follows what it lights at once (.live: no glide), every frame it's moved, taking in
+    // its resting shape as well (what moves only adds to it: pulled down, the light grows down, its top stays)
+    let liveFrame = 0;
+    function liveLight(step) {
+      cancelAnimationFrame(liveFrame);
+      spot.classList.remove('live');
+      if (!step.live) return;
+      const moved = (a, b) => Math.abs(a.l - b.l) > 0.5 || Math.abs(a.t - b.t) > 0.5 || Math.abs(a.r - b.r) > 0.5 || Math.abs(a.b - b.b) > 0.5;
+      const tick = () => {
+        if (ended || steps[index] !== step) return;
+        const now = lit(step);
+        const sp = now && restSpot ? { l: Math.min(now.l, restSpot.l), t: Math.min(now.t, restSpot.t), r: Math.max(now.r, restSpot.r), b: Math.max(now.b, restSpot.b) } : now;
+        if (sp && lastSpot && !shut && moved(sp, lastSpot)) {
+          spot.classList.add('live');
+          light(step, sp);
+        }
+        liveFrame = requestAnimationFrame(tick);
+      };
+      liveFrame = requestAnimationFrame(tick);
     }
 
     // Where the card goes: beside the light, never on it, and never on what's up on the
@@ -401,6 +431,7 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       const step = steps[i];
       index = i;
       holdUntil = 0;
+      liveLight(step);
       dots.forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('past', k < i); });
       back.disabled = i === 0;
       back.classList.toggle('gone', i === 0);

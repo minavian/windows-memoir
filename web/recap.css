@@ -1663,6 +1663,8 @@ body { overflow: hidden; }
   transition: left 0.7s var(--heavy), top 0.7s var(--heavy), width 0.7s var(--heavy), height 0.7s var(--heavy), border-radius 0.7s var(--heavy), opacity 0.4s var(--ease), box-shadow 0.9s var(--ease);
 }
 .tour-spot.instant { transition: opacity 0.4s var(--ease), box-shadow 0.9s var(--ease); }
+/* a live step's light keeps to what it lights as it moves (tour.js liveLight) */
+.tour-spot.live { transition: opacity 0.4s var(--ease), box-shadow 0.9s var(--ease); }
 /* taking over from the welcome, whose dim is the same: no fade, so there's no seam */
 .tour.handoff .tour-spot { transition: none; }
 .tour-spot::after {
