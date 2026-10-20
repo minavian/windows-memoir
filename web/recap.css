@@ -540,13 +540,37 @@ body { overflow: hidden; }
   text-align: left;
 }
 .nt-ghost { color: var(--label-3); pointer-events: none; }
-/* each letter typed inks in over its faint copy; a slip inks in red, underlined */
-.nt-c { color: var(--label); animation: nt-ink 0.32s var(--ease-out) backwards; }
-@keyframes nt-ink { from { color: var(--label-3); } }
+/* each letter typed inks in over its faint copy, with a red glow that settles; a slip inks in red, underlined;
+   a letter given back by a delete fades from ink to faint */
+.nt-c { color: var(--label); animation: nt-ink 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes nt-ink {
+  from { color: var(--label-3); text-shadow: 0 0 0 transparent; }
+  25% { text-shadow: 0 0 7px color-mix(in srgb, var(--danger) 50%, transparent); }
+  to { text-shadow: 0 0 0 transparent; }
+}
 .nt-c.bad { color: var(--danger); text-decoration: underline wavy var(--danger); text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-skip-ink: none; animation-name: nt-ink-bad; }
 @keyframes nt-ink-bad { from { color: var(--label-3); text-decoration-color: transparent; } }
-.nt-next { color: var(--label-2); animation: nt-next-in 0.4s var(--ease-out) backwards; }
+.nt-back { animation: nt-unink 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes nt-unink { from { color: var(--label); } }
+.nt-next { color: var(--label-2); animation: nt-next-in 0.5s var(--ease-out) backwards; }
 @keyframes nt-next-in { from { color: var(--label-3); } }
+/* Memoir's own caret (recap.js nukeCaret): gliding from letter to letter, lit while you type, breathing while you
+   pause */
+.nt-caret {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--danger);
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), height 0.18s var(--ease-out), opacity 0.25s var(--ease);
+}
+.nt-caret.on { opacity: 1; animation: nt-breathe 1.15s ease-in-out 0.4s infinite alternate; }
+.nt-caret.on.typing { animation: none; }
+@keyframes nt-breathe { from { opacity: 1; } to { opacity: 0.1; } }
 .nt-rest { transition: opacity 0.2s var(--ease); }
 .nuke-type.off .nt-rest { opacity: 0; }
 .nt-w { animation: nt-word-in 0.6s var(--ease-out) backwards; animation-delay: calc(150ms + var(--i) * 26ms); }
@@ -561,13 +585,15 @@ body { overflow: hidden; }
   overflow: hidden;
   background: transparent;
   color: transparent;
-  caret-color: var(--danger);
+  caret-color: transparent;
   outline: none;
 }
 .nt-input::selection { background: color-mix(in srgb, var(--danger) 22%, transparent); color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .nuke-type, .nt-field, .nuke-labels > span, .nuke-charge { transition-duration: 0s; }
-  .nt-w, .nt-c, .nt-next { animation: none; }
+  .nt-w, .nt-c, .nt-next, .nt-back { animation: none; }
+  .nt-caret { transition: opacity 0.2s var(--ease); }
+  .nt-caret.on { animation: none; }
 }
 .never-mind {
   align-self: center;

@@ -4025,6 +4025,7 @@ function setNukeStep(n) {
   }
   row.classList.remove('armed');
   if (document.activeElement === field) $('nuke').focus({ preventScroll: true });
+  nukeCaret();
   nukeLabel(n === 0 ? '0' : n === 1 ? 'q' : '3');
   $('nuke').setAttribute('aria-label', ['Clear all data', 'Are you sure? Press again to continue', '', 'Cleared'][n]);
   // emptied once it has closed, so its words don't vanish while it folds away
@@ -4062,7 +4063,7 @@ const nukeMatched = () => foldPhrase($('nuke-phrase').value.trim().replace(/\s+/
 // what's left to type, faintly behind the typing: the word you're on a shade darker, a slip underlined in red
 // (and the rest hidden until it's fixed). intro: the sentence ripples in, word by word. Returns how much is right.
 const wordSpan = (cls, text, i) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; if (i != null) s.style.setProperty('--i', i); return s; };
-const nukeInk = { typed: '', next: -1 };
+const nukeInk = { typed: '', next: -1, was: 0 };
 function nukeGhost(typed, intro = false) {
   const fp = foldPhrase(NUKE_PHRASE), ft = foldPhrase(typed);
   let k = 0;
@@ -4071,7 +4072,7 @@ function nukeGhost(typed, intro = false) {
   // The typing is drawn here, a letter at a time (the field's own letters are clear: only its caret shows), so
   // each letter typed inks in over its faint copy, and a slip inks in red. Letters already there stay as they are.
   const box = $('nuke-typed');
-  if (intro || box.querySelector(':scope > :not(.nt-c)') || box.childNodes.length !== box.children.length) { box.replaceChildren(); nukeInk.typed = ''; }
+  if (intro || box.querySelector(':scope > :not(.nt-c)') || box.childNodes.length !== box.children.length) { box.replaceChildren(); nukeInk.typed = ''; nukeInk.was = 0; }
   const kids = box.children;
   let same = 0;
   while (same < typed.length && same < nukeInk.typed.length && same < kids.length && typed[same] === nukeInk.typed[same] && (same < k) === kids[same].classList.contains('ok')) same++;
@@ -4079,8 +4080,10 @@ function nukeGhost(typed, intro = false) {
   for (let i = same; i < typed.length; i++) box.append(wordSpan(i < k ? 'nt-c ok' : 'nt-c bad', typed[i]));
   nukeInk.typed = typed;
   // what's left: the word you're on a shade darker, easing darker as you reach it (after a slip it stays, unseen
-  // (.off), so the field keeps its height)
+  // (.off), so the field keeps its height); letters given back by a delete fade from ink back to faint
   const left = NUKE_PHRASE.slice(Math.min(typed.length, NUKE_PHRASE.length));
+  const back = on ? Math.max(0, Math.min(nukeInk.was, NUKE_PHRASE.length) - typed.length) : 0;
+  nukeInk.was = typed.length;
   const rest = $('nuke-rest');
   if (intro && !reducedMotion()) {
     let w = 0;
@@ -4090,8 +4093,15 @@ function nukeGhost(typed, intro = false) {
     const next = left.match(/^\s*\S*/)[0];
     const end = NUKE_PHRASE.length - left.length + next.length;   // where the word you're on ends: a new word, a new key
     const word = rest.querySelector(':scope > .nt-next');
-    if (end === nukeInk.next && word && rest.childNodes.length === 2) { word.textContent = next; rest.lastChild.textContent = left.slice(next.length); }
-    else { rest.replaceChildren(wordSpan('nt-next', next), document.createTextNode(left.slice(next.length))); nukeInk.next = end; }
+    if (!back && end === nukeInk.next && word && rest.childNodes.length === 2 && !word.firstElementChild) { word.textContent = next; rest.lastChild.textContent = left.slice(next.length); }
+    else {
+      const given = (text, from) => { const b = Math.max(0, Math.min(text.length, back - from)); return b ? [wordSpan('nt-back', text.slice(0, b)), text.slice(b)] : [text]; };
+      const head = wordSpan('nt-next', '');
+      head.replaceChildren(...given(next, 0));
+      if (end === nukeInk.next) head.style.animation = 'none';   // the same word: no easing in again
+      rest.replaceChildren(head, ...given(left.slice(next.length), next.length));
+      nukeInk.next = end;
+    }
   }
   $('nuke-type').classList.toggle('off', !on && !nukeMatched());
   return k;
@@ -4123,6 +4133,36 @@ function nukeSure() {
   $('nuke').setAttribute('aria-label', 'Are you absolutely sure? Press again to continue');
   clearTimeout(nukeTimer);
   nukeTimer = setTimeout(() => setNukeStep(0), 9000);
+}
+// Memoir's own caret for the sentence (the field's is hidden): it glides to each new letter, stays lit while you
+// type and breathes while you pause; placed by the letters drawn under the field, so it's always at them.
+let caretRest = 0;
+function nukeCaret({ typed = false } = {}) {
+  const caret = $('nuke-caret'), field = $('nuke-phrase');
+  const show = $('data-row').dataset.step === '2' && document.activeElement === field && field.selectionStart === field.selectionEnd;
+  const was = caret.classList.contains('on');
+  caret.classList.toggle('on', show);
+  if (!show) return;
+  if (typed) {
+    caret.classList.add('typing');
+    clearTimeout(caretRest);
+    caretRest = setTimeout(() => caret.classList.remove('typing'), 650);
+  }
+  const host = caret.parentElement.getBoundingClientRect();
+  const kids = $('nuke-typed').children;
+  const at = Math.min(field.selectionStart, kids.length);
+  let r = null, edge = 'right';
+  if (at > 0) { const rs = kids[at - 1].getClientRects(); r = rs[rs.length - 1]; }
+  else if (kids[0]) { r = kids[0].getClientRects()[0]; edge = 'left'; }
+  else {
+    const t = document.createTreeWalker($('nuke-rest'), NodeFilter.SHOW_TEXT).nextNode();
+    if (t && t.length) { const g = document.createRange(); g.setStart(t, 0); g.setEnd(t, 1); r = g.getClientRects()[0]; edge = 'left'; }
+  }
+  const x = r ? r[edge] - host.left : 12, y = r ? r.top - host.top : 9, h = r ? r.height : 16;
+  caret.style.height = `${h.toFixed(1)}px`;
+  if (!was) caret.style.transition = 'none';   // it appears where it is, without gliding in from a corner
+  caret.style.transform = `translate(${(x - 1).toFixed(2)}px, ${y.toFixed(2)}px)`;
+  if (!was) { void caret.offsetWidth; caret.style.transition = ''; }
 }
 async function nukeNow() {
   const field = $('nuke-phrase');
@@ -4729,7 +4769,12 @@ function wire() {
     if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') noPaste(e);
     else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') e.preventDefault();
   });
-  phrase.addEventListener('input', () => { if ($('data-row').dataset.step === '2') nukeTyping(); });
+  phrase.addEventListener('input', () => { if ($('data-row').dataset.step === '2') { nukeTyping(); nukeCaret({ typed: true }); } });
+  // the caret follows every move: arrows, clicks, selecting, focus
+  for (const type of ['focus', 'blur', 'select', 'keyup', 'pointerup']) phrase.addEventListener(type, () => nukeCaret());
+  phrase.addEventListener('keydown', e => { if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End') requestAnimationFrame(() => nukeCaret({ typed: true })); });
+  document.addEventListener('selectionchange', () => { if (document.activeElement === phrase) nukeCaret(); });
+  addEventListener('resize', () => nukeCaret());
   phrase.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
