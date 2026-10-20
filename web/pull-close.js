@@ -163,6 +163,6 @@ if (btn && morph) {
     if (fade) fade.finished.then(go, go); else go();
   }
 
-  // Memoir for Windows' tour shows it once, and ends it when it moves on (recap.js, the step "Pull to close")
-  if (desktop) window.memoir.pullHint = (on = true) => { if (on) showHint(); else { near = false; hideHint(true); } };
+  // the tour shows it once, and ends it when it moves on (recap.js, the step "Pull to close": memoir:pull-hint)
+  document.addEventListener('memoir:pull-hint', e => { if (e.detail) showHint(); else { near = false; hideHint(true); } });
 }

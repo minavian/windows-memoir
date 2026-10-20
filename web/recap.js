@@ -4892,14 +4892,15 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
     return () => document.removeEventListener('click', h, true);
   };
   const onHover = sel => listen('pointerover', e => !!e.target.closest(sel));
-  // Memoir for Windows: the Settings button pulled down and let go (pull-close.js). While this watches, a pull
-  // springs back instead of closing, and the button shows how once the light is on it.
+  // the Settings button pulled down and let go (pull-close.js). While this watches, a pull springs back instead of
+  // closing, and the button shows how once the light is on it.
   const onPulled = done => {
+    const hint = on => document.dispatchEvent(new CustomEvent('memoir:pull-hint', { detail: on }));
     document.documentElement.dataset.pullTour = '';
-    const shown = setTimeout(() => window.memoir.pullHint?.(), reducedMotion() ? 0 : 700);
+    const shown = setTimeout(() => hint(true), reducedMotion() ? 0 : 700);
     const h = () => done();
     document.addEventListener('memoir:pulled', h);
-    return () => { clearTimeout(shown); document.removeEventListener('memoir:pulled', h); delete document.documentElement.dataset.pullTour; window.memoir.pullHint?.(false); };
+    return () => { clearTimeout(shown); document.removeEventListener('memoir:pulled', h); delete document.documentElement.dataset.pullTour; hint(false); };
   };
   const onScroll = sel => listen('scroll', e => !!e.target.closest(sel));
   const onChange = sel => listen('change', e => !!e.target.closest(sel));
