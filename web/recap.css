@@ -1684,8 +1684,8 @@ body { overflow: hidden; }
   top: 0;
   display: flex;
   flex-direction: column;
-  width: min(310px, calc(100vw - 28px));
-  padding: 16px 16px 12px;
+  width: min(344px, calc(100vw - 28px));
+  padding: 18px 18px 14px;
   border-radius: 18px;
   background: var(--panel);
   color: var(--label);
