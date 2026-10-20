@@ -1,6 +1,5 @@
 # Builds Memoir.exe from src\. With -Payload (release.ps1): Memoir Setup.exe instead, to -Out: the same program,
-# carrying the rest of Memoir, which it installs from anywhere but a Memoir's own folder (src\Setup.cs). -Payload is
-# a zip (carried packed, as app.zip) or a folder (each file carried on its own, as it is, as app/<path>).
+# carrying the rest of Memoir (app.zip), which it installs from anywhere but a Memoir's own folder (src\Setup.cs).
 param([string]$Payload, [string]$Out)
 $ErrorActionPreference = 'Stop'
 $memoirRoot = $PSScriptRoot
@@ -20,11 +19,7 @@ $arguments += '/reference:System.Xaml.dll'
 if (Test-Path -LiteralPath (Join-Path $memoirRoot 'Memoir.ico')) { $arguments += '/win32icon:' + (Join-Path $memoirRoot 'Memoir.ico') }
 $arguments += @(Get-ChildItem -LiteralPath (Join-Path $memoirRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
 if ($Payload) {
-    $arguments = @($arguments | ForEach-Object { if ($_ -eq ('/out:' + $buildFile)) { '/out:' + $Out } else { $_ } })
-    if (Test-Path -LiteralPath $Payload -PathType Container) {
-        $base = (Resolve-Path -LiteralPath $Payload).Path.TrimEnd('\')
-        $arguments += @(Get-ChildItem -LiteralPath $base -File -Recurse | ForEach-Object { '/resource:' + $_.FullName + ',app/' + $_.FullName.Substring($base.Length + 1).Replace('\', '/') })
-    } else { $arguments += '/resource:' + $Payload + ',app.zip' }
+    $arguments = @($arguments | ForEach-Object { if ($_ -eq ('/out:' + $buildFile)) { '/out:' + $Out } else { $_ } }) + ('/resource:' + $Payload + ',app.zip')
     & $compiler @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Memoir Setup build failed.' }
     Write-Output "Built $Out"
