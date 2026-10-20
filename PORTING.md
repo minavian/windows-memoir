@@ -9,7 +9,7 @@ Windows Memoir has two layers:
 
 Interface-only changes in the extension (layout, charts, animations, wording) port by merging files. Changes to storage, settings or tracking rules also need matching changes in `src/Engine.cs` (see **Data contract**).
 
-**Last synced:** 6.0.0, from the extension's commit `a9ef47b` (minavian/memoir-browser-screen-time: the popup's close button). That commit is the merge base for the next port.
+**Last synced:** 1.0.0, from the extension's commit `a9ef47b` (minavian/memoir-browser-screen-time: the popup's close button). That commit is the merge base for the next port.
 
 **The link** (SYNC-PLAN.md in the extension's repository): `BrowserLink.cs` (the pipe, many held-open two-way connections; the native host relaying both ways), `Registration.cs` (the host's manifest and HKCU keys at every start; trusted IDs in `extension-ids.txt`), `Sync.cs` (the exchange, per-peer pending dates, rules, markers) and `SyncData.cs` (`CleanDay`, `MergeDay`, `AnonymizeDay`: the extension's core.js in C#). `tests/merge-cases/merge.json` is a copy of the extension's: when it changes there, copy it here, and `tests/run.ps1` checks both agree.
 
@@ -71,7 +71,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - Windows' own pages, written from `src/` and the README: what counts (the app in front, websites in supported browsers, Memoir itself), when the clock stops, Private time (private windows only with the connector), what's kept (the Data folder), WebView2 and the connector. Keep them true when the tracker changes.
 
 ### `desktop-bridge.js` (Windows only)
-- `chrome.runtime.getManifest()`: `{ version: '6.0.0 for Windows' }` (the report reads it at load for the bug report's subject). Keep it with `src/AssemblyInfo.cs`.
+- `chrome.runtime.getManifest()`: `{ version: '1.0.0 for Windows' }` (the report reads it at load for the bug report's subject). Keep it with `src/AssemblyInfo.cs`.
 - On How Memoir works and the privacy policy (pages with `main > .brand`): a "‹ Back to Memoir" link above the name, and Esc, back to the report. `MainForm` opens these pages in the same window.
 - No title bar on any page (`desktop-chrome.css`, `desktop-bridge.js`, `src/TitleBar.cs`): invisible strips along the top edge resize the window; the empty top 64 px of a page moves it (double-click maximizes, right-click opens the window menu); Alt+F4 closes and F11 toggles full screen (`window.fullscreen`). Pages keep the extension's own spacing.
 - The report's gear closes the window (`web/pull-close.js`, loaded by `desktop-bridge.js` on `recap.html`): pulled down past 84 px it closes, pulled up 20 px it toggles full screen, and resting by it for a second shows the hint (a nudge, a red X, "Pull to close"). It adds `.pull-label`, `.pull-track` and a `.g-full` icon to `#settings`; a port that changes the gear's markup (`#settings-btn`, `.g-gear`, `.g-close`) must keep them working.
