@@ -93,6 +93,8 @@ const author = mailPop($('author'), $('author-pop'), {
   onCopyFail: address => toast(`Couldn’t copy. The address is ${address}`),
 });
 const memoirSite = mailPop($('memoir-site'), $('site-pop'));
+// and its version after it (Memoir for Windows: its own, desktop-bridge.js)
+$('version').textContent = `v${chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version}`;
 // and "Your data never leaves this computer": the privacy policy
 const privacyLink = mailPop($('privacy-link'), $('privacy-pop'));
 const footPops = [[author, 'author', 'author-pop'], [memoirSite, 'memoir-site', 'site-pop'], [privacyLink, 'privacy-link', 'privacy-pop']];
