@@ -246,7 +246,7 @@ namespace Memoir {
             string notificationTitle = null, notificationText = null;
             if (total > limit && !Json.Bool(Json.Get(flags, "over"))) {
                 flags["over"] = flags["n95"] = true;
-                notificationTitle = "You’ve gone over your daily limit"; notificationText = "Your " + Duration(limit) + " limit is used up — you’re " + Duration(total - limit) + " over.";
+                notificationTitle = "You’ve gone over your daily limit"; notificationText = "Your " + Duration(limit) + " limit is used up, you’re " + Duration(total - limit) + " over.";
             } else if (total >= limit * .95 && total <= limit && !Json.Bool(Json.Get(flags, "n95"))) {
                 flags["n95"] = true; notificationTitle = "Almost at your daily limit"; notificationText = Duration(limit - total) + " left of your " + Duration(limit) + " limit today.";
             }

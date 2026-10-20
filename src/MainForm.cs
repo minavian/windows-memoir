@@ -246,7 +246,7 @@ namespace Memoir {
         }
 
         // ---------- the clock's tooltip (TrayTip.cs) ----------
-        private string TrayName() { return engine.Paused ? "Memoir — tracking paused" : "Memoir — tracking screen time"; }
+        private string TrayName() { return engine.Paused ? "Memoir - tracking paused" : "Memoir - tracking screen time"; }
         private void ShowTip(Point at) {
             if (exiting || trayMenu != null || (flyout != null && flyout.Visible)) return;
             if (trayTip == null) trayTip = new TrayTip();

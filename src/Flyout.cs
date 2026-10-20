@@ -15,7 +15,7 @@ namespace Memoir {
 
         public Flyout(Color background) {
             FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual; TopMost = true;
-            AutoScaleMode = AutoScaleMode.None; BackColor = background; Text = "Memoir — Today";
+            AutoScaleMode = AutoScaleMode.None; BackColor = background; Text = "Memoir - Today";
             Deactivate += delegate { if (Visible) { HideNow(); if (Dismissed != null) Dismissed(); } };
         }
         protected override CreateParams CreateParams {

@@ -413,7 +413,7 @@ function goalLine(s, view) {
   const avgUse = Math.round(sum(idx.map(i => s.dayTotals[i] / s.limits[i])) / idx.length * 100);
   const complete = state.demo || !s.isCurrent;
   if (complete) {
-    return { icon: 'i-check', tone: 'good', html: `No days over your limit this week — <strong>well done!</strong> You used about ${avgUse}% of it a day.` };
+    return { icon: 'i-check', tone: 'good', html: `No days over your limit this week, <strong>well done!</strong> You used about ${avgUse}% of it a day.` };
   }
   return { icon: 'i-limit', tone: 'mid', level: goalLevel(avgUse, 100), html: `You’re under your limit every day so far, using about <strong>${avgUse}%</strong> of it a day.` };
 }
@@ -447,10 +447,10 @@ function storyLines(s) {
   if (s.peakHour >= 0) {
     const h = s.peakHour;
     let note = '.';
-    if (h >= 22 || h < 4) note = ' — late nights are your time.';
-    else if (h >= 5 && h < 9) note = ' — an early start.';
-    else if (h >= 11 && h < 14) note = ' — mostly around lunch.';
-    else if (h >= 18 && h < 22) note = ' — mostly in the evening.';
+    if (h >= 22 || h < 4) note = ', late nights are your time.';
+    else if (h >= 5 && h < 9) note = ', an early start.';
+    else if (h >= 11 && h < 14) note = ', mostly around lunch.';
+    else if (h >= 18 && h < 22) note = ', mostly in the evening.';
     lines.push({ icon: 'i-hour', html: `You were most active around ${hlHour(h)}${note}` });
   }
 
@@ -568,9 +568,9 @@ function renderSummary(s, soft) {
     trend.innerHTML = Math.abs(diff) < 3 ? 'Same as last week' : `${icon(diff < 0 ? 'i-down' : 'i-up')}${Math.abs(diff)}% from last week`;
   } else trend.textContent = 'No earlier week yet';
 
-  swapText($('stat-busy'), s.busiest >= 0 ? hlDay(s, s.busiest) : '—', true);
+  swapText($('stat-busy'), s.busiest >= 0 ? hlDay(s, s.busiest) : '-', true);
   const top = s.siteList[0];
-  swapText($('stat-top'), top ? siteLinkHtml(top[0]) : '—', true);
+  swapText($('stat-top'), top ? siteLinkHtml(top[0]) : '-', true);
 
   // a new week cascades in; anything else (a category moved, a day opened…) is an
   // update: only what changed moves
@@ -844,7 +844,7 @@ function buildChart() {
         : `<div class="tip-sub">${pct(s.dayTotals[i], L)}% of your ${fmt(L)} limit</div>`;
     }
     tip.show(`<div class="tip-title">${fullDate.format(dateFromKey(s.keys[i]))}</div>
-      <div class="tip-row"><span>${future ? 'Upcoming' : 'Total'}</span><b>${future ? '—' : fmt(s.dayTotals[i])}</b></div>${rows}${lim}`, x, y);
+      <div class="tip-row"><span>${future ? 'Upcoming' : 'Total'}</span><b>${future ? '-' : fmt(s.dayTotals[i])}</b></div>${rows}${lim}`, x, y);
   };
   plot.addEventListener('pointerover', e => {
     const col = e.target.closest('.col');
@@ -1594,7 +1594,7 @@ function buildHourView(wrap, dayIdx, h, soft) {
       if (i === dayIdx) b.setAttribute('aria-current', 'true');
       b.setAttribute('aria-label', `${fullDate.format(dateFromKey(k))}, ${hourRange(h)}: ${vals[i] > 0 ? fmt(vals[i], { seconds: true }) : 'no activity'}`);
       const hh = vals[i] > 0 ? Math.max(6, (vals[i] / max) * 100) : 0;
-      b.innerHTML = `<span class="dbar-wrap"><span class="dbar${soft ? ' grown' : ''}" data-hh="${hh.toFixed(2)}" style="--d:${i * 40}ms;height:${hh.toFixed(2)}%"></span></span><span class="dt num">${vals[i] > 0 ? fmt(vals[i]) : '—'}</span><span class="dl">${shortDay.format(dateFromKey(k))}</span>`;
+      b.innerHTML = `<span class="dbar-wrap"><span class="dbar${soft ? ' grown' : ''}" data-hh="${hh.toFixed(2)}" style="--d:${i * 40}ms;height:${hh.toFixed(2)}%"></span></span><span class="dt num">${vals[i] > 0 ? fmt(vals[i]) : '-'}</span><span class="dl">${shortDay.format(dateFromKey(k))}</span>`;
       strip.appendChild(b);
     });
     wrap.appendChild(strip);
@@ -1606,7 +1606,7 @@ function buildHourView(wrap, dayIdx, h, soft) {
   if (!list.children.length) {
     let msg = 'No screen time in this hour.';
     if (total > 0 && priv >= total - 1000) msg = 'This hour was private activity.';
-    else if (total > 0) msg = 'Site details weren’t recorded for this hour — it was tracked before this update.';
+    else if (total > 0) msg = 'Site details weren’t recorded for this hour, it was tracked before this update.';
     wrap.appendChild(emptyNote(msg));
   } else if (total - known > 60_000) {
     wrap.appendChild(emptyNote(`${fmt(total - known)} of this was tracked before app and website details were saved.`, true));
@@ -1650,7 +1650,7 @@ function buildTrendView(wrap, soft) {
   const top = document.createElement('div');
   top.className = 'dv-top tr-top';
   top.style.setProperty('--i', 0);
-  top.innerHTML = `<span class="dv-total num">—</span><span class="dv-meta tr-meta">&nbsp;</span>
+  top.innerHTML = `<span class="dv-total num">-</span><span class="dv-meta tr-meta">&nbsp;</span>
     <div class="segmented tr-range" role="group" aria-label="How far back"><span class="thumb"></span>${TREND_RANGES.map(([n, l]) => `<button type="button" data-weeks="${n}" aria-pressed="${n === state.trendWeeks}">${l}</button>`).join('')}</div>`;
   const host = document.createElement('div');
   host.className = 'tr-chart';
@@ -1956,7 +1956,7 @@ function renderDonut(s, soft) {
       li.dataset.cat = c.id;
       li.style.setProperty('--i', i);
       if (c.id === focusCat) li.classList.add('on');
-      li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} — see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(sc.cats[c.id])}</span></button>`;
+      li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} - see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(sc.cats[c.id])}</span></button>`;
       ul.appendChild(li);
     });
   };

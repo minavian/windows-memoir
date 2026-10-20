@@ -57,7 +57,7 @@ export function createGoalRing(root, { variant = 'card', onSet = null } = {}) {
     }
     if (mini) {
       const t = el.querySelector('.gr-mini-text');
-      t.textContent = !limit ? '—' : level === 'over' ? '' : `${Math.min(100, Math.round((used / limit) * 100))}%`;
+      t.textContent = !limit ? '-' : level === 'over' ? '' : `${Math.min(100, Math.round((used / limit) * 100))}%`;
       return level;
     }
     const big = el.querySelector('.gr-big');
@@ -594,7 +594,7 @@ export function openPicker({ fromEl, returnTo = null, center, size = 320, initia
         await onCommit(totalMs());
       } catch (err) {
         btn.disabled = false;
-        layer.querySelector('.pc-sub').textContent = err && err.message === 'locked' ? 'A limit is already locked in' : 'Couldn’t save — try again';
+        layer.querySelector('.pc-sub').textContent = err && err.message === 'locked' ? 'A limit is already locked in' : 'Couldn’t save, try again';
         return;
       }
       st.confirmOpen = false;

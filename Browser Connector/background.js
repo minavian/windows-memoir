@@ -6,13 +6,13 @@ function connect() {
     port = chrome.runtime.connectNative('com.minavian.memoir');
     port.onMessage.addListener(message => {
       chrome.action.setBadgeText({ text: message.connected ? '' : 'OFF' });
-      chrome.action.setTitle({ title: message.connected ? 'Memoir — browser connector active' : 'Open Memoir to resume browser tracking' });
+      chrome.action.setTitle({ title: message.connected ? 'Memoir - browser connector active' : 'Open Memoir to resume browser tracking' });
     });
     port.onDisconnect.addListener(() => {
       void chrome.runtime.lastError;
       port = null; retryAfter = Date.now() + 30000;
       chrome.action.setBadgeText({ text: 'OFF' });
-      chrome.action.setTitle({ title: 'Memoir connector is offline — register its native host, then open Memoir' });
+      chrome.action.setTitle({ title: 'Memoir connector is offline, register its native host, then open Memoir' });
     });
   } catch { port = null; retryAfter = Date.now() + 30000; }
 }
