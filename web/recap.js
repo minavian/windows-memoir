@@ -126,6 +126,7 @@ async function init() {
   initSmoothScrolling();
   disableTitleTooltips();
   initCursor();
+  document.fonts.load('600 14px "Memoir Inter"').then(() => document.fonts.load('900 14px "Memoir Inter"')).then(measureSure, measureSure);
   const m = location.hash.match(/week=(\d{4}-\d{2}-\d{2})/);
   if (m) state.weekStart = startOfWeek(dateFromKey(m[1]));
   if (state.weekStart > startOfWeek(new Date())) state.weekStart = startOfWeek(new Date());
@@ -3741,6 +3742,21 @@ async function applyRetention(days) {
 // ----- Clear all: small red → big red "Are you absolutely SURE?" → type the sentence, then Delete everything -----
 
 let nukeTimer = 0;
+let nukeAbs = 0;
+// The two widths the "sure → SURE" word moves between, measured in the real font.
+function measureSure() {
+  const box = document.querySelector('.nk-sure');
+  if (!box) return;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font-family:"Memoir Inter",var(--font);font-size:100px';
+  probe.innerHTML = '<span style="font-weight:600">sure</span><span style="font-weight:900;letter-spacing:0.015em">SURE</span>';
+  document.body.appendChild(probe);
+  const [lo, up] = probe.children;
+  box.style.setProperty('--w-lo', `${(lo.getBoundingClientRect().width / 100).toFixed(3)}em`);
+  box.style.setProperty('--w-up', `${(up.getBoundingClientRect().width / 100 + 0.02).toFixed(3)}em`);
+  probe.remove();
+}
+const bumpNuke = () => { if (!reducedMotion()) $('nuke').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }, { transform: 'scale(1)' }], { duration: 420, easing: EASE_OUT }); };
 
 // ----- Start with Windows (Memoir for Windows only: src/Startup.cs keeps it in Windows' startup list) -----
 const STARTUP_TEXT = { on: 'Opens in the notification area when you sign in', off: 'Starts only when you open it' };
@@ -3973,18 +3989,26 @@ function showPaused() {
   if ($('board').classList.contains('is-empty')) render({ soft: true });
 }
 
-// 0 Clear all, 1 Are you absolutely SURE?, 2 type the sentence (then Delete everything), 3 Cleared
+// 0 Clear all, 1 Are you sure? (growing into Are you absolutely SURE?), 2 type the sentence (then Delete
+// everything), 3 Cleared
 function setNukeStep(n) {
   const row = $('data-row');
   const field = $('nuke-phrase');
+  const prev = +row.dataset.step;
   row.dataset.step = String(n);
   clearTimeout(nukeTimer);
+  clearTimeout(nukeAbs);
   clearTimeout(nukeHint.timer); nukeHint.on = false;
   $('nuke-cancel').tabIndex = n === 1 || n === 2 ? 0 : -1;
   $('nuke-also').classList.toggle('on', linkUi.linked);
   field.tabIndex = n === 2 ? 0 : -1;
   $('nuke-type').setAttribute('aria-hidden', n === 2 ? 'false' : 'true');
-  if (n === 1) nukeTimer = setTimeout(() => setNukeStep(0), 9000);
+  if (n === 1) {
+    nukeTimer = setTimeout(() => setNukeStep(0), 9000);
+    if (prev < 1) bumpNuke();
+    // a beat after "Are you sure?" lands, it grows into "Are you absolutely SURE?"
+    nukeAbs = setTimeout(() => { if (row.dataset.step !== '1') return; row.classList.add('abs'); bumpNuke(); }, reducedMotion() ? 0 : 900);
+  }
   if (n === 2) {
     nukeTyping();
     // the field takes the keys as it opens
@@ -3996,7 +4020,11 @@ function setNukeStep(n) {
   nukeLabel(n === 0 ? '0' : n === 1 ? 'q' : '3');
   $('nuke').setAttribute('aria-label', ['Clear all data', 'Are you absolutely sure? Press again to continue', '', 'Cleared'][n]);
   // emptied once it has closed, so its words don't vanish while it folds away
-  setTimeout(() => { if (row.dataset.step !== '2' && field.value) { field.value = ''; nukeGhost(''); } }, reducedMotion() ? 0 : 480);
+  // and "absolutely SURE" back to "sure" once its label has gone
+  setTimeout(() => {
+    if (row.dataset.step !== '2' && field.value) { field.value = ''; nukeGhost(''); }
+    if (row.dataset.step === '0' || row.dataset.step === '3') row.classList.remove('abs');
+  }, reducedMotion() ? 0 : 480);
 }
 // The button's words: the one shown fades in rising, the one before rises away. One coming back mid-way
 // turns around where it is; one gone above comes back from below.
