@@ -200,22 +200,41 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
     }
 
     // a live step: the light follows what it lights at once (.live: no glide), every frame it's moved, taking in
-    // its resting shape as well (what moves only adds to it: pulled down, the light grows down, its top stays)
+    // its resting shape as well (what moves only adds to it: pulled down, the light grows down, its top stays).
+    // Let go, as soon as what's lit starts back, the light goes home in one move on the spring the page's own
+    // takes (pull-close.js), so the two bounce back together.
+    const SPRING_MS = 550;
+    const SPRING = 'cubic-bezier(0.32, 1.24, 0.5, 1)';
     let liveFrame = 0;
+    let held = false; // a pointer is down: what's lit may be under the hand
+    const hold = e => { held = e.type === 'pointerdown'; };
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel']) addEventListener(type, hold, true);
     function liveLight(step) {
       cancelAnimationFrame(liveFrame);
       spot.classList.remove('live');
       if (!step.live) return;
       const moved = (a, b) => Math.abs(a.l - b.l) > 0.5 || Math.abs(a.t - b.t) > 0.5 || Math.abs(a.r - b.r) > 0.5 || Math.abs(a.b - b.b) > 0.5;
+      // coming back up (not just a label's words getting shorter)
+      const back = (a, b) => a.b < b.b - 0.5;
+      let homeAt = 0; // springing home till then
       const tick = () => {
         if (ended || steps[index] !== step) return;
+        liveFrame = requestAnimationFrame(tick);
         const now = lit(step);
         const sp = now && restSpot ? { l: Math.min(now.l, restSpot.l), t: Math.min(now.t, restSpot.t), r: Math.max(now.r, restSpot.r), b: Math.max(now.b, restSpot.b) } : now;
-        if (sp && lastSpot && !shut && moved(sp, lastSpot)) {
-          spot.classList.add('live');
-          light(step, sp);
+        if (!sp || !lastSpot || shut || !moved(sp, lastSpot)) return;
+        if (!held && performance.now() < homeAt) return;
+        if (!held && restSpot && back(sp, lastSpot)) {
+          homeAt = performance.now() + SPRING_MS;
+          spot.classList.remove('live');
+          spotClock(SPRING_MS, SPRING);
+          light(step, restSpot);
+          return;
         }
-        liveFrame = requestAnimationFrame(tick);
+        homeAt = 0;
+        if (spot.style.transition) { clearTimeout(spotClockT); spot.style.transition = ''; }
+        spot.classList.add('live');
+        light(step, sp);
       };
       liveFrame = requestAnimationFrame(tick);
     }
@@ -500,6 +519,7 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       document.removeEventListener('click', onPageClick, true);
       removeEventListener('keydown', onArrow, true);
       removeEventListener('resize', onResize);
+      for (const type of ['pointerdown', 'pointerup', 'pointercancel']) removeEventListener(type, hold, true);
       root.classList.remove('on');
       root.classList.add('leaving');
       setTimeout(() => { root.remove(); resolve(result); }, reducedMotion() ? 0 : 380);
