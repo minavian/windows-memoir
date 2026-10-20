@@ -1,7 +1,7 @@
 /* Memoir for Windows has no title bar (src/TitleBar.cs gives the window's caption to the page): the page goes right up
    to the top, with the extension's own spacing. What a title bar did is still there, unseen: the window's top edge
    resizes it (.win-edge), the empty top of a page moves it and a double-click there maximizes it (desktop-bridge.js),
-   and the report's Settings button, pulled down, closes it (pull-close.js). */
+   and the report's Settings button, pulled down, closes it (pull-close.js, its styles in recap.css). */
 
 /* the top edge resizes, as a window's does (not while maximized) */
 .win-edges { position: fixed; top: 0; left: 0; right: 0; height: 0; z-index: 30; }
@@ -13,65 +13,6 @@ html.win-chrome .win-edge[data-hit="12"] { cursor: ns-resize !important; }
 html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
 html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
 html.win-max .win-edge, html.win-full .win-edge { display: none; }
-
-/* ---------- pull to close (pull-close.js) ---------- */
-/* the button follows the pull (--pull), and springs back when let go short of the line */
-html.win-chrome #settings-btn {
-  translate: 0 var(--pull, 0px);
-  transition: transform 0.3s var(--ease-out), background-color 0.25s var(--ease), color 0.25s var(--ease), opacity 0.2s var(--ease), box-shadow 0.25s var(--ease), translate 0.55s cubic-bezier(0.32, 1.24, 0.5, 1);
-}
-html.win-chrome .pulling #settings-btn { --press: 1; transition-property: transform, background-color, color, opacity, box-shadow; }
-html.win-chrome .pull-armed #settings-btn { --press: 1.12; }
-/* the gear turns into a red X, the way it turns into Settings' close */
-html.win-chrome #settings-btn.pull-x { background: var(--danger); color: #fff; box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--danger) 70%, transparent); }
-html.win-chrome #settings-btn.pull-x .g-gear { opacity: 0; transform: rotate(90deg) scale(0.6); }
-html.win-chrome #settings-btn.pull-x .g-close { opacity: 1; transform: scale(1.2); }
-html.win-chrome #settings-btn.pull-x .g-close { width: 20px; height: 20px; }
-/* pulled up: full screen's corners, on the accent */
-html.win-chrome #settings-btn .g-full { opacity: 0; transform: rotate(-90deg) scale(0.6); fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-html.win-chrome #settings-btn .gf-out, html.win-full #settings-btn .gf-in { display: none; }
-html.win-full #settings-btn .gf-out { display: inline; }
-html.win-chrome #settings-btn.pull-up { background: var(--accent); color: var(--on-accent, #fff); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
-html.win-chrome #settings-btn.pull-up .g-gear { opacity: 0; transform: rotate(-90deg) scale(0.6); }
-html.win-chrome #settings-btn.pull-up .g-full { opacity: 1; transform: none; width: 19px; height: 19px; }
-html.win-chrome .pull-closing #settings-btn { translate: 0 calc(var(--pull, 0px) + 18px); opacity: 0; transition-duration: 0.17s; }
-
-/* "Pull to close", under it (clear of the header beside it), going with it */
-.pull-label {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 6px 12px;
-  border-radius: 999px;
-  background: var(--raised);
-  box-shadow: var(--shadow-pop);
-  color: var(--label);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  translate: 0 calc(var(--pull, 0px) - 6px);
-  scale: 0.94;
-  transform-origin: top right;
-  transition: opacity 0.2s var(--ease), translate 0.55s cubic-bezier(0.32, 1.24, 0.5, 1), scale 0.3s var(--ease-out), color 0.2s var(--ease);
-}
-.pull-label svg { width: 11px; height: 11px; fill: none; stroke: var(--danger); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.pull-hint .pull-label { opacity: 1; translate: 0 var(--pull, 0px); scale: 1; }
-.pulling .pull-label { transition-property: opacity, scale, color; }
-.pull-armed .pull-label { color: var(--danger); }
-.pull-going-up .pull-label svg { rotate: 180deg; stroke: var(--accent); }
-.pull-armed.pull-going-up .pull-label { color: var(--accent); }
-.pull-closing .pull-label { opacity: 0; transition-duration: 0.12s; }
-.pull-text { display: inline-block; }
-/* the way it goes, unseen (the tour's light takes it in) */
-.pull-track { position: absolute; top: 100%; right: 0; width: 160px; height: 76px; visibility: hidden; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) {
-  html.win-chrome #settings-btn, .pull-label { transition-duration: 0.01s; }
-}
 
 /* ---------- Today's close button (flyout-close.js) ---------- */
 .fly-side { display: flex; align-items: center; gap: 8px; align-self: center; }

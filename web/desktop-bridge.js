@@ -85,7 +85,7 @@
   };
   // No title bar (desktop-chrome.css): the window's top edge still resizes it, and the empty top of a page (above and
   // around the report's header, a page's heading) moves it, Snap included: drag it there, double-click to maximize,
-  // right-click for the window's menu. The report's Settings button, pulled down, closes it (pull-close.js).
+  // right-click for the window's menu. The report's Settings button, pulled down, closes it (pull-close.js, recap.html).
   const FIXED = 'button, a, input, select, textarea, label, summary, [role="button"], [role="tab"], [role="radio"], [role="checkbox"], [role="slider"], [tabindex]:not([tabindex="-1"]), [contenteditable], .card, .pop, .menu, .context-menu, .tour, .wel, .mark, .logo, .morph.open, .settings-scrim, .pk-layer, .gx-layer';
   const MOVE_BAND = 64;   // px from the top
   const frees = e => e.clientY <= MOVE_BAND && !root.classList.contains('win-full') && e.target instanceof Element && !e.target.closest(FIXED) && !e.target.closest('.win-edges');
@@ -112,8 +112,6 @@
     });
     addEventListener('contextmenu', e => { if (frees(e) && !e.defaultPrevented) { e.preventDefault(); request('window.menu').catch(() => {}); } });
     request('window.state').then(windowState).catch(() => {});
-    // the report: its Settings button closes the window too
-    if (page === 'recap.html') { const pull = document.createElement('script'); pull.type = 'module'; pull.src = 'pull-close.js'; document.head.append(pull); }
   }
   // Today: Esc closes it, as a click elsewhere does (a menu or popover open in it takes Esc first)
   if (flyout) addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) request('window.close').catch(() => {}); });

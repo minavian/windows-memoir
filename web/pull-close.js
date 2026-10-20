@@ -1,10 +1,12 @@
-// Memoir for Windows has no title bar, so the report's Settings button does what its buttons did. Pull it down and
-// let go: Memoir closes to the notification area, where it keeps counting (as closing its window always did). Pull
-// it up: full screen, or back (as F11 does). Resting the mouse by it for about a second (the corner where a window's
-// close button would be) shows how: it turns into a red X, says "Pull to close" and nudges down, again and again with
-// a short rest between, for as long as the mouse stays there. A click still opens
-// Settings. In the tour's step for it (data-pull-tour on the page) a pull down springs straight back instead and says so
-// (memoir:pulled). Styles in desktop-chrome.css; loaded on the report only (desktop-bridge.js).
+// The report's Settings button closes it too. Pull it down and let go: in the browser, this tab closes; Memoir for
+// Windows (no title bar, so the button does what its buttons did) closes to the notification area, where it keeps
+// counting, as closing its window always did. Memoir for Windows only: pull it up for full screen, or back (as F11
+// does). Resting the mouse by it for about a second (the corner where a window's close button would be) shows how:
+// it turns into a red X, says "Pull to close" and nudges down, again and again with a short rest between, for as
+// long as the mouse stays there. A click still opens Settings. In Memoir for Windows' tour step for it
+// (data-pull-tour on the page) a pull down springs straight back instead and says so (memoir:pulled). Styles in
+// recap.css. The same file in both.
+const desktop = !!window.memoir?.windows;
 const btn = document.getElementById('settings-btn');
 const morph = document.getElementById('settings');
 const DOWN = 84;          // px down to close
@@ -16,6 +18,7 @@ const REST_MS = 650;      // the rest before the next
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 if (btn && morph) {
+  document.documentElement.classList.add('can-pull');
   const label = document.createElement('span');
   label.className = 'pull-label';
   label.setAttribute('aria-hidden', 'true');
@@ -24,8 +27,8 @@ if (btn && morph) {
   const track = document.createElement('span');
   track.className = 'pull-track';
   morph.append(label, track);
-  // pulled up: full screen's corners (outward), or, full screen already, inward
-  btn.insertAdjacentHTML('beforeend', '<svg class="g-full" viewBox="0 0 20 20" aria-hidden="true"><path class="gf-in" d="M4.5 8.5V7a2.5 2.5 0 0 1 2.5-2.5h1.5M11.5 4.5H13a2.5 2.5 0 0 1 2.5 2.5v1.5M15.5 11.5V13a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 15.5H7A2.5 2.5 0 0 1 4.5 13v-1.5"/><path class="gf-out" d="M8 4.5V6a2 2 0 0 1-2 2H4.5M12 4.5V6a2 2 0 0 0 2 2h1.5M12 15.5V14a2 2 0 0 1 2-2h1.5M8 15.5V14a2 2 0 0 0-2-2H4.5"/></svg>');
+  // pulled up (Memoir for Windows): full screen's corners (outward), or, full screen already, inward
+  if (desktop) btn.insertAdjacentHTML('beforeend', '<svg class="g-full" viewBox="0 0 20 20" aria-hidden="true"><path class="gf-in" d="M4.5 8.5V7a2.5 2.5 0 0 1 2.5-2.5h1.5M11.5 4.5H13a2.5 2.5 0 0 1 2.5 2.5v1.5M15.5 11.5V13a2.5 2.5 0 0 1-2.5 2.5h-1.5M8.5 15.5H7A2.5 2.5 0 0 1 4.5 13v-1.5"/><path class="gf-out" d="M8 4.5V6a2 2 0 0 1-2 2H4.5M12 4.5V6a2 2 0 0 0 2 2h1.5M12 15.5V14a2 2 0 0 1 2-2h1.5M8 15.5V14a2 2 0 0 0-2-2H4.5"/></svg>');
   const text = label.querySelector('.pull-text');
 
   const settingsOpen = () => morph.classList.contains('open');
@@ -88,10 +91,11 @@ if (btn && morph) {
   });
   btn.addEventListener('pointermove', e => {
     if (!pull || e.pointerId !== pull.id) return;
-    const dy = e.clientY - pull.y0;
+    // (only Memoir for Windows goes up: full screen)
+    const dy = desktop ? e.clientY - pull.y0 : Math.max(0, e.clientY - pull.y0);
     if (!pull.active) {
       // a click, or a move sideways: not a pull
-      if (Math.abs(dy) < 6 || Math.abs(e.clientX - pull.x0) > Math.abs(dy)) return;
+      if (Math.abs(dy) < 6 || Math.abs(e.clientX - pull.x0) > Math.abs(e.clientY - pull.y0)) return;
       pull.active = true; clearTimeout(linger);
       morph.classList.add('pulling'); showHint(false);
     }
@@ -150,10 +154,15 @@ if (btn && morph) {
     morph.classList.add('pull-closing');
     // the page lets go as the button drops away
     const fade = reduced() ? null : document.documentElement.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: 'ease-in', fill: 'forwards' });
-    const go = () => window.memoir.request('window.minimize').catch(() => { if (fade) fade.cancel(); morph.classList.remove('pull-closing', 'pull-armed'); springBack(); });
+    // (and if it couldn't close, it comes back)
+    const stay = () => { if (fade) fade.cancel(); morph.classList.remove('pull-closing', 'pull-armed'); springBack(); };
+    const go = desktop
+      ? () => window.memoir.request('window.minimize').catch(stay)
+      // in the browser: this tab (a window of its own: that window)
+      : () => chrome.tabs.getCurrent().then(tab => (tab ? chrome.tabs.remove(tab.id) : window.close())).then(() => setTimeout(stay, 400), stay);
     if (fade) fade.finished.then(go, go); else go();
   }
 
-  // the tour shows it once, and ends it when it moves on (recap.js, the step "Pull to close")
-  window.memoir.pullHint = (on = true) => { if (on) showHint(); else { near = false; hideHint(true); } };
+  // Memoir for Windows' tour shows it once, and ends it when it moves on (recap.js, the step "Pull to close")
+  if (desktop) window.memoir.pullHint = (on = true) => { if (on) showHint(); else { near = false; hideHint(true); } };
 }
