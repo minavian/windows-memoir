@@ -527,26 +527,6 @@ const agoTitle = n => (n <= 0 ? 'This week' : n === 1 ? 'Last week' : `${n} week
 function weekTitle() {
   return state.demo ? 'Sample week' : agoTitle(weeksAgo(state.weekStart));
 }
-// The title keeps the room of the widest it can say (the sample week, or as many weeks ago as your history goes),
-// so the arrows beside it stay where they are from week to week
-function fitTitle() {
-  const h1 = $('hero-title').parentElement;
-  const probe = document.createElement('span');
-  probe.className = 'title-text';
-  probe.style.cssText = 'position: absolute; visibility: hidden; pointer-events: none';
-  h1.append(probe);
-  const back = state.earliestKey ? Math.max(0, weeksAgo(startOfWeek(dateFromKey(state.earliestKey)))) : 0;
-  let w = 0;
-  for (const t of ['This week', 'Last week', 'Sample week', agoTitle(back), agoTitle(back).replace(/\d/g, '0')]) {
-    probe.textContent = t;
-    w = Math.max(w, probe.getBoundingClientRect().width);
-  }
-  probe.remove();
-  h1.style.minWidth = `${Math.ceil(w)}px`;
-}
-// (measured again once the title's font is in, and when the window's size gives it another size)
-document.fonts?.ready.then(() => fitTitle());
-addEventListener('resize', () => fitTitle());
 
 function swapText(el, text, asHtml = false) {
   if (asHtml ? el.innerHTML === text : el.textContent === text) return;
@@ -567,7 +547,6 @@ function renderNav(direction) {
     el.classList.add(direction === 'next' ? 'from-right' : 'from-left');
   }
   swapText($('hero-title'), weekTitle());
-  fitTitle();
   $('next-week').disabled = !state.demo && isCurrentWeek();
   const floor = state.earliestKey ? startOfWeek(dateFromKey(state.earliestKey)) : startOfWeek(new Date());
   $('prev-week').disabled = !state.demo && start <= floor;
@@ -4993,7 +4972,7 @@ async function startTour({ prepared = false, handoff = null, link = null } = {})
   ] : [category, row]);
 
   const steps = [
-    { title: 'Your weeks', text: 'Click <b>‹</b> or <b>›</b> to step back through your weeks, or forward again once you’ve stepped back. The <b>←</b> and <b>→</b> keys work too. This is a <b>sample week</b>, so nothing is saved.', target: () => q('.week-nav'), before: toWeek, settle: 0, radius: 12,
+    { title: 'Your weeks', text: 'Click <b>‹</b> or <b>›</b> to step back through your weeks, or forward again once you’ve stepped back. The <b>←</b> and <b>→</b> keys work too. This is a <b>sample week</b>, so nothing is saved.', target: () => [q('.week-nav'), q('.week-range-wrap')], before: toWeek, settle: 0, radius: 12,
       // here the arrow keys change the week, as they do on the page; from the next step on they're the tour's
       arrows: dir => { const b = q(dir < 0 ? '#prev-week' : '#next-week'); if (b && !b.disabled) b.click(); },
       tasks: [

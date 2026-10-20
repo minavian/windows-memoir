@@ -32,10 +32,10 @@ body { overflow: hidden; }
 .head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; }
 .title-text, .title-swap { display: inline-block; }
 .title-text.swap, .title-swap.swap { animation: swap 0.4s var(--ease-out); }
-.week-nav { display: flex; align-items: center; gap: 2px; margin-left: 6px; }
+.week-nav { display: flex; align-items: center; gap: 2px; }
 .week-nav .icon-btn { width: 30px; height: 30px; }
 .week-nav .icon-btn svg { width: 15px; height: 15px; }
-.week-range-wrap { display: block; overflow: hidden; min-width: 118px; text-align: center; }
+.week-range-wrap { display: block; overflow: hidden; }
 .week-range { display: block; font-size: 13.5px; font-weight: 500; color: var(--label-2); white-space: nowrap; }
 .week-range.from-right { animation: from-right 0.4s var(--ease-out) backwards; }
 .week-range.from-left { animation: from-left 0.4s var(--ease-out) backwards; }
@@ -1451,7 +1451,6 @@ body { overflow: hidden; }
 }
 @media (max-width: 700px) {
   .board { grid-template-columns: 1fr; grid-template-areas: "summary" "goal" "chart" "donut" "sites" "heat"; }
-  .week-range-wrap { min-width: 96px; }
   .head h1 { font-size: 20px; }
   .head .mark { display: none; }
 }
