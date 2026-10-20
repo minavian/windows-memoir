@@ -467,28 +467,32 @@ namespace Memoir {
         [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
     }
 
-    // What Memoir Setup.exe carries besides itself (app.zip, built in by release.ps1): Memoir's web files, WebView2's
-    // libraries, its icons, its notices. Installing writes them beside a copy of Setup (Memoir.exe), which so carries
-    // them too: its uninstall window needs nothing on disk. A Memoir built without them (run from its source) has none.
+    // What Memoir Setup.exe carries besides itself (built in by release.ps1): Memoir's web files, WebView2's libraries,
+    // its icons, its notices; packed together (app.zip) or each on its own, as it is (app/<path>, release.ps1 -Loose).
+    // Installing writes them beside a copy of Setup (Memoir.exe), which so carries them too: its uninstall window needs
+    // nothing on disk. A Memoir built without them (run from its source) has none.
     internal static class Payload {
-        private const string Name = "app.zip";
+        private const string Packed = "app.zip", Loose = "app/";
         private static Dictionary<string, byte[]> files;
-        public static bool Present { get { return typeof(Payload).Assembly.GetManifestResourceInfo(Name) != null; } }
+        private static Assembly Me { get { return typeof(Payload).Assembly; } }
+        public static bool Present { get { return Me.GetManifestResourceNames().Any(n => n == Packed || n.StartsWith(Loose, StringComparison.Ordinal)); } }
         // every file, by its path inside (web/setup.html), read once
         public static Dictionary<string, byte[]> Files {
             get {
                 if (files != null) return files;
                 var all = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-                if (Present)
-                    using (var stream = typeof(Payload).Assembly.GetManifestResourceStream(Name))
-                    using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
-                        foreach (var entry in zip.Entries) {
-                            if (entry.Name.Length == 0) continue;
-                            using (var from = entry.Open()) using (var bytes = new MemoryStream()) { from.CopyTo(bytes); all[entry.FullName.Replace('\\', '/')] = bytes.ToArray(); }
-                        }
+                foreach (string name in Me.GetManifestResourceNames()) {
+                    if (name == Packed)
+                        using (var stream = Me.GetManifestResourceStream(name))
+                        using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
+                            foreach (var entry in zip.Entries) { if (entry.Name.Length > 0) using (var from = entry.Open()) all[entry.FullName.Replace('\\', '/')] = Read(from); }
+                    else if (name.StartsWith(Loose, StringComparison.Ordinal))
+                        using (var stream = Me.GetManifestResourceStream(name)) all[name.Substring(Loose.Length)] = Read(stream);
+                }
                 return files = all;
             }
         }
+        private static byte[] Read(Stream from) { using (var bytes = new MemoryStream()) { from.CopyTo(bytes); return bytes.ToArray(); } }
         public static byte[] File(string path) { byte[] bytes; return Files.TryGetValue(path, out bytes) ? bytes : null; }
     }
 }

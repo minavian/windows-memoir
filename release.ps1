@@ -2,7 +2,8 @@
 # developer comments, the extension IDs without notes, WebView2's libraries, its icons and notices), written to -Out.
 # Run, it installs straight into its folder: nothing is unpacked into a temporary folder or run from one, and no
 # program is carried inside it (src\Setup.cs). Needs Node and installer\node_modules (npm install in installer\ once).
-param([string]$Out = (Join-Path $PSScriptRoot 'release'))
+# -Loose: Memoir Setup (no bundle).exe instead, carrying each file on its own, as it is, rather than packed in a zip
+param([string]$Out = (Join-Path $PSScriptRoot 'release'), [switch]$Loose)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 & (Join-Path $root 'build.ps1') | Out-Null
@@ -42,8 +43,8 @@ try {
     [IO.Compression.ZipFile]::CreateFromDirectory($app, $payload, [IO.Compression.CompressionLevel]::Optimal, $false)
 
     New-Item -ItemType Directory -Force -Path $Out | Out-Null
-    $setup = Join-Path $Out 'Memoir Setup.exe'
-    & (Join-Path $root 'build.ps1') -Payload $payload -Out $setup | Out-Null
+    $setup = Join-Path $Out $(if ($Loose) { 'Memoir Setup (no bundle).exe' } else { 'Memoir Setup.exe' })
+    & (Join-Path $root 'build.ps1') -Payload $(if ($Loose) { $app } else { $payload }) -Out $setup | Out-Null
     $size = [math]::Round((Get-Item -LiteralPath $setup).Length / 1KB)
     Write-Output "Built $setup ($size KB)"
 } finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
