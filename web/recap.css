@@ -425,7 +425,7 @@ body { overflow: hidden; }
 .data-row[data-step="1"] .nuke-glow, .data-row[data-step="2"] .nuke-glow { animation: nk-pulse 1.05s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
 .data-row[data-step="1"] .nuke-glow { --g-base: 0.34; --g-amp: 0.3; --g-scale: 1; }
 .data-row[data-step="1"].abs .nuke-glow, .data-row[data-step="2"].armed .nuke-glow { --g-base: 0.58; --g-amp: 0.42; --g-scale: 1.06; }
-.data-row[data-step="2"]:not(.armed) .nuke-glow { --g-base: 0.08; --g-amp: 0.08; --g-scale: 0.9; }
+.data-row[data-step="2"]:not(.armed) .nuke-glow { --g-base: calc(0.06 + 0.34 * var(--np, 0)); --g-amp: calc(0.06 + 0.22 * var(--np, 0)); --g-scale: calc(0.88 + 0.14 * var(--np, 0)); }
 @keyframes nk-pulse { from { --pulse: 0; } to { --pulse: 1; } }
 
 .nuke-labels {
@@ -478,29 +478,53 @@ body { overflow: hidden; }
 .data-row.abs .nk-sure .up { animation: nk-throb 1.05s var(--ease-in-out) 1.1s infinite alternate; }
 @keyframes nk-throb { from { font-variation-settings: "wght" 900; } to { font-variation-settings: "wght" 780; } }
 
-/* the sentence to type, under the button: its rest shown faintly behind the typing (the same box, the same
-   words wrapping the same way), the field opening without moving anything above it */
+/* typing: the red drains when the sentence is asked for, and fills back as it's typed (--p, recap.js nukeTyping);
+   the words are white wherever it has reached, the same words red beyond */
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+.nuke-charge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: inherit;
+  border-radius: inherit;
+  background: var(--danger);
+  color: var(--on-danger);
+  pointer-events: none;
+  opacity: 0;
+  clip-path: inset(0 calc((1 - var(--p)) * 100%) 0 0 round 999px);
+  transition: opacity 0.3s var(--ease), --p 0.55s var(--ease-out);
+}
+.data-row[data-step="2"] .nuke-charge { opacity: 1; transition: opacity 0s, --p 0.55s var(--ease-out); }
+
+/* the sentence to type, unfolding from under the button: its words ripple in out of a blur, the word you're on a
+   shade darker, a slip underlined in red; typed, the words blow away before it folds (recap.js nukeGhost, nukeNow) */
 .nuke-type {
   display: grid;
   grid-template-rows: 0fr;
   margin-top: -8px;
-  opacity: 0;
-  transition: grid-template-rows 0.45s var(--ease-out), margin-top 0.45s var(--ease-out), opacity 0.25s var(--ease);
+  transition: grid-template-rows 0.6s var(--ease-out), margin-top 0.6s var(--ease-out);
 }
-.data-row[data-step="2"] ~ .nuke-type { grid-template-rows: 1fr; margin-top: 0; opacity: 1; transition-delay: 0s, 0s, 0.08s; }
+.data-row[data-step="2"] ~ .nuke-type, .nuke-type.blowing { grid-template-rows: 1fr; margin-top: 0; }
 .nt-inner { min-height: 0; overflow: hidden; }
+.nuke-type.blowing .nt-inner { overflow: visible; }
 .nt-field {
   position: relative;
   border-radius: 12px;
   background: var(--fill-1);
   box-shadow: inset 0 0 0 1px transparent;
-  transform: translateY(-6px);
-  transition: box-shadow 0.25s var(--ease), background-color 0.25s var(--ease), transform 0.45s var(--ease-out);
+  opacity: 0;
+  transform: translateY(-10px);
+  clip-path: inset(0 0 100% 0 round 12px);
+  transition: opacity 0.3s var(--ease), transform 0.6s var(--ease-out), clip-path 0.6s var(--ease-out), box-shadow 0.25s var(--ease), background-color 0.25s var(--ease);
 }
-.data-row[data-step="2"] ~ .nuke-type .nt-field { transform: none; }
+.data-row[data-step="2"] ~ .nuke-type .nt-field { opacity: 1; transform: none; clip-path: inset(0 0 0 0 round 12px); transition-delay: 0s, 0.04s, 0.04s, 0s, 0s; }
 .nt-field:focus-within { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--danger) 45%, transparent); }
 .nuke-type.off .nt-field { background: color-mix(in srgb, var(--danger) 9%, var(--fill-1)); }
 .data-row.armed ~ .nuke-type .nt-field { box-shadow: inset 0 0 0 1.5px var(--danger); }
+/* blowing away: the box fades from under the words, which leave it */
+.nuke-type.blowing .nt-field { opacity: 1; transform: none; clip-path: none; background: transparent; box-shadow: inset 0 0 0 1px transparent; transition: background-color 0.45s var(--ease), box-shadow 0.3s var(--ease); }
 .nt-ghost, .nt-input {
   margin: 0;
   padding: 9px 12px;
@@ -514,8 +538,13 @@ body { overflow: hidden; }
 }
 .nt-ghost { color: var(--label-3); pointer-events: none; }
 .nt-ghost .nt-typed { color: transparent; }
+.nt-next { color: var(--label-2); }
+.nt-wrong { text-decoration: underline wavy var(--danger); text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
 .nt-rest { transition: opacity 0.2s var(--ease); }
 .nuke-type.off .nt-rest { opacity: 0; }
+.nt-w { animation: nt-word-in 0.6s var(--ease-out) backwards; animation-delay: calc(150ms + var(--i) * 26ms); }
+@keyframes nt-word-in { from { opacity: 0; filter: blur(5px); } }
+.nt-fly { display: inline-block; color: var(--label); }
 .nt-input {
   position: absolute;
   inset: 0;
@@ -529,7 +558,8 @@ body { overflow: hidden; }
   outline: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .nuke-type, .nt-field, .nuke-labels > span { transition-duration: 0s; }
+  .nuke-type, .nt-field, .nuke-labels > span, .nuke-charge { transition-duration: 0s; }
+  .nt-w { animation: none; }
 }
 .never-mind {
   align-self: center;

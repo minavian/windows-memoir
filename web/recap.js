@@ -4010,7 +4010,18 @@ function setNukeStep(n) {
     nukeAbs = setTimeout(() => { if (row.dataset.step !== '1') return; row.classList.add('abs'); bumpNuke(); }, reducedMotion() ? 0 : 900);
   }
   if (n === 2) {
-    nukeTyping();
+    // the red drains from the button as the sentence is asked for (it fills back as it's typed)
+    if (prev !== 2) {
+      const charge = $('nuke').querySelector('.nuke-charge');
+      charge.style.transition = 'none';
+      charge.style.setProperty('--p', '1');
+      row.style.setProperty('--np', '1');
+      void charge.offsetWidth;
+      // (an unhurried drain; typing then fills it at its own pace)
+      charge.style.transition = 'opacity 0s, --p 0.95s cubic-bezier(0.65, 0, 0.35, 1)';
+      setTimeout(() => { charge.style.transition = ''; }, 950);
+    }
+    nukeTyping(prev !== 2);
     // the field takes the keys as it opens
     setTimeout(() => { if (row.dataset.step === '2') field.focus({ preventScroll: true }); }, 60);
     return;
@@ -4051,24 +4062,68 @@ const NUKE_PHRASE = 'I want to delete all of my data and this isn’t an acciden
 const foldPhrase = s => s.toLowerCase().replace(/[’‘`´]/g, "'");
 const nukeHint = { on: false, timer: 0 };
 const nukeMatched = () => foldPhrase($('nuke-phrase').value.trim().replace(/\s+/g, ' ').replace(/[.!]+$/, '')) === foldPhrase(NUKE_PHRASE);
-// what's left to type, faintly behind the typing (hidden while what's typed isn't the sentence)
-function nukeGhost(typed) {
-  const on = foldPhrase(NUKE_PHRASE).startsWith(foldPhrase(typed));
-  $('nuke-typed').textContent = typed;
-  $('nuke-rest').textContent = on ? NUKE_PHRASE.slice(typed.length) : '';
+// what's left to type, faintly behind the typing: the word you're on a shade darker, a slip underlined in red
+// (and the rest hidden until it's fixed). intro: the sentence ripples in, word by word. Returns how much is right.
+const wordSpan = (cls, text, i) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; if (i != null) s.style.setProperty('--i', i); return s; };
+function nukeGhost(typed, intro = false) {
+  const fp = foldPhrase(NUKE_PHRASE), ft = foldPhrase(typed);
+  let k = 0;
+  while (k < ft.length && k < fp.length && ft[k] === fp[k]) k++;
+  const on = k === ft.length;
+  $('nuke-typed').replaceChildren(typed.slice(0, k), ...(k < typed.length ? [wordSpan('nt-wrong', typed.slice(k))] : []));
+  const left = on ? NUKE_PHRASE.slice(typed.length) : '';
+  if (intro && !reducedMotion()) {
+    let w = 0;
+    $('nuke-rest').replaceChildren(...left.split(/(\s+)/).filter(Boolean).map(part => (/\s/.test(part) ? part : wordSpan('nt-w', part, w++))));
+  } else {
+    const next = left.match(/^\s*\S*/)[0];
+    $('nuke-rest').replaceChildren(...(next ? [wordSpan('nt-next', next)] : []), left.slice(next.length));
+  }
   $('nuke-type').classList.toggle('off', !on && !nukeMatched());
+  return k;
 }
-function nukeTyping() {
+function nukeTyping(intro = false) {
+  const row = $('data-row');
   const ok = nukeMatched();
-  nukeGhost($('nuke-phrase').value);
-  $('data-row').classList.toggle('armed', ok);
+  const right = nukeGhost($('nuke-phrase').value, intro);
+  // the red fills as far as it's right, and the glow with it
+  const p = ok ? 1 : Math.min(1, right / NUKE_PHRASE.length);
+  row.style.setProperty('--np', p.toFixed(3));
+  $('nuke').querySelector('.nuke-charge').style.setProperty('--p', p.toFixed(3));
+  const was = row.classList.contains('armed');
+  row.classList.toggle('armed', ok);
+  if (ok && !was) bumpNuke();
   nukeLabel(ok ? 'd' : nukeHint.on ? 'p' : 't');
   $('nuke').setAttribute('aria-label', ok ? 'Delete everything' : 'Type the sentence below to delete everything');
   // left alone for a minute, it puts itself away
   clearTimeout(nukeTimer);
   nukeTimer = setTimeout(() => setNukeStep(0), 60000);
 }
+// Typed and deleted: the words blow away, one after another, drifting up and off as they blur, and the field
+// folds once they've gone.
 async function nukeNow() {
+  const field = $('nuke-phrase');
+  const box = $('nuke-type');
+  if (!reducedMotion() && field.value.trim()) {
+    const words = field.value.split(/(\s+)/).filter(Boolean).map(part => (/\s/.test(part) ? part : wordSpan('nt-fly', part)));
+    $('nuke-typed').replaceChildren(...words);
+    $('nuke-rest').replaceChildren();
+    box.classList.remove('off');
+    box.classList.add('blowing');
+    field.value = '';
+    const flying = [...$('nuke-typed').querySelectorAll('.nt-fly')];
+    const rnd = n => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+    flying.forEach((w, i) => {
+      // each word lifts away a little after the one before, drifting a touch to the right, softening as it rises
+      const dx = 3 + rnd(i) * 14, dy = -(16 + rnd(i + 9) * 18), turn = (rnd(i + 21) - 0.5) * 12;
+      w.animate([
+        { transform: 'none', opacity: 1, filter: 'blur(0px)' },
+        { transform: `translate(${dx * 0.3}px, ${dy * 0.3}px) rotate(${turn * 0.3}deg) scale(0.98)`, opacity: 0.85, filter: 'blur(0.6px)', offset: 0.35 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${turn}deg) scale(0.9)`, opacity: 0, filter: 'blur(7px)' },
+      ], { duration: 820, delay: i * 42, easing: 'cubic-bezier(0.45, 0, 0.55, 1)', fill: 'forwards' });
+    });
+    setTimeout(() => box.classList.remove('blowing'), 820 + flying.length * 42);
+  }
   setNukeStep(3);
   await clearAllData();
   toast('All tracked time was deleted');

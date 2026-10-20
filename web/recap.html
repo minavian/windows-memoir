@@ -228,13 +228,21 @@
                           <span data-l="d">Delete everything</span>
                           <span data-l="3">Cleared</span>
                         </span>
+                        <!-- the red that fills as the sentence is typed: the same words, white, as far as it has reached -->
+                        <span class="nuke-charge" aria-hidden="true">
+                          <span class="nuke-labels">
+                            <span data-l="t">Type the sentence below</span>
+                            <span data-l="p">Type it out, pasting is off</span>
+                            <span data-l="d">Delete everything</span>
+                          </span>
+                        </span>
                       </button>
                     </div>
                     <!-- the last step: type the sentence, its rest shown faintly as you go (recap.js nukeTyping) -->
                     <div class="nuke-type" id="nuke-type" aria-hidden="true">
                       <div class="nt-inner">
                         <div class="nt-field">
-                          <div class="nt-ghost" aria-hidden="true"><span class="nt-typed" id="nuke-typed"></span><span class="nt-rest" id="nuke-rest">I want to delete all of my data and this isn’t an accident</span></div>
+                          <div class="nt-ghost" aria-hidden="true"><span class="nt-typed" id="nuke-typed"></span><span class="nt-rest" id="nuke-rest"></span></div>
                           <textarea class="nt-input" id="nuke-phrase" rows="1" tabindex="-1" spellcheck="false" autocomplete="off" autocapitalize="off" data-no-paste aria-label="Type: I want to delete all of my data and this isn’t an accident"></textarea>
                         </div>
                       </div>
