@@ -44,7 +44,6 @@ const state = {
   liveReady: false,
   goalHistory: [],
   goalKey: '',
-  legendRows: 3,
 };
 
 let ring = null;
@@ -114,21 +113,17 @@ function liveSites() {
   return sites;
 }
 
-// Private (never-tracked) sites count toward the total and the limit, but
-// never appear by name or category.
+// Private (never-tracked) time counts toward the total and the limit, and as Other
+// (core.js categorize), but never appears by name.
 function split(sites) {
   const visible = {};
-  let priv = 0;
-  for (const [d, ms] of Object.entries(sites)) {
-    if (isPrivate(d)) priv += ms;
-    else visible[d] = ms;
-  }
-  return { visible, priv, all: sumValues(visible) + priv };
+  for (const [d, ms] of Object.entries(sites)) if (!isPrivate(d)) visible[d] = ms;
+  return { visible, all: sumValues(sites) };
 }
 
-function categoryTotals(visible) {
+function categoryTotals(sites) {
   const totals = {};
-  for (const [domain, ms] of Object.entries(visible)) {
+  for (const [domain, ms] of Object.entries(sites)) {
     const cat = categorize(domain, state.overrides);
     totals[cat] = (totals[cat] || 0) + ms;
   }
@@ -138,21 +133,19 @@ function categoryTotals(visible) {
 // ---------- rendering ----------
 
 function render() {
-  const { visible, priv, all } = split(liveSites());
-  const total = sumValues(visible);
-  const cats = categoryTotals(visible);
+  const sites = liveSites();
+  const { visible, all } = split(sites);
+  const cats = categoryTotals(sites);
 
-  animateNumber($('today-total'), total, { format: v => formatDuration(v), delay: 200, duration: 1100 });
-  renderCompare(all, priv);
-  drawRing(cats, total);
-  // the private-sites line takes the third legend row's place
-  state.legendRows = priv >= 60_000 ? 2 : 3;
-  renderLegend(cats, total, state.legendRows);
+  animateNumber($('today-total'), all, { format: v => formatDuration(v), delay: 200, duration: 1100 });
+  renderCompare(all);
+  drawRing(cats, all);
+  renderLegend(cats, all);
   renderSites(visible);
   updateGoal(all, true);
 }
 
-function renderCompare(all, priv) {
+function renderCompare(all) {
   const el = $('compare');
   let text;
   if (state.avg > 0) {
@@ -163,17 +156,9 @@ function renderCompare(all, priv) {
   } else {
     text = 'Your daily average appears after a few days';
   }
-  const privText = priv >= 60_000 ? `+ ${formatDuration(priv)} of private activity` : '';
-  if (el.dataset.text === text && el.dataset.priv === privText) return;
+  if (el.dataset.text === text) return;
   el.dataset.text = text;
-  el.dataset.priv = privText;
   el.textContent = text;
-  if (privText) {
-    const p = document.createElement('span');
-    p.className = 'priv';
-    p.textContent = privText;
-    el.appendChild(p);
-  }
 }
 
 function drawRing(cats, total) {
@@ -377,20 +362,19 @@ function tick() {
     getDays([nowKey]).then(d => { state.today = d[nowKey]; render(); });
     return;
   }
-  const { visible, priv, all } = split(liveSites());
-  const total = sumValues(visible);
-  const cats = categoryTotals(visible);
+  const sites = liveSites();
+  const { visible, all } = split(sites);
+  const cats = categoryTotals(sites);
   if (state.liveReady) {
     const el = $('today-total');
     const id = hoverCat;
-    const v = id ? cats[id] || 0 : total;
+    const v = id ? cats[id] || 0 : all;
     el._value = v;
     const text = formatDuration(v);
     if (el.textContent !== text && !$('ring-center').classList.contains('swapping')) el.textContent = text;
   }
-  renderCompare(all, priv);
-  state.legendRows = priv >= 60_000 ? 2 : 3;
-  renderLegend(cats, total, state.legendRows);
+  renderCompare(all);
+  renderLegend(cats, all);
   updateGoal(all);
   const s = state.session;
   if (s && !state.paused) {
@@ -458,10 +442,9 @@ function openCatPop(catId, anchor) {
   if (popCat === catId && catPop.isOpen) { closeCatPop(); return; }
   const cat = CATEGORY_BY_ID[catId];
   if (!cat) return;
-  const { visible } = split(liveSites());
-  const total = sumValues(visible);
+  const { visible, all: total } = split(liveSites());
   const sites = Object.entries(visible).filter(([d, ms]) => ms >= 1000 && categorize(d, state.overrides) === catId).sort((a, b) => b[1] - a[1]);
-  const mine = sites.reduce((n, [, ms]) => n + ms, 0);
+  const mine = categoryTotals(liveSites())[catId] || 0;
   const el = $('cat-pop');
   el.innerHTML = `<div class="pop-head"><span class="pop-title"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span><span class="pop-meta num">${formatDuration(mine)} · ${total ? Math.round((mine / total) * 100) : 0}%</span></div>`;
   const list = document.createElement('ol');
@@ -514,10 +497,10 @@ function showCat() {
   for (const li of legend.querySelectorAll('[data-cat]')) li.classList.toggle('on', li.dataset.cat === id);
   if (id === centred) return;
   centred = id;
-  const { visible } = split(liveSites());
-  const totals = categoryTotals(visible);
+  const sites = liveSites();
+  const totals = categoryTotals(sites);
   if (id) setCenter(formatDuration(totals[id] || 0), CATEGORY_BY_ID[id].short);
-  else setCenter(formatDuration(sumValues(visible)), 'today');
+  else setCenter(formatDuration(sumValues(sites)), 'today');
 }
 
 // Tracking can be paused only from Settings in the report. While it is, the header holds a

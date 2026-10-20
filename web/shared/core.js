@@ -160,7 +160,8 @@ function brandOf(domain) {
 }
 
 export function categorize(domain, overrides = {}) {
-  if (!domain) return 'other';
+  // private time (Never track, private windows) always counts as Other, never by name
+  if (!domain || isPrivate(domain)) return 'other';
   if (overrides[domain] && CATEGORY_BY_ID[overrides[domain]]) return overrides[domain];
   if (isApp(domain)) return CATEGORY_BY_ID[appInfo(domain)?.category] ? appInfo(domain).category : 'other';
   const parts = domain.split('.');

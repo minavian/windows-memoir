@@ -59,7 +59,6 @@ h1 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
 .legend .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend li.none { display: block; margin: 0 6px; padding: 0; background: none; cursor: default; }
 .compare { margin: 0; line-height: 1.35; }
-.compare .priv { display: block; color: var(--label-3); }
 .hero-side { justify-content: center; }
 
 /* daily limit row */

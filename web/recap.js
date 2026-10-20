@@ -305,14 +305,13 @@ function summarize({ keys, days, prevDays }) {
   // what each day went to, each minute once (a browser and its sites counted once: core.js hourParts)
   const parts = days.map(dayParts);
   const dayPrivate = parts.map(p => p[PRIVATE_KEY] || 0);
-  const dayVisible = dayTotals.map((t, i) => t - dayPrivate[i]);
   const total = sum(dayTotals);
   const privateTotal = sum(dayPrivate);
   const totalVisible = total - privateTotal;
+  // (private time is Other: core.js categorize)
   const dayCats = parts.map(p => {
     const c = {};
     for (const [dom, ms] of Object.entries(p)) {
-      if (isPrivate(dom)) continue;
       const cat = categorize(dom, overrides);
       c[cat] = (c[cat] || 0) + ms;
     }
@@ -357,7 +356,7 @@ function summarize({ keys, days, prevDays }) {
   const over = keys.map((k, i) => evaluated[i] && dayTotals[i] > limits[i]);
 
   return {
-    keys, days, dayTotals, dayVisible, dayPrivate, dayCats, total, totalVisible, privateTotal, siteList, nameList, cats,
+    keys, days, dayTotals, dayPrivate, dayCats, total, totalVisible, privateTotal, siteList, nameList, cats,
     activeDays, avg, busiest, calmest, hourTotals, peakHour, prevTotal, halfCount, todayIdx, isCurrent,
     limits, future, evaluated, over,
   };
@@ -420,7 +419,7 @@ function goalLine(s, view) {
 function storyLines(s) {
   const lines = [];
   const b = t => `<strong>${t}</strong>`;
-  const pv = ms => pct(ms, s.totalVisible);
+  const pv = ms => pct(ms, s.total);
 
   // the total is already in the facts above; say it here only when they're hidden
   const facts = document.querySelector('.facts');
@@ -468,7 +467,7 @@ function storyLines(s) {
 
   // (the change from last week is already under the big number)
   if (s.privateTotal >= 60_000) {
-    lines.push({ icon: 'i-private', html: `${b(fmt(s.privateTotal))} of private activity is in your totals and the chart, without its apps or sites.` });
+    lines.push({ icon: 'i-private', html: `${b(fmt(s.privateTotal))} of private activity counts as Other, without its apps or sites.` });
   }
   if (s.siteList.length >= 6) {
     lines.push({ icon: 'i-globe', html: `${b(`${s.siteList.length} apps and websites`)} used; ${s.halfCount} of them made up half your time.` });
@@ -815,12 +814,6 @@ function buildChart() {
       stack.appendChild(seg);
       segs[cat.id] = seg;
     }
-    // private time on top, faint and nameless as in a day's hours, so the bar is the day's whole total
-    const priv = document.createElement('i');
-    priv.className = 'seg';
-    priv.style.setProperty('--c', 'var(--fill-3)');
-    stack.appendChild(priv);
-    segs[PRIVATE_KEY] = priv;
     const label = document.createElement('button');
     label.type = 'button';
     label.className = 'day-btn';
@@ -843,7 +836,6 @@ function buildChart() {
     const future = s.future[i];
     const rows = CATEGORIES.filter(c => s.dayCats[i][c.id]).sort((a, b) => s.dayCats[i][b.id] - s.dayCats[i][a.id])
       .map(c => `<div class="tip-row"><span><span class="dot" style="--c:${c.color}"></span>${c.label}</span><b>${fmt(s.dayCats[i][c.id])}</b></div>`).join('');
-    const priv = s.dayPrivate[i] >= 60_000 ? `<div class="tip-row"><span><span class="dot" style="--c:var(--fill-3)"></span>Private</span><b>${fmt(s.dayPrivate[i])}</b></div>` : '';
     let lim = '';
     if (s.evaluated[i]) {
       const L = s.limits[i];
@@ -851,7 +843,7 @@ function buildChart() {
         : `<div class="tip-sub">${pct(s.dayTotals[i], L)}% of your ${fmt(L)} limit</div>`;
     }
     tip.show(`<div class="tip-title">${fullDate.format(dateFromKey(s.keys[i]))}</div>
-      <div class="tip-row"><span>${future ? 'Upcoming' : 'Total'}</span><b>${future ? '—' : fmt(s.dayTotals[i])}</b></div>${rows}${priv}${lim}`, x, y);
+      <div class="tip-row"><span>${future ? 'Upcoming' : 'Total'}</span><b>${future ? '—' : fmt(s.dayTotals[i])}</b></div>${rows}${lim}`, x, y);
   };
   plot.addEventListener('pointerover', e => {
     const col = e.target.closest('.col');
@@ -922,20 +914,21 @@ function renderChart(s, soft) {
     label.setAttribute('aria-label', `${fullDate.format(date)}: ${future ? 'upcoming' : fmt(s.dayTotals[i])}${s.over[i] ? ', over your limit' : ''}. Open this day.`);
     const delay = state.queue ? 260 + i * 45 + introWait('#chart-card') : soft ? 0 : i * 22;
     stack.style.setProperty('--d', `${delay}ms`);
-    const parts = [...CATEGORIES.map(c => [c.id, s.dayCats[i][c.id] || 0]), [PRIVATE_KEY, s.dayPrivate[i]]];
-    const topId = parts.filter(([, ms]) => ms > 0).pop()?.[0];
+    const nonzero = CATEGORIES.filter(c => s.dayCats[i][c.id] > 0);
     const apply = () => {
       let y = 0;
-      for (const [id, ms] of parts) {
-        const seg = segs[id];
+      for (const cat of CATEGORIES) {
+        const seg = segs[cat.id];
         seg.style.setProperty('--d', `${delay}ms`);
+        const ms = s.dayCats[i][cat.id] || 0;
         if (!ms) {
           seg.style.setProperty('--h', '0px');
           seg.style.setProperty('--y', `${y.toFixed(1)}px`);
           continue;
         }
         const share = px(ms);
-        seg.style.setProperty('--h', `${Math.max(0.5, share - (id === topId ? 0 : SEG_GAP)).toFixed(1)}px`);
+        const isTop = nonzero[nonzero.length - 1] === cat;
+        seg.style.setProperty('--h', `${Math.max(0.5, share - (isTop ? 0 : SEG_GAP)).toFixed(1)}px`);
         seg.style.setProperty('--y', `${y.toFixed(1)}px`);
         y += share;
       }
@@ -1550,7 +1543,6 @@ function hourCats(d, h) {
   const out = {};
   const slot = d.hs[h] || {};
   for (const [dom, ms] of Object.entries(slot)) {
-    if (isPrivate(dom)) continue;
     const c = categorize(dom, activeOverrides());
     out[c] = (out[c] || 0) + ms;
   }
@@ -1884,14 +1876,14 @@ function scopeDay(s) {
 function scoped(s = state.summary) {
   if (state.scope !== 'day') {
     const sub = state.demo ? 'sample week' : 'this week';
-    return { day: null, cats: s.cats, siteList: s.siteList, nameList: s.nameList, total: s.totalVisible, sub, of: 'of the week', when: 'this week' };
+    return { day: null, cats: s.cats, siteList: s.siteList, nameList: s.nameList, total: s.total, priv: s.privateTotal, sub, of: 'of the week', when: 'this week' };
   }
   const i = scopeDay(s);
   const siteList = Object.entries(dayParts(s.days[i])).filter(([d, ms]) => !isPrivate(d) && ms >= 1000).sort((a, b) => b[1] - a[1]);
   const nameList = namesOf([s.days[i]]);
   const today = s.keys[i] === dayKey(new Date());
   const name = today ? 'today' : longDay.format(dateFromKey(s.keys[i]));
-  return { day: i, cats: s.dayCats[i], siteList, nameList, total: s.dayVisible[i], sub: name, of: `of ${name}`, when: today ? 'today' : `on ${name}` };
+  return { day: i, cats: s.dayCats[i], siteList, nameList, total: s.dayTotals[i], priv: s.dayPrivate[i], sub: name, of: `of ${name}`, when: today ? 'today' : `on ${name}` };
 }
 let scopeShownDay = null;
 let scopeTried = false; // visited Week before returning to Day (for the tour)
@@ -2017,14 +2009,16 @@ function openCatPop(catId, anchor) {
   closeCatMenu(true);
   const cat = CATEGORY_BY_ID[catId];
   // from the donut it follows Week / Day; from a highlight it's always the week
-  const sc = anchor.closest && anchor.closest('.donut-card') ? scoped(s) : { cats: s.cats, siteList: s.siteList, total: s.totalVisible, when: 'this week' };
+  const sc = anchor.closest && anchor.closest('.donut-card') ? scoped(s) : { cats: s.cats, siteList: s.siteList, total: s.total, priv: s.privateTotal, when: 'this week' };
   const entries = sc.siteList.filter(([d]) => categorize(d, activeOverrides()) === catId);
   const el = $('cat-pop');
   el.innerHTML = `<div class="pop-head"><span class="pop-title"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span><span class="pop-meta num">${fmt(sc.cats[catId] || 0)} · ${pct(sc.cats[catId] || 0, sc.total)}%</span></div>`;
   const list = siteRows(entries, false, null);
   el.appendChild(list);
   makeScroller(list);
-  if (!entries.length) el.appendChild(emptyNote(`No apps or websites in this category ${sc.when}.`));
+  const priv = catId === 'other' && sc.priv >= 60_000 ? sc.priv : 0;
+  if (!entries.length && !priv) el.appendChild(emptyNote(`No apps or websites in this category ${sc.when}.`));
+  if (priv) el.appendChild(privateNote(priv));
   for (const b of document.querySelectorAll('.hl.active')) b.classList.remove('active');
   if (anchor.classList && anchor.classList.contains('hl')) anchor.classList.add('active');
   const wasOpen = catPop.isOpen;
