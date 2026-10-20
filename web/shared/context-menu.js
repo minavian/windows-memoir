@@ -130,7 +130,7 @@ export function initContextMenu({ getItems = () => [], beforeOpen = () => {}, on
       return [
         { label: 'Cut', icon: 'cut', hint: shortcut('X'), disabled: !ctx.text || !writable || password, action: async () => { await copy(ctx.text); insert(ctx, ''); } },
         { label: 'Copy', icon: 'copy', hint: shortcut('C'), disabled: !ctx.text || password, action: () => copy(ctx.text) },
-        { label: 'Paste', icon: 'paste', hint: shortcut('V'), disabled: !writable, action: async () => {
+        { label: 'Paste', icon: 'paste', hint: shortcut('V'), disabled: !writable || !!ctx.editable.closest('[data-no-paste]'), action: async () => {
           try { insert(ctx, await navigator.clipboard.readText()); }
           catch { message(`Press ${shortcut('V')} to paste`); }
         } },

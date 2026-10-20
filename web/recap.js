@@ -126,7 +126,6 @@ async function init() {
   initSmoothScrolling();
   disableTitleTooltips();
   initCursor();
-  document.fonts.load('600 14px "Memoir Inter"').then(() => document.fonts.load('900 14px "Memoir Inter"')).then(measureSure, measureSure);
   const m = location.hash.match(/week=(\d{4}-\d{2}-\d{2})/);
   if (m) state.weekStart = startOfWeek(dateFromKey(m[1]));
   if (state.weekStart > startOfWeek(new Date())) state.weekStart = startOfWeek(new Date());
@@ -3739,22 +3738,9 @@ async function applyRetention(days) {
   toast(days === 0 ? 'History is kept forever' : `History is kept for ${days === 365 ? 'a year' : days === 182 ? '6 months' : '3 months'}`);
 }
 
-// ----- Clear all: small red → big red "Are you sure?" → "Are you absolutely SURE?" -----
+// ----- Clear all: small red → big red "Are you absolutely SURE?" → type the sentence, then Delete everything -----
 
 let nukeTimer = 0;
-// The two widths the "sure → SURE" word moves between, measured in the real font.
-function measureSure() {
-  const box = document.querySelector('.nk-sure');
-  if (!box) return;
-  const probe = document.createElement('span');
-  probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font-family:"Memoir Inter",var(--font);font-size:100px';
-  probe.innerHTML = '<span style="font-weight:600">sure</span><span style="font-weight:900;letter-spacing:0.015em">SURE</span>';
-  document.body.appendChild(probe);
-  const [lo, up] = probe.children;
-  box.style.setProperty('--w-lo', `${(lo.getBoundingClientRect().width / 100).toFixed(3)}em`);
-  box.style.setProperty('--w-up', `${(up.getBoundingClientRect().width / 100 + 0.02).toFixed(3)}em`);
-  probe.remove();
-}
 
 // ----- Start with Windows (Memoir for Windows only: src/Startup.cs keeps it in Windows' startup list) -----
 const STARTUP_TEXT = { on: 'Opens in the notification area when you sign in', off: 'Starts only when you open it' };
@@ -3987,20 +3973,78 @@ function showPaused() {
   if ($('board').classList.contains('is-empty')) render({ soft: true });
 }
 
+// 0 Clear all, 1 Are you absolutely SURE?, 2 type the sentence (then Delete everything), 3 Cleared
 function setNukeStep(n) {
   const row = $('data-row');
-  const prev = +row.dataset.step;
+  const field = $('nuke-phrase');
   row.dataset.step = String(n);
   clearTimeout(nukeTimer);
+  clearTimeout(nukeHint.timer); nukeHint.on = false;
   $('nuke-cancel').tabIndex = n === 1 || n === 2 ? 0 : -1;
   $('nuke-also').classList.toggle('on', linkUi.linked);
-  const nuke = $('nuke');
-  const label = ['Clear all data', 'Are you sure? Press again to continue', 'Are you absolutely sure? Press again to delete everything', 'Cleared'][n];
-  nuke.setAttribute('aria-label', label);
-  if (n === 1 || n === 2) nukeTimer = setTimeout(() => setNukeStep(0), 9000);
-  if (n > prev && n <= 2 && !reducedMotion()) {
-    nuke.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }, { transform: 'scale(1)' }], { duration: 420, easing: EASE_OUT });
+  field.tabIndex = n === 2 ? 0 : -1;
+  $('nuke-type').setAttribute('aria-hidden', n === 2 ? 'false' : 'true');
+  if (n === 1) nukeTimer = setTimeout(() => setNukeStep(0), 9000);
+  if (n === 2) {
+    nukeTyping();
+    // the field takes the keys as it opens
+    setTimeout(() => { if (row.dataset.step === '2') field.focus({ preventScroll: true }); }, 60);
+    return;
   }
+  row.classList.remove('armed');
+  if (document.activeElement === field) $('nuke').focus({ preventScroll: true });
+  nukeLabel(n === 0 ? '0' : n === 1 ? 'q' : '3');
+  $('nuke').setAttribute('aria-label', ['Clear all data', 'Are you absolutely sure? Press again to continue', '', 'Cleared'][n]);
+  // emptied once it has closed, so its words don't vanish while it folds away
+  setTimeout(() => { if (row.dataset.step !== '2' && field.value) { field.value = ''; nukeGhost(''); } }, reducedMotion() ? 0 : 480);
+}
+// The button's words: the one shown fades in rising, the one before rises away. One coming back mid-way
+// turns around where it is; one gone above comes back from below.
+function nukeLabel(name) {
+  for (const l of $('nuke').querySelectorAll('.nuke-labels > [data-l]')) {
+    if (l.dataset.l === name) {
+      if (l.classList.contains('on')) continue;
+      if (l.classList.contains('gone') && !l.getAnimations().length) {
+        l.style.transition = 'none';
+        l.classList.remove('gone');
+        void l.offsetWidth;
+        l.style.transition = '';
+      }
+      l.classList.remove('gone');
+      l.classList.add('on');
+    } else if (l.classList.contains('on')) {
+      l.classList.remove('on');
+      l.classList.add('gone');
+    }
+  }
+}
+// The sentence to type. Capitals, ' or ’, extra spaces and a full stop at the end don't matter.
+const NUKE_PHRASE = 'I want to delete all of my data and this isn’t an accident';
+const foldPhrase = s => s.toLowerCase().replace(/[’‘`´]/g, "'");
+const nukeHint = { on: false, timer: 0 };
+const nukeMatched = () => foldPhrase($('nuke-phrase').value.trim().replace(/\s+/g, ' ').replace(/[.!]+$/, '')) === foldPhrase(NUKE_PHRASE);
+// what's left to type, faintly behind the typing (hidden while what's typed isn't the sentence)
+function nukeGhost(typed) {
+  const on = foldPhrase(NUKE_PHRASE).startsWith(foldPhrase(typed));
+  $('nuke-typed').textContent = typed;
+  $('nuke-rest').textContent = on ? NUKE_PHRASE.slice(typed.length) : '';
+  $('nuke-type').classList.toggle('off', !on && !nukeMatched());
+}
+function nukeTyping() {
+  const ok = nukeMatched();
+  nukeGhost($('nuke-phrase').value);
+  $('data-row').classList.toggle('armed', ok);
+  nukeLabel(ok ? 'd' : nukeHint.on ? 'p' : 't');
+  $('nuke').setAttribute('aria-label', ok ? 'Delete everything' : 'Type the sentence below to delete everything');
+  // left alone for a minute, it puts itself away
+  clearTimeout(nukeTimer);
+  nukeTimer = setTimeout(() => setNukeStep(0), 60000);
+}
+async function nukeNow() {
+  setNukeStep(3);
+  await clearAllData();
+  toast('All tracked time was deleted');
+  setTimeout(() => { if ($('data-row').dataset.step === '3') setNukeStep(0); }, 1500);
 }
 
 async function clearAllData() {
@@ -4557,16 +4601,32 @@ function wire() {
     if (!$('guide-pop').hidden && guideFrom) guidePop.place(guideFrom.getBoundingClientRect());
     for (const [p, id, popId] of footPops) if (!$(popId).hidden) p.popover.place($(id).getBoundingClientRect());
   }, { passive: true });
-  $('nuke').addEventListener('click', async () => {
+  $('nuke').addEventListener('click', () => {
     const step = +$('data-row').dataset.step;
     if (step === 0) setNukeStep(1);
     else if (step === 1) setNukeStep(2);
-    else if (step === 2) {
-      setNukeStep(3);
-      await clearAllData();
-      toast('All tracked time was deleted');
-      setTimeout(() => { if ($('data-row').dataset.step === '3') setNukeStep(0); }, 1500);
-    }
+    else if (step === 2) { if (nukeMatched()) nukeNow(); else $('nuke-phrase').focus({ preventScroll: true }); }
+  });
+  // the sentence: typed, never pasted or dropped in; Enter deletes once it's right (it never starts a new line)
+  const phrase = $('nuke-phrase');
+  const noPaste = e => {
+    e.preventDefault();
+    nukeHint.on = true;
+    nukeTyping();
+    clearTimeout(nukeHint.timer);
+    nukeHint.timer = setTimeout(() => { nukeHint.on = false; if ($('data-row').dataset.step === '2') nukeTyping(); }, 2200);
+  };
+  phrase.addEventListener('paste', noPaste);
+  phrase.addEventListener('drop', noPaste);
+  phrase.addEventListener('beforeinput', e => {
+    if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') noPaste(e);
+    else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') e.preventDefault();
+  });
+  phrase.addEventListener('input', () => { if ($('data-row').dataset.step === '2') nukeTyping(); });
+  phrase.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (nukeMatched()) nukeNow();
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
   $('set-startup').addEventListener('change', async e => {
