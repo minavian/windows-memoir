@@ -364,8 +364,8 @@ body { overflow: hidden; }
 .ampm:focus-visible { outline: none; box-shadow: var(--ring); }
 .time-pill.h24 .ampm { display: none; }
 
-/* your data: Clear all → big red "Are you sure?", which grows into "Are you absolutely SURE?" → type the sentence,
-   then Delete everything (recap.js setNukeStep; labels cross-fade rising: nukeLabel) */
+/* your data: Clear all → big red "Are you sure?" → pressed, it grows into "Are you absolutely SURE?" → type the
+   sentence, then Delete everything (recap.js setNukeStep, nukeSure; labels cross-fade rising: nukeLabel) */
 .data-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
 .data-row .keep-btn {
   flex: 1 1 0;
@@ -453,8 +453,8 @@ body { overflow: hidden; }
 .nuke-labels > span.on { opacity: 1; transform: none; filter: none; }
 .nuke-labels > span.gone { transform: translateY(-9px) scale(0.96); }
 
-/* "Are you sure?" grows into "Are you absolutely SURE?" a beat after it shows (.abs, recap.js setNukeStep): the
-   word widens, each letter rises into a capital and thickens along the weight axis */
+/* "Are you sure?", pressed, grows into "Are you absolutely SURE?" (.abs, recap.js nukeSure): the word widens,
+   each letter rises into a capital and thickens along the weight axis */
 .nk-abs { display: inline-grid; grid-template-columns: 0fr; vertical-align: baseline; transition: grid-template-columns 0.55s var(--ease-out); }
 .nk-abs > span { min-width: 0; overflow: clip; opacity: 0; filter: blur(3px); transition: opacity 0.35s var(--ease), filter 0.4s var(--ease); }
 .data-row.abs .nk-abs { grid-template-columns: 1fr; }

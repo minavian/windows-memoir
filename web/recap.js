@@ -3742,7 +3742,6 @@ async function applyRetention(days) {
 // ----- Clear all: small red → big red "Are you absolutely SURE?" → type the sentence, then Delete everything -----
 
 let nukeTimer = 0;
-let nukeAbs = 0;
 // The two widths the "sure → SURE" word moves between, measured in the real font.
 function measureSure() {
   const box = document.querySelector('.nk-sure');
@@ -3989,25 +3988,23 @@ function showPaused() {
   if ($('board').classList.contains('is-empty')) render({ soft: true });
 }
 
-// 0 Clear all, 1 Are you sure? (growing into Are you absolutely SURE?), 2 type the sentence (then Delete
-// everything), 3 Cleared
+// 0 Clear all, 1 Are you sure? (pressed again, it grows into Are you absolutely SURE?: .abs, nukeSure), 2 type
+// the sentence (then Delete everything), 3 Cleared
 function setNukeStep(n) {
   const row = $('data-row');
   const field = $('nuke-phrase');
   const prev = +row.dataset.step;
   row.dataset.step = String(n);
   clearTimeout(nukeTimer);
-  clearTimeout(nukeAbs);
   clearTimeout(nukeHint.timer); nukeHint.on = false;
   $('nuke-cancel').tabIndex = n === 1 || n === 2 ? 0 : -1;
   $('nuke-also').classList.toggle('on', linkUi.linked);
   field.tabIndex = n === 2 ? 0 : -1;
   $('nuke-type').setAttribute('aria-hidden', n === 2 ? 'false' : 'true');
   if (n === 1) {
+    row.classList.remove('abs');
     nukeTimer = setTimeout(() => setNukeStep(0), 9000);
     if (prev < 1) bumpNuke();
-    // a beat after "Are you sure?" lands, it grows into "Are you absolutely SURE?"
-    nukeAbs = setTimeout(() => { if (row.dataset.step !== '1') return; row.classList.add('abs'); bumpNuke(); }, reducedMotion() ? 0 : 900);
   }
   if (n === 2) {
     // the red drains from the button as the sentence is asked for (it fills back as it's typed)
@@ -4029,7 +4026,7 @@ function setNukeStep(n) {
   row.classList.remove('armed');
   if (document.activeElement === field) $('nuke').focus({ preventScroll: true });
   nukeLabel(n === 0 ? '0' : n === 1 ? 'q' : '3');
-  $('nuke').setAttribute('aria-label', ['Clear all data', 'Are you absolutely sure? Press again to continue', '', 'Cleared'][n]);
+  $('nuke').setAttribute('aria-label', ['Clear all data', 'Are you sure? Press again to continue', '', 'Cleared'][n]);
   // emptied once it has closed, so its words don't vanish while it folds away
   // and "absolutely SURE" back to "sure" once its label has gone
   setTimeout(() => {
@@ -4101,6 +4098,15 @@ function nukeTyping(intro = false) {
 }
 // Typed and deleted: the words blow away, one after another, drifting up and off as they blur, and the field
 // folds once they've gone.
+// "Are you sure?", pressed: it grows into "Are you absolutely SURE?" (the next press asks for the sentence)
+function nukeSure() {
+  const row = $('data-row');
+  row.classList.add('abs');
+  bumpNuke();
+  $('nuke').setAttribute('aria-label', 'Are you absolutely sure? Press again to continue');
+  clearTimeout(nukeTimer);
+  nukeTimer = setTimeout(() => setNukeStep(0), 9000);
+}
 async function nukeNow() {
   const field = $('nuke-phrase');
   const box = $('nuke-type');
@@ -4687,6 +4693,7 @@ function wire() {
   $('nuke').addEventListener('click', () => {
     const step = +$('data-row').dataset.step;
     if (step === 0) setNukeStep(1);
+    else if (step === 1 && !$('data-row').classList.contains('abs')) nukeSure();
     else if (step === 1) setNukeStep(2);
     else if (step === 2) { if (nukeMatched()) nukeNow(); else $('nuke-phrase').focus({ preventScroll: true }); }
   });
