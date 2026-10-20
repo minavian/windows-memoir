@@ -443,7 +443,9 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       root.querySelector('.tour-skip').classList.toggle('gone', i === steps.length - 1);
       stopWatching();
       const finalH = swapContent(step, dir, i);
-      watchers = (step.tasks || []).map((t, k) => (doneBy[i].has(k) ? null : t.watch(() => complete(i, k)))).filter(Boolean);
+      // every try watches again, done or not (a done one can't tick twice): some set the page up as they watch
+      // (Pull to close arms the gear), so a step you come back to works as it did
+      watchers = (step.tasks || []).map((t, k) => t.watch(() => complete(i, k))).filter(Boolean);
       if (!root.classList.contains('on')) {
         // very first step: put the card in place before it's ever seen
         card.classList.add('instant');
