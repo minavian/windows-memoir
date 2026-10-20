@@ -33,7 +33,7 @@
     if (msg.event === 'window') { windowState(msg.state || {}); return; }
     if (msg.event === 'flyout') { if (msg.state === 'shown' && shown) { shown(); shown = null; } return; }
     if (msg.event === 'storage') {
-      if (msg.area === 'local' && msg.changes.apps) window.memoir.apps = msg.changes.apps.newValue || {};
+      if (msg.area === 'local' && msg.changes.apps) window.memoir.apps = { ...window.memoir.sampleApps, ...msg.changes.apps.newValue };
       if (msg.area === 'local' && msg.changes.favicons) window.memoir.favicons = msg.changes.favicons.newValue || {};
       for (const fn of listeners) fn(msg.changes, msg.area);
       return;
@@ -64,9 +64,10 @@
   };
   window.chrome.tabs = { create: ({ url }) => request('link.open', { url }) };
   window.memoir = {
-    // the apps' names, categories and icons; the websites' icons a linked browser sent (both in Data\icons)
-    windows: true, apps: {}, favicons: {}, request, flyout,
-    ready: Promise.all([storage.get(['apps', 'favicons']).then(data => { window.memoir.apps = data.apps || {}; window.memoir.favicons = data.favicons || {}; }), firstShown]),
+    // the apps' names, categories and icons; the websites' icons a linked browser sent (both in Data\icons);
+    // the sample week's apps under the apps' own (recap.js)
+    windows: true, apps: {}, sampleApps: {}, favicons: {}, request, flyout,
+    ready: Promise.all([storage.get(['apps', 'favicons']).then(data => { window.memoir.apps = { ...window.memoir.sampleApps, ...data.apps }; window.memoir.favicons = data.favicons || {}; }), firstShown]),
     appName: key => window.memoir.apps[key]?.name || key.slice(4).replace(/\.exe$/, ''),
     today: () => request('window.today'), minimize: () => request('window.minimize'),
   };

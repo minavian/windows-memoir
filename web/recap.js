@@ -5291,8 +5291,12 @@ const SAMPLE_APPS = [
   ['app:steam.exe', 'games', 0.3, 'Steam'],
 ];
 if (window.memoir?.windows) {
-  const known = window.memoir.apps || (window.memoir.apps = {});
-  for (const [key, category, , name] of [...SAMPLE_APPS, [SAMPLE_BROWSER, 'other', 0, 'Google Chrome']]) if (!known[key]) known[key] = { name, category, icon: null };
+  // under the app's own: desktop-bridge.js keeps them there each time it reads the apps, so a fresh install
+  // (no apps of its own yet) still names them
+  const sample = {};
+  for (const [key, category, , name] of [...SAMPLE_APPS, [SAMPLE_BROWSER, 'other', 0, 'Google Chrome']]) sample[key] = { name, category, icon: null };
+  window.memoir.sampleApps = sample;
+  window.memoir.apps = { ...sample, ...window.memoir.apps };
 }
 const SAMPLE_TITLES = {
   'youtube.com': ['Lo-fi beats to study to', 'How pasta is made', 'Tiny desk concert', 'A day in Kyoto'],
