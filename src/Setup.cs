@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -16,16 +18,18 @@ using Microsoft.Win32;
 namespace Memoir {
     // Installing and uninstalling, for this Windows account only (no administrator).
     //
-    // Memoir Setup.exe unpacks Memoir into a temporary folder and runs Memoir.exe --install from there: a small window
-    // (setup.html) comes in while Memoir is copied to %LOCALAPPDATA%\Programs\Memoir and written into Windows' list of
-    // installed apps, then Memoir opens in its place. A Memoir already there is closed and updated, its history kept;
-    // a Memoir first run from a folder of its own (the one that last linked with the browser) is closed and its history
-    // copied over, so nothing is lost. Its Start menu shortcut and Start with Windows follow on its first start.
+    // Memoir Setup.exe is Memoir.exe itself, carrying the rest of Memoir (Payload). Run from anywhere but a Memoir's own
+    // folder, it installs: a small window (setup.html, from what it carries) comes in while it writes a copy of itself
+    // and the rest straight into %LOCALAPPDATA%\Programs\Memoir and Windows' list of installed apps, then Memoir opens
+    // in its place. Nothing is unpacked into a temporary folder or run from one. A Memoir already there is closed and
+    // updated, its history kept; a Memoir first run from a folder of its own (the one that last linked with the browser)
+    // is closed and its history copied over, so nothing is lost. Its Start menu shortcut and Start with Windows follow
+    // on its first start.
     //
-    // Uninstalling, from Windows' Settings (Apps) or Control Panel: Memoir.exe --uninstall copies itself to a temporary
-    // folder and runs from there, so every file of it can go; it asks once, keeps the history only if asked to, and
-    // takes away everything it put on this computer: its files, its Start menu shortcut, Start with Windows, its link
-    // with the browsers and its entry in the list. Only a Memoir that was installed (install.json beside it) can be.
+    // Uninstalling, from Windows' Settings (Apps) or Control Panel: Memoir.exe --uninstall, in its own folder, asks
+    // once, keeps the history only if asked to, and takes away everything it put on this computer: its files, its Start
+    // menu shortcut, Start with Windows, its link with the browsers and its entry in the list. Its own files, in use
+    // while it runs, go a moment after it ends. Only a Memoir that was installed (install.json beside it) can be.
     //
     // Tests point every place at their own: MEMOIR_TEST_INSTALL_DIR, MEMOIR_TEST_UNINSTALL_KEY (a key under HKCU),
     // MEMOIR_TEST_NATIVE_HOST, MEMOIR_TEST_START_MENU and MEMOIR_TEST_STARTUP_KEY.
@@ -36,15 +40,17 @@ namespace Memoir {
         private static string UninstallKey { get { return Env("MEMOIR_TEST_UNINSTALL_KEY") ?? @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Memoir"; } }
         public static string Version { get { var v = typeof(Setup).Assembly.GetName().Version; return v.Major + "." + v.Minor + "." + v.Build; } }
 
-        // --install, --uninstall [--quiet], --uninstall-from=<folder>: handled here (true), or a normal start (false)
-        private static int waiting;   // the Memoir that started a quiet uninstall, waiting for it to finish
+        // --uninstall [--quiet], and Memoir Setup.exe (carrying the rest of Memoir, opened from anywhere but a Memoir's
+        // own folder): handled here (true); anything else is a normal start (false)
         public static bool Command(string[] args) {
             bool quiet = args.Contains("--quiet");
-            int.TryParse(args.Where(a => a.StartsWith("--waiting=")).Select(a => a.Substring(10)).FirstOrDefault(), out waiting);
-            string from = args.Where(a => a.StartsWith("--uninstall-from=")).Select(a => a.Substring(17)).FirstOrDefault();
-            if (args.Contains("--install")) { Prepare(); using (var only = Only()) if (only != null) Install(AppDomain.CurrentDomain.BaseDirectory); return true; }
-            if (from != null) { Prepare(); using (var only = quiet ? null : Only()) if (quiet || only != null) Uninstall(Path.GetFullPath(from), quiet); return true; }
-            if (args.Contains("--uninstall")) { Prepare(); Relaunch(AppDomain.CurrentDomain.BaseDirectory, quiet); return true; }
+            string here = AppDomain.CurrentDomain.BaseDirectory;
+            if (args.Contains("--uninstall")) { Prepare(); using (var only = quiet ? null : Only()) if (quiet || only != null) Uninstall(here, quiet); return true; }
+            if (args.Length == 0 && Payload.Present && !File.Exists(Path.Combine(here, "web", "recap.html"))) {
+                Prepare();
+                using (var only = Only()) if (only != null) { Libraries(InstallDirectory); Install(); }
+                return true;
+            }
             return false;
         }
         // one installer or uninstaller window at a time: started again (a second click on Uninstall), it brings the
@@ -62,18 +68,35 @@ namespace Memoir {
         private static bool Same(string a, string b) { return String.Equals(Full(a), Full(b), StringComparison.OrdinalIgnoreCase); }
 
         // ---------- installing ----------
-        private static void Install(string source) {
+        // WebView2's libraries, which the window needs first: they go where Memoir is going, and load from there. A
+        // Memoir already there keeps its own while they're the same; if not, it's closed so they can be updated.
+        private static readonly string[] WebViewFiles = { "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll" };
+        private static void Libraries(string target) {
+            Directory.CreateDirectory(target);
+            foreach (string name in WebViewFiles) {
+                byte[] bytes = Payload.File(name);
+                if (bytes == null) continue;
+                string to = Path.Combine(target, name);
+                try { Write(bytes, to); } catch (IOException) { Stop(target); Write(bytes, to); }
+            }
+            AppDomain.CurrentDomain.AssemblyResolve += delegate(object sender, ResolveEventArgs args) {
+                string file = Path.Combine(target, new AssemblyName(args.Name).Name + ".dll");
+                return WebViewFiles.Contains(Path.GetFileName(file), StringComparer.OrdinalIgnoreCase) && File.Exists(file) ? Assembly.LoadFrom(file) : null;
+            };
+        }
+
+        private static void Install() {
             string target = InstallDirectory, profile = Scratch();
             bool update = File.Exists(Path.Combine(target, "Memoir.exe"));
             var look = Look(update ? Path.Combine(target, "Data") : null);
-            var window = new SetupWindow(Path.Combine(source, "web"), profile, update ? "update" : "install", look, 360, 380, "Memoir Setup");
+            var window = new SetupWindow(null, target, profile, update ? "update" : "install", look, 360, 380, "Memoir Setup");
             Process opened = null; var waitForWindow = new System.Windows.Forms.Timer { Interval = 50 }; var since = DateTime.UtcNow;
             window.Message += delegate(string op, Dictionary<string, object> data) {
                 if (op == "start") {
                     window.Busy = true;
                     Task.Run(delegate {
                         Dictionary<string, object> result;
-                        try { bool migrated = Put(source, target); result = Json.Object("op", "done", "ok", true, "migrated", migrated); }
+                        try { bool migrated = Put(target); result = Json.Object("op", "done", "ok", true, "migrated", migrated); }
                         catch (Exception error) { result = Json.Object("op", "done", "ok", false, "error", error.Message); }
                         window.Busy = false;
                         window.Post(result);
@@ -95,9 +118,9 @@ namespace Memoir {
             DeleteLater(profile);
         }
 
-        // Memoir's files into its folder (closing the one there first), and Memoir into the list of installed apps.
-        // Returns whether another Memoir's history was brought along.
-        private static bool Put(string source, string target) {
+        // Memoir into its folder (closing the one there first): a copy of Setup itself as Memoir.exe, and what it
+        // carries; and Memoir into the list of installed apps. Returns whether another Memoir's history was brought along.
+        private static bool Put(string target) {
             Directory.CreateDirectory(target);
             Stop(target);
             // the Memoir the browsers link with, run from a folder of its own, is closed too: one Memoir counts, not two
@@ -105,13 +128,13 @@ namespace Memoir {
             if (other != null && !Same(other, Path.Combine(target, "Data"))) Quit(other);
             bool migrated = BringHistory(target);
             var previous = Recorded(target);
-            if (Same(source, target)) { List(target, previous); return migrated; }
-            var files = new List<string>();
-            foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories)) {
-                string relative = file.Substring(source.TrimEnd('\\').Length + 1);
+            var files = new List<string> { "Memoir.exe" };
+            Write(File.ReadAllBytes(Application.ExecutablePath), Path.Combine(target, "Memoir.exe"));
+            foreach (var file in Payload.Files) {
+                string relative = file.Key.Replace('/', '\\');
                 string to = Path.Combine(target, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(to));
-                Replace(file, to);
+                Write(file.Value, to);
                 files.Add(relative);
             }
             // files an older Memoir had that this one doesn't
@@ -123,10 +146,12 @@ namespace Memoir {
             StartMenu.Make(target, Json.Bool(Json.Get(Look(Path.Combine(target, "Data")), "rainbow")) ? Path.Combine(target, "Memoir-rainbow.ico") : "");
             return migrated;
         }
-        // A file still held by Windows (a Memoir that hasn't let go yet) can be renamed out of the way, and goes later
-        private static void Replace(string from, string to) {
+        // A file the same as it is stays; one still held by Windows (a Memoir that hasn't let go yet, or Setup's own
+        // window using WebView2's libraries) can be renamed out of the way, and goes later
+        private static void Write(byte[] bytes, string to) {
+            try { if (File.Exists(to) && new FileInfo(to).Length == bytes.Length && File.ReadAllBytes(to).SequenceEqual(bytes)) return; } catch { }
             for (int attempt = 0; ; attempt++) {
-                try { File.Copy(from, to, true); return; }
+                try { File.WriteAllBytes(to, bytes); return; }
                 catch (IOException) {
                     if (attempt >= 1) throw;
                     string aside = to + ".old"; TryDelete(aside);
@@ -173,31 +198,19 @@ namespace Memoir {
         }
 
         // ---------- uninstalling ----------
-        // From the installed folder: a copy of Memoir in a temporary folder does it, so all of this one can go
-        private static void Relaunch(string directory, bool quiet) {
+        // In the installed folder itself; its own files, in use while it runs, go a moment after it ends
+        private static void Uninstall(string directory, bool quiet) {
+            directory = directory.TrimEnd('\\');
             if (!File.Exists(Path.Combine(directory, Record))) {
                 if (!quiet) MessageBox.Show("This copy of Memoir wasn't installed, so there's nothing to uninstall. To remove it, quit it from the clock in the notification area and delete its folder.", "Memoir", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            string root = Scratch(), app = Path.Combine(root, "app");
-            foreach (string relative in Recorded(directory).Where(f => !f.StartsWith("Data\\", StringComparison.OrdinalIgnoreCase))) {
-                string from = Path.Combine(directory, relative); if (!File.Exists(from)) continue;
-                string to = Path.Combine(app, relative); Directory.CreateDirectory(Path.GetDirectoryName(to)); File.Copy(from, to, true);
-            }
-            var start = new ProcessStartInfo(Path.Combine(app, "Memoir.exe"), "\"--uninstall-from=" + directory.TrimEnd('\\') + "\"" + (quiet ? " --quiet --waiting=" + Process.GetCurrentProcess().Id : "")) { WorkingDirectory = root, UseShellExecute = false };
-            var process = Process.Start(start);
-            Native.AllowSetForegroundWindow(process.Id);
-            if (quiet) process.WaitForExit();   // tools that uninstall quietly wait for it to be done
-        }
-
-        private static void Uninstall(string directory, bool quiet) {
-            string root = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));
-            bool temporary = root != null && Path.GetFileName(root).StartsWith("Memoir ", StringComparison.Ordinal) && Same(Path.GetDirectoryName(root), Path.GetTempPath());
             try {
                 if (quiet) { Remove(directory, true); return; }
                 var look = Look(Path.Combine(directory, "Data"));
-                string profile = Path.Combine(temporary ? root : Scratch(), "WebView");
-                var window = new SetupWindow(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web"), profile, "uninstall", look, 400, 500, "Uninstall Memoir");
+                string profile = Scratch();
+                // its page from what Memoir.exe carries, so its files on disk can go while it shows
+                var window = new SetupWindow(Payload.Present ? null : Path.Combine(directory, "web"), null, profile, "uninstall", look, 400, 500, "Uninstall Memoir");
                 window.Message += delegate(string op, Dictionary<string, object> data) {
                     if (op != "uninstall") return;
                     bool keep = Json.Bool(Json.Get(data, "keep"));
@@ -211,31 +224,30 @@ namespace Memoir {
                     });
                 };
                 Run(window);
-                if (!temporary) DeleteLater(Path.GetDirectoryName(profile));
-            } finally { if (temporary) DeleteLater(root); }
+                DeleteLater(profile);
+            } finally { DeleteLater(directory, leftovers); }
         }
 
         // Everything Memoir put on this computer, from the Memoir in this folder: closed, then its files (and its history
         // unless kept), its Start menu shortcut, Start with Windows, its link with the browsers, its entry in the list
+        private static List<string> leftovers = new List<string>();   // files still in use: they go once this ends
         private static void Remove(string directory, bool keepHistory) {
             Stop(directory);
             Startup.Remove(directory);
             StartMenu.Remove(directory);
             Registration.Remove(directory);
-            // a file still in use (the Memoir that started a quiet uninstall waits for it to finish) moves out of the
-            // folder, and goes as soon as it's free
-            string trash = null;
+            var left = new List<string>();
             foreach (string relative in Recorded(directory)) {
                 string file = Path.Combine(directory, relative);
                 TryDelete(file); TryDelete(file + ".old");
-                if (File.Exists(file)) { if (trash == null) trash = Scratch(); try { File.Move(file, Path.Combine(trash, Guid.NewGuid().ToString("N"))); } catch { } }
+                if (File.Exists(file)) left.Add(file);
             }
-            if (Directory.Exists(directory)) foreach (string aside in Directory.GetFiles(directory, "*.old", SearchOption.AllDirectories)) TryDelete(aside);
+            if (Directory.Exists(directory)) foreach (string aside in Directory.GetFiles(directory, "*.old", SearchOption.AllDirectories)) { TryDelete(aside); if (File.Exists(aside)) left.Add(aside); }
             string data = Path.Combine(directory, "Data");
             if (!keepHistory && Directory.Exists(data)) DeleteFolder(data);
             TryDelete(Path.Combine(directory, Record));
             RemoveEmpty(directory);
-            if (trash != null) DeleteLater(trash);
+            leftovers = left;
             using (var list = Registry.CurrentUser.OpenSubKey(Path.GetDirectoryName(UninstallKey), true)) {
                 if (list != null) {
                     using (var key = list.OpenSubKey(Path.GetFileName(UninstallKey))) {
@@ -267,7 +279,7 @@ namespace Memoir {
             var found = new List<Process>();
             int me = Process.GetCurrentProcess().Id;
             foreach (var process in Process.GetProcessesByName("Memoir")) {
-                if (process.Id == me || process.Id == waiting) continue;
+                if (process.Id == me) continue;
                 string path = Native.ImagePath(process.Id);
                 if (path != null && String.Equals(path, exe, StringComparison.OrdinalIgnoreCase)) found.Add(process);
             }
@@ -306,8 +318,19 @@ namespace Memoir {
         // a temporary folder still in use by this process (or its web view) goes a moment after it has ended
         public static void DeleteLater(string folder) {
             if (String.IsNullOrEmpty(folder)) return;
+            Later("rd /s /q \"" + folder + "\" 2>nul & if not exist \"" + folder + "\" exit /b 0");
+        }
+        // an uninstalled Memoir's own files, in use while it ran: they go a moment after it has ended, then its folder
+        // if that's empty (a history kept stays, and so does the folder)
+        private static void DeleteLater(string folder, List<string> files) {
+            if (files.Count == 0) return;
+            string quoted = String.Join(" ", files.Select(f => "\"" + f + "\""));
+            string gone = String.Join(" ", files.Select(f => "if not exist \"" + f + "\""));
+            Later("del /f /q " + quoted + " 2>nul & rd \"" + folder + "\" 2>nul & " + gone + " exit /b 0");
+        }
+        private static void Later(string step) {
             try {
-                string command = "/d /c for /l %i in (1,1,15) do (ping -n 2 127.0.0.1 >nul & rd /s /q \"" + folder + "\" 2>nul & if not exist \"" + folder + "\" exit /b 0)";
+                string command = "/d /c for /l %i in (1,1,15) do (ping -n 2 127.0.0.1 >nul & " + step + ")";
                 Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), command) { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = Path.GetTempPath() });
             } catch { }
         }
@@ -321,17 +344,19 @@ namespace Memoir {
     }
 
     // The installer's and uninstaller's window: setup.html in a small window with Windows' frame (its shadow, rounded
-    // corners and opening animation) but no title bar, shown once the page has painted
+    // corners and opening animation) but no title bar, shown once the page has painted. Its page comes from what
+    // Memoir.exe carries (web null) or from a folder; WebView2's loader from Memoir's folder (loader) or beside it.
     internal sealed class SetupWindow : Form {
         public event Action<string, Dictionary<string, object>> Message;
         public bool Busy;   // while files move, it can't be closed
-        private readonly string web, profile, query;
+        private readonly string web, loader, profile, query;
         private readonly WebView2 view;
         private readonly Color background;
         private readonly bool dark;
+        private CoreWebView2Environment environment;
 
-        public SetupWindow(string web, string profile, string mode, Dictionary<string, object> look, int width, int height, string title) {
-            this.web = web; this.profile = profile;
+        public SetupWindow(string web, string loader, string profile, string mode, Dictionary<string, object> look, int width, int height, string title) {
+            this.web = web; this.loader = loader; this.profile = profile;
             dark = Json.Text(Json.Get(look, "theme")) == "dark";
             background = dark ? Color.Black : Color.FromArgb(245, 245, 247);
             query = "mode=" + mode + "&theme=" + (dark ? "dark" : "light") + "&rainbow=" + (Json.Bool(Json.Get(look, "rainbow")) ? "1" : "0") + "&cursor=" + (Json.Bool(Json.Get(look, "cursor"), true) ? "1" : "0");
@@ -342,7 +367,7 @@ namespace Memoir {
             var area = Screen.FromPoint(Cursor.Position).WorkingArea;
             var size = new Size((int)Math.Round(width * scale), (int)Math.Round(height * scale));
             Bounds = new Rectangle(area.Left + (area.Width - size.Width) / 2, area.Top + (area.Height - size.Height) / 2, size.Width, size.Height);
-            try { string icon = Path.Combine(Path.GetDirectoryName(web.TrimEnd('\\')), "Memoir.ico"); if (File.Exists(icon)) Icon = new Icon(icon); } catch { }
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             view = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = background, BackColor = background };
             Controls.Add(view);
             FormClosing += delegate(object sender, FormClosingEventArgs args) { if (Busy && args.CloseReason == CloseReason.UserClosing) args.Cancel = true; };
@@ -352,7 +377,8 @@ namespace Memoir {
         public async void Begin() {
             IntPtr handles = Handle; handles = view.Handle;
             try {
-                var environment = await CoreWebView2Environment.CreateAsync(null, profile, new CoreWebView2EnvironmentOptions("--disable-background-networking --disable-component-update --disable-features=msEdgeSidebarV2"));
+                if (loader != null) CoreWebView2Environment.SetLoaderDllFolderPath(loader);
+                environment = await CoreWebView2Environment.CreateAsync(null, profile, new CoreWebView2EnvironmentOptions("--disable-background-networking --disable-component-update --disable-features=msEdgeSidebarV2"));
                 await view.EnsureCoreWebView2Async(environment);
             } catch (Exception error) {
                 var answer = MessageBox.Show("Memoir needs Microsoft Edge WebView2 Runtime, which comes with Windows but isn't on this computer.\n\nOpen Microsoft's page to get it?\n\n(" + error.Message + ")", "Memoir", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
@@ -362,7 +388,8 @@ namespace Memoir {
             var core = view.CoreWebView2;
             core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false; core.Settings.IsZoomControlEnabled = false;
             core.Settings.AreDevToolsEnabled = false; core.Settings.AreBrowserAcceleratorKeysEnabled = false;
-            core.SetVirtualHostNameToFolderMapping("memoir.example", web, CoreWebView2HostResourceAccessKind.DenyCors);
+            if (web != null) core.SetVirtualHostNameToFolderMapping("memoir.example", web, CoreWebView2HostResourceAccessKind.DenyCors);
+            else { core.AddWebResourceRequestedFilter("https://memoir.example/*", CoreWebView2WebResourceContext.All); core.WebResourceRequested += Serve; }
             core.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs args) { args.State = CoreWebView2PermissionState.Deny; };
             core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args) {
                 if (args.Uri.StartsWith("https://memoir.example/", StringComparison.Ordinal)) return;
@@ -386,6 +413,19 @@ namespace Memoir {
             };
             core.Navigate("https://memoir.example/setup.html?" + query);
         }
+        // the page's files, from what Memoir.exe carries (web\ in it)
+        private static readonly Dictionary<string, string> Types = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+            { ".html", "text/html; charset=utf-8" }, { ".js", "text/javascript; charset=utf-8" }, { ".mjs", "text/javascript; charset=utf-8" }, { ".css", "text/css; charset=utf-8" },
+            { ".json", "application/json" }, { ".svg", "image/svg+xml" }, { ".png", "image/png" }, { ".ico", "image/x-icon" }, { ".woff2", "font/woff2" }, { ".webp", "image/webp" },
+        };
+        private void Serve(object sender, CoreWebView2WebResourceRequestedEventArgs args) {
+            string path; try { path = Uri.UnescapeDataString(new Uri(args.Request.Uri).AbsolutePath).TrimStart('/'); } catch { return; }
+            byte[] bytes = path.Contains("..") ? null : Payload.File("web/" + path);
+            string type;
+            if (bytes == null || !Types.TryGetValue(Path.GetExtension(path), out type)) { args.Response = environment.CreateWebResourceResponse(null, 404, "Not Found", ""); return; }
+            args.Response = environment.CreateWebResourceResponse(new MemoryStream(bytes, false), 200, "OK", "Content-Type: " + type);
+        }
+
         private void Reveal() {
             if (Visible) return;
             Show(); Activate(); Native.ToFront(Handle);
@@ -425,5 +465,30 @@ namespace Memoir {
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
         [DllImport("user32.dll")] private static extern bool ReleaseCapture();
         [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wparam, IntPtr lparam);
+    }
+
+    // What Memoir Setup.exe carries besides itself (app.zip, built in by release.ps1): Memoir's web files, WebView2's
+    // libraries, its icons, its notices. Installing writes them beside a copy of Setup (Memoir.exe), which so carries
+    // them too: its uninstall window needs nothing on disk. A Memoir built without them (run from its source) has none.
+    internal static class Payload {
+        private const string Name = "app.zip";
+        private static Dictionary<string, byte[]> files;
+        public static bool Present { get { return typeof(Payload).Assembly.GetManifestResourceInfo(Name) != null; } }
+        // every file, by its path inside (web/setup.html), read once
+        public static Dictionary<string, byte[]> Files {
+            get {
+                if (files != null) return files;
+                var all = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+                if (Present)
+                    using (var stream = typeof(Payload).Assembly.GetManifestResourceStream(Name))
+                    using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
+                        foreach (var entry in zip.Entries) {
+                            if (entry.Name.Length == 0) continue;
+                            using (var from = entry.Open()) using (var bytes = new MemoryStream()) { from.CopyTo(bytes); all[entry.FullName.Replace('\\', '/')] = bytes.ToArray(); }
+                        }
+                return files = all;
+            }
+        }
+        public static byte[] File(string path) { byte[] bytes; return Files.TryGetValue(path, out bytes) ? bytes : null; }
     }
 }

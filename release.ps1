@@ -1,6 +1,7 @@
-# Memoir Setup.exe: builds Memoir, takes only what it needs to run (its web files without developer comments, the
-# extension IDs without notes), packs that into one installer (installer\Bootstrap.cs) and writes it to -Out.
-# Needs Node and installer\node_modules (npm install in installer\ once).
+# Memoir Setup.exe: Memoir.exe itself, carrying only the rest of what it needs to run (its web files without
+# developer comments, the extension IDs without notes, WebView2's libraries, its icons and notices), written to -Out.
+# Run, it installs straight into its folder: nothing is unpacked into a temporary folder or run from one, and no
+# program is carried inside it (src\Setup.cs). Needs Node and installer\node_modules (npm install in installer\ once).
 param([string]$Out = (Join-Path $PSScriptRoot 'release'))
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -11,7 +12,7 @@ $stage = Join-Path ([IO.Path]::GetTempPath()) ('memoir-release-' + [guid]::NewGu
 $app = Join-Path $stage 'app'
 New-Item -ItemType Directory -Force -Path $app | Out-Null
 try {
-    foreach ($file in @('Memoir.exe', 'Memoir.exe.config', 'Memoir.ico', 'Memoir-rainbow.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll')) {
+    foreach ($file in @('Memoir.exe.config', 'Memoir.ico', 'Memoir-rainbow.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll')) {
         Copy-Item -LiteralPath (Join-Path $root $file) -Destination $app
     }
     # the extensions that may link with it: their IDs, one a line, nothing else
@@ -37,19 +38,12 @@ try {
     Remove-Item -LiteralPath (Join-Path $fonts 'Inter-LICENSE.txt'), (Join-Path $fonts 'Unbounded-LICENSE.txt')
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $payload = Join-Path $stage 'payload.zip'
+    $payload = Join-Path $stage 'app.zip'
     [IO.Compression.ZipFile]::CreateFromDirectory($app, $payload, [IO.Compression.CompressionLevel]::Optimal, $false)
 
     New-Item -ItemType Directory -Force -Path $Out | Out-Null
     $setup = Join-Path $Out 'Memoir Setup.exe'
-    $framework = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
-    $arguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/debug-', ('/out:' + $setup),
-        ('/win32manifest:' + (Join-Path $root 'installer\installer.manifest')), ('/win32icon:' + (Join-Path $root 'Memoir.ico')),
-        ('/resource:' + $payload + ',payload.zip'), '/reference:System.Windows.Forms.dll',
-        ('/reference:' + (Join-Path $framework 'System.IO.Compression.dll')), ('/reference:' + (Join-Path $framework 'System.IO.Compression.FileSystem.dll')),
-        (Join-Path $root 'installer\Bootstrap.cs'))
-    & (Join-Path $framework 'csc.exe') @arguments
-    if ($LASTEXITCODE -ne 0) { throw 'Building Memoir Setup.exe failed.' }
+    & (Join-Path $root 'build.ps1') -Payload $payload -Out $setup | Out-Null
     $size = [math]::Round((Get-Item -LiteralPath $setup).Length / 1KB)
     Write-Output "Built $setup ($size KB)"
 } finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }

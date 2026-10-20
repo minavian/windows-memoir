@@ -1,3 +1,6 @@
+# Builds Memoir.exe from src\. With -Payload (release.ps1): Memoir Setup.exe instead, to -Out: the same program,
+# carrying the rest of Memoir (app.zip), which it installs from anywhere but a Memoir's own folder (src\Setup.cs).
+param([string]$Payload, [string]$Out)
 $ErrorActionPreference = 'Stop'
 $memoirRoot = $PSScriptRoot
 $sdkRoot = Join-Path $memoirRoot 'build-tools\webview2'
@@ -10,11 +13,18 @@ foreach ($sdkFile in @('lib\net462\Microsoft.Web.WebView2.Core.dll', 'lib\net462
 }
 $framework = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 $buildFile = Join-Path $memoirRoot 'Memoir.build.exe'
-$arguments = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/debug-', ('/out:' + $buildFile), ('/win32manifest:' + (Join-Path $memoirRoot 'src\app.manifest')), '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', ('/reference:' + (Join-Path $framework 'WPF\UIAutomationClient.dll')), ('/reference:' + (Join-Path $framework 'WPF\UIAutomationTypes.dll')), ('/reference:' + (Join-Path $framework 'WPF\WindowsBase.dll')), ('/reference:' + (Join-Path $memoirRoot 'Microsoft.Web.WebView2.Core.dll')), ('/reference:' + (Join-Path $memoirRoot 'Microsoft.Web.WebView2.WinForms.dll')))
+$arguments = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/debug-', ('/out:' + $buildFile), ('/win32manifest:' + (Join-Path $memoirRoot 'src\app.manifest')), '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', ('/reference:' + (Join-Path $framework 'System.IO.Compression.dll')), ('/reference:' + (Join-Path $framework 'WPF\UIAutomationClient.dll')), ('/reference:' + (Join-Path $framework 'WPF\UIAutomationTypes.dll')), ('/reference:' + (Join-Path $framework 'WPF\WindowsBase.dll')), ('/reference:' + (Join-Path $memoirRoot 'Microsoft.Web.WebView2.Core.dll')), ('/reference:' + (Join-Path $memoirRoot 'Microsoft.Web.WebView2.WinForms.dll')))
 $arguments += @('PresentationFramework.dll', 'PresentationCore.dll', 'WindowsFormsIntegration.dll') | ForEach-Object { '/reference:' + (Join-Path $framework ('WPF\' + $_)) }
 $arguments += '/reference:System.Xaml.dll'
 if (Test-Path -LiteralPath (Join-Path $memoirRoot 'Memoir.ico')) { $arguments += '/win32icon:' + (Join-Path $memoirRoot 'Memoir.ico') }
 $arguments += @(Get-ChildItem -LiteralPath (Join-Path $memoirRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
+if ($Payload) {
+    $arguments = @($arguments | ForEach-Object { if ($_ -eq ('/out:' + $buildFile)) { '/out:' + $Out } else { $_ } }) + ('/resource:' + $Payload + ',app.zip')
+    & $compiler @arguments
+    if ($LASTEXITCODE -ne 0) { throw 'Memoir Setup build failed.' }
+    Write-Output "Built $Out"
+    return
+}
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) { throw 'Memoir build failed.' }
 $finalFile = Join-Path $memoirRoot 'Memoir.exe'
