@@ -166,8 +166,9 @@ namespace Memoir {
             }
             string name = Json.Text(Json.Get(message, "name"), "Memoir extension"); known["name"] = name.Length > 80 ? name.Substring(0, 80) : name;
             known["version"] = Json.Text(Json.Get(message, "version")); known["browser"] = peer.Browser; known["connected"] = true;
-            // the newest Memoir for Windows that browser's Memoir knows of (Settings says when it's newer than this one)
-            string latest = Json.Text(Json.Get(message, "windowsLatest")); if (VersionText.IsMatch(latest)) known["windowsLatest"] = latest; else known.Remove("windowsLatest");
+            // the newest Memoir for Windows that browser's Memoir knows of (Settings says when it's newer than this one);
+            // a Memoir from the Microsoft Store keeps none, so it never says so: the Store brings it its updates itself
+            string latest = Json.Text(Json.Get(message, "windowsLatest")); if (!Native.FromStore && VersionText.IsMatch(latest)) known["windowsLatest"] = latest; else known.Remove("windowsLatest");
             Peer old; if (live.TryGetValue(device, out old) && old != peer) Requeue(device, record);
             live[device] = peer; deviceOf[peer.Id] = device; rulesDue.Add(device);
             Save(record); Send(device);

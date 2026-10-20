@@ -37,6 +37,16 @@ namespace Memoir {
         [DllImport("user32.dll")] internal static extern bool SetProcessDPIAware();
         [DllImport("kernel32.dll")] internal static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimum, IntPtr maximum);
         [DllImport("kernel32.dll")] private static extern IntPtr OpenProcess(uint access, bool inherit, int processId);
+        // Installed from the Microsoft Store: Windows gives that copy a package identity, which Setup's copies don't have
+        // (APPMODEL_ERROR_NO_PACKAGE). The Store brings such a copy its updates by itself.
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int GetCurrentPackageFullName(ref int length, StringBuilder name);
+        private static int store = -1;
+        internal static bool FromStore {
+            get {
+                if (store < 0) { try { int length = 0; int result = GetCurrentPackageFullName(ref length, null); store = result == 0 || result == 122 ? 1 : 0; } catch (EntryPointNotFoundException) { store = 0; } }
+                return store == 1;
+            }
+        }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder name, ref int size);
         [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
         [StructLayout(LayoutKind.Sequential)] private struct LastInput { public uint Size, Time; }
