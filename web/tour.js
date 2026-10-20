@@ -55,7 +55,8 @@ export function relight(after = 450) {
 // alignTo() names what the card then lines up under (left edges), and its flip() says
 // whether the buttons go to the card's top there (they do by default). A `live` step's
 // light grows with what it lights as it moves under the hand (the gear pulled down,
-// however far) and goes back with it, never smaller than where it rests; the card stays put.
+// however far) and goes back with it, never smaller than where it rests: its rest() names
+// what stays put (measured each time, so a new layout moves it too); the card stays put.
 export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
   return new Promise(resolve => {
     const root = document.createElement('div');
@@ -103,7 +104,9 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
     function lit(step) {
       const els = step.target ? [].concat(step.target()).filter(Boolean) : [];
       if (els.length && step.follow) els.push(...[].concat(step.follow()).filter(Boolean));
-      const r = els.length ? unionRect(els) : null;
+      return padded(step, els.length ? unionRect(els) : null);
+    }
+    function padded(step, r) {
       if (!r) return null;
       const pad = step.pad != null ? step.pad : 8;
       return { l: r.left - pad, t: r.top - pad, r: r.left + r.width + pad, b: r.top + r.height + pad };
@@ -214,21 +217,23 @@ export function runTour(steps, { handoff = null, avoid = () => [] } = {}) {
       spot.classList.remove('live');
       if (!step.live) return;
       const moved = (a, b) => Math.abs(a.l - b.l) > 0.5 || Math.abs(a.t - b.t) > 0.5 || Math.abs(a.r - b.r) > 0.5 || Math.abs(a.b - b.b) > 0.5;
-      // coming back up (not just a label's words getting shorter)
-      const back = (a, b) => a.b < b.b - 0.5;
+      // coming back (up from a pull down, or down from a pull up), not just a label's words getting shorter
+      const back = (a, b) => a.b < b.b - 0.5 || a.t > b.t + 0.5;
+      const rest = () => (step.rest ? padded(step, unionRect([].concat(step.rest()).filter(Boolean))) : restSpot);
       let homeAt = 0; // springing home till then
       const tick = () => {
         if (ended || steps[index] !== step) return;
         liveFrame = requestAnimationFrame(tick);
         const now = lit(step);
-        const sp = now && restSpot ? { l: Math.min(now.l, restSpot.l), t: Math.min(now.t, restSpot.t), r: Math.max(now.r, restSpot.r), b: Math.max(now.b, restSpot.b) } : now;
+        const base = rest();
+        const sp = now && base ? { l: Math.min(now.l, base.l), t: Math.min(now.t, base.t), r: Math.max(now.r, base.r), b: Math.max(now.b, base.b) } : now;
         if (!sp || !lastSpot || shut || !moved(sp, lastSpot)) return;
         if (!held && performance.now() < homeAt) return;
-        if (!held && restSpot && back(sp, lastSpot)) {
+        if (!held && base && back(sp, lastSpot)) {
           homeAt = performance.now() + SPRING_MS;
           spot.classList.remove('live');
           spotClock(SPRING_MS, SPRING);
-          light(step, restSpot);
+          light(step, base);
           return;
         }
         homeAt = 0;
