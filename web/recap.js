@@ -562,9 +562,9 @@ function renderSummary(s, soft) {
   if (s.total < 60_000) trend.textContent = 'No activity recorded';
   else if (s.prevTotal > 5 * 60_000) {
     const diff = Math.round(((s.total - s.prevTotal) / s.prevTotal) * 100);
-    const when = s.isCurrent ? 'this time last week' : 'last week';
-    trend.innerHTML = Math.abs(diff) < 3 ? `About the same as ${when}` : `${icon(diff < 0 ? 'i-down' : 'i-up')}${Math.abs(diff)}% from ${when}`;
-  } else trend.textContent = 'No earlier week to compare';
+    // (this week: against last week up to this time, the same days, said short so Trend fits beside it)
+    trend.innerHTML = Math.abs(diff) < 3 ? 'Same as last week' : `${icon(diff < 0 ? 'i-down' : 'i-up')}${Math.abs(diff)}% from last week`;
+  } else trend.textContent = 'No earlier week yet';
 
   swapText($('stat-busy'), s.busiest >= 0 ? hlDay(s, s.busiest) : '—', true);
   const top = s.siteList[0];
