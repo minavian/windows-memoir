@@ -4062,19 +4062,36 @@ const nukeMatched = () => foldPhrase($('nuke-phrase').value.trim().replace(/\s+/
 // what's left to type, faintly behind the typing: the word you're on a shade darker, a slip underlined in red
 // (and the rest hidden until it's fixed). intro: the sentence ripples in, word by word. Returns how much is right.
 const wordSpan = (cls, text, i) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; if (i != null) s.style.setProperty('--i', i); return s; };
+const nukeInk = { typed: '', next: -1 };
 function nukeGhost(typed, intro = false) {
   const fp = foldPhrase(NUKE_PHRASE), ft = foldPhrase(typed);
   let k = 0;
   while (k < ft.length && k < fp.length && ft[k] === fp[k]) k++;
   const on = k === ft.length;
-  $('nuke-typed').replaceChildren(typed.slice(0, k), ...(k < typed.length ? [wordSpan('nt-wrong', typed.slice(k))] : []));
-  const left = on ? NUKE_PHRASE.slice(typed.length) : '';
+  // The typing is drawn here, a letter at a time (the field's own letters are clear: only its caret shows), so
+  // each letter typed inks in over its faint copy, and a slip inks in red. Letters already there stay as they are.
+  const box = $('nuke-typed');
+  if (intro || box.querySelector(':scope > :not(.nt-c)') || box.childNodes.length !== box.children.length) { box.replaceChildren(); nukeInk.typed = ''; }
+  const kids = box.children;
+  let same = 0;
+  while (same < typed.length && same < nukeInk.typed.length && same < kids.length && typed[same] === nukeInk.typed[same] && (same < k) === kids[same].classList.contains('ok')) same++;
+  while (kids.length > same) kids[kids.length - 1].remove();
+  for (let i = same; i < typed.length; i++) box.append(wordSpan(i < k ? 'nt-c ok' : 'nt-c bad', typed[i]));
+  nukeInk.typed = typed;
+  // what's left: the word you're on a shade darker, easing darker as you reach it (after a slip it stays, unseen
+  // (.off), so the field keeps its height)
+  const left = NUKE_PHRASE.slice(Math.min(typed.length, NUKE_PHRASE.length));
+  const rest = $('nuke-rest');
   if (intro && !reducedMotion()) {
     let w = 0;
-    $('nuke-rest').replaceChildren(...left.split(/(\s+)/).filter(Boolean).map(part => (/\s/.test(part) ? part : wordSpan('nt-w', part, w++))));
+    rest.replaceChildren(...left.split(/(\s+)/).filter(Boolean).map(part => (/\s/.test(part) ? part : wordSpan('nt-w', part, w++))));
+    nukeInk.next = -1;
   } else {
     const next = left.match(/^\s*\S*/)[0];
-    $('nuke-rest').replaceChildren(...(next ? [wordSpan('nt-next', next)] : []), left.slice(next.length));
+    const end = NUKE_PHRASE.length - left.length + next.length;   // where the word you're on ends: a new word, a new key
+    const word = rest.querySelector(':scope > .nt-next');
+    if (end === nukeInk.next && word && rest.childNodes.length === 2) { word.textContent = next; rest.lastChild.textContent = left.slice(next.length); }
+    else { rest.replaceChildren(wordSpan('nt-next', next), document.createTextNode(left.slice(next.length))); nukeInk.next = end; }
   }
   $('nuke-type').classList.toggle('off', !on && !nukeMatched());
   return k;
