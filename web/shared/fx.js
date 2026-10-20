@@ -594,7 +594,7 @@ export class MorphPopover {
       el.style.background = 'transparent';
       el.style.boxShadow = 'none';
       el.style.opacity = '';
-      if (!reducedMotion()) el.animate([{ opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1 }], { duration: 240, easing: EASE_OUT });
+      if (!reducedMotion()) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: EASE_OUT });   // (words never zoom: they jiggle)
     };
     const early = setTimeout(show, reducedMotion() ? 0 : 150 * left);
     return m.finished.then(() => {

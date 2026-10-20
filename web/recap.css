@@ -1565,16 +1565,20 @@ body { overflow: hidden; }
 .data-row[data-step="1"] ~ .nuke-also.on, .data-row[data-step="2"] ~ .nuke-also.on { height: 16px; opacity: 1; }
 /* How Memoir works' Open: pointed at, it grows to make room for the arrow site links show,
    which comes in the same way (from below left, small to full) */
+/* the button keeps its size, with the arrow's room in it from the start: growing for the arrow pushed the word
+   along a pixel at a time, which shook. The word sits in the middle, and slides over for the arrow. */
+.open-btn .ob-label { display: inline-block; transform: translateX(calc(0.4em + 2px)); transition: transform 0.32s var(--ease-out); }
 .open-btn .ext {
   flex: none;
-  width: 0;
+  width: 0.8em;
   height: 0.8em;
-  margin-left: 0;
+  margin-left: 4px;
   opacity: 0;
   transform: translate(-4px, 4px) scale(0.6);
-  transition: width 0.32s var(--ease-out), margin-left 0.32s var(--ease-out), opacity 0.18s var(--ease), transform 0.32s var(--ease-out);
+  transition: opacity 0.18s var(--ease), transform 0.32s var(--ease-out);
 }
-.open-btn:hover .ext, .open-btn:focus-visible .ext { width: 0.8em; margin-left: 4px; opacity: 1; transform: none; }
+.open-btn:hover .ob-label, .open-btn:focus-visible .ob-label { transform: none; }
+.open-btn:hover .ext, .open-btn:focus-visible .ext { opacity: 1; transform: none; }
 #limit-reset:not(:disabled) { color: var(--danger); }
 
 /* ---------- reset-limit gauntlet ---------- */
@@ -1597,7 +1601,7 @@ body { overflow: hidden; }
 .gx-title { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
 .gx-text { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--label-2); }
 .gx-text b { color: var(--label); font-weight: 650; }
-.gx-retort { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--fill-1); font-size: 12px; color: var(--label-2); animation: pop-in 0.45s var(--pop) backwards; align-self: flex-start; }
+.gx-retort { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--fill-1); font-size: 12px; color: var(--label-2); animation: context-row-in 0.35s var(--ease-out) backwards; align-self: flex-start; }
 .gx-actions { display: flex; gap: 8px; margin-top: 16px; }
 .gx-actions .btn { flex: 1; }
 .gx-options { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
@@ -1611,10 +1615,10 @@ body { overflow: hidden; }
   font-size: 13px;
   font-weight: 550;
   text-align: left;
-  transition: background-color 0.2s var(--ease), transform 0.25s var(--ease-out);
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
-.gx-option:hover, .gx-option:focus-visible { background: var(--fill-2); outline: none; transform: translateX(3px); }
-.gx-option.picked { background: var(--danger-soft); color: var(--danger); transform: translateX(3px); }
+.gx-option:hover, .gx-option:focus-visible { background: var(--fill-2); outline: none; }
+.gx-option.picked { background: var(--danger-soft); color: var(--danger); }
 .gx-input {
   margin-top: 12px;
   height: 38px;

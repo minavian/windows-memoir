@@ -4,7 +4,7 @@
 // middle eight come in a random order, the buttons swap sides, and the sums are
 // made up on the spot, so no two attempts read the same.
 
-import { morph, reducedMotion, animateHeight, EASE_OUT, POP, RESHAPE, RESHAPE_MS } from './shared/fx.js';
+import { morph, reducedMotion, animateHeight, EASE_OUT, RESHAPE, RESHAPE_MS } from './shared/fx.js';
 
 const rand = n => Math.floor(Math.random() * n);
 const between = (lo, hi) => lo + rand(hi - lo + 1);
@@ -262,7 +262,7 @@ export function runGauntlet({ fromEl, onReset }) {
       if (reducedMotion()) return;
       const parts = [...stepEl.children].flatMap(el => (el.matches('.gx-actions, .gx-options') ? [...el.children] : [el]));
       parts.forEach((el, k) => {
-        el.animate([{ opacity: 0, transform: 'translateY(10px) scale(0.97)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: k * 60, easing: EASE_OUT, fill: 'backwards' });
+        el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: k * 60, easing: EASE_OUT, fill: 'backwards' });
       });
     }
 
@@ -385,7 +385,7 @@ export function runGauntlet({ fromEl, onReset }) {
             clearInterval(t);
             yes.disabled = false;
             yes.textContent = label;
-            if (!reducedMotion()) yes.animate([{ transform: 'scale(0.92)' }, { transform: 'none' }], { duration: 420, easing: POP });
+            if (!reducedMotion()) yes.animate([{ opacity: 0.45 }, { opacity: 1 }], { duration: 420, easing: EASE_OUT });   // (no zoom: words jiggle)
           } else yes.textContent = `${label} (${left})`;
         }, 1000);
         yes.addEventListener('click', advance);
