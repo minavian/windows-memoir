@@ -331,7 +331,6 @@ function summarize({ keys, days, prevDays }) {
   const active = dayTotals.map((v, i) => ({ v, i })).filter(d => d.v >= 60_000);
   const activeDays = active.length;
   const avg = activeDays ? total / activeDays : 0;
-  const visibleAvg = activeDays ? totalVisible / activeDays : 0;
   const busiest = active.length ? active.reduce((a, b) => (b.v > a.v ? b : a)).i : -1;
   const calmPool = active.filter(d => d.i !== todayIdx);
   const calmest = calmPool.length >= 2 ? calmPool.reduce((a, b) => (b.v < a.v ? b : a)).i : -1;
@@ -359,7 +358,7 @@ function summarize({ keys, days, prevDays }) {
 
   return {
     keys, days, dayTotals, dayVisible, dayPrivate, dayCats, total, totalVisible, privateTotal, siteList, nameList, cats,
-    activeDays, avg, visibleAvg, busiest, calmest, hourTotals, peakHour, prevTotal, halfCount, todayIdx, isCurrent,
+    activeDays, avg, busiest, calmest, hourTotals, peakHour, prevTotal, halfCount, todayIdx, isCurrent,
     limits, future, evaluated, over,
   };
 }
@@ -469,7 +468,7 @@ function storyLines(s) {
 
   // (the change from last week is already under the big number)
   if (s.privateTotal >= 60_000) {
-    lines.push({ icon: 'i-private', html: `${b(fmt(s.privateTotal))} of private activity counts toward your totals but isn’t shown.` });
+    lines.push({ icon: 'i-private', html: `${b(fmt(s.privateTotal))} of private activity is in your totals and the chart, without its apps or sites.` });
   }
   if (s.siteList.length >= 6) {
     lines.push({ icon: 'i-globe', html: `${b(`${s.siteList.length} apps and websites`)} used; ${s.halfCount} of them made up half your time.` });
@@ -816,6 +815,12 @@ function buildChart() {
       stack.appendChild(seg);
       segs[cat.id] = seg;
     }
+    // private time on top, faint and nameless as in a day's hours, so the bar is the day's whole total
+    const priv = document.createElement('i');
+    priv.className = 'seg';
+    priv.style.setProperty('--c', 'var(--fill-3)');
+    stack.appendChild(priv);
+    segs[PRIVATE_KEY] = priv;
     const label = document.createElement('button');
     label.type = 'button';
     label.className = 'day-btn';
@@ -838,7 +843,7 @@ function buildChart() {
     const future = s.future[i];
     const rows = CATEGORIES.filter(c => s.dayCats[i][c.id]).sort((a, b) => s.dayCats[i][b.id] - s.dayCats[i][a.id])
       .map(c => `<div class="tip-row"><span><span class="dot" style="--c:${c.color}"></span>${c.label}</span><b>${fmt(s.dayCats[i][c.id])}</b></div>`).join('');
-    const priv = s.dayPrivate[i] >= 60_000 ? `<div class="tip-row"><span>Private</span><b>${fmt(s.dayPrivate[i])}</b></div>` : '';
+    const priv = s.dayPrivate[i] >= 60_000 ? `<div class="tip-row"><span><span class="dot" style="--c:var(--fill-3)"></span>Private</span><b>${fmt(s.dayPrivate[i])}</b></div>` : '';
     let lim = '';
     if (s.evaluated[i]) {
       const L = s.limits[i];
@@ -880,7 +885,7 @@ function renderChart(s, soft) {
   if (!cols.length) buildChart();
   const chart = $('chart');
   const plotH = Math.max(40, $('plot').clientHeight);
-  const max = Math.max(...s.dayVisible, 1);
+  const max = Math.max(...s.dayTotals, 1);
   const lastLimit = [...s.limits].reverse().find((l, j) => l && !s.future[6 - j]) || null;
   const showLimit = !!lastLimit && lastLimit <= max * 1.6;
   const top = showLimit ? Math.max(max, lastLimit) : max;
@@ -896,15 +901,15 @@ function renderChart(s, soft) {
     if (!soft) g.style.animation = `fade-in 0.5s var(--ease) ${state.queue ? introWait('#chart-card') + 120 : 0}ms both`;
     g.innerHTML = `<span>${fmt(v)}</span>`;
     const near = y => Math.abs(px(v) - y) < 13;
-    if ((s.visibleAvg > 0 && near(px(s.visibleAvg))) || (showLimit && near(px(lastLimit)))) g.querySelector('span').style.visibility = 'hidden';
+    if ((s.avg > 0 && near(px(s.avg))) || (showLimit && near(px(lastLimit)))) g.querySelector('span').style.visibility = 'hidden';
     chart.prepend(g);
   }
-  avgLine.style.setProperty('--y', `${px(s.visibleAvg).toFixed(1)}px`);
-  avgLine.style.opacity = s.visibleAvg > 0 ? '1' : '0';
+  avgLine.style.setProperty('--y', `${px(s.avg).toFixed(1)}px`);
+  avgLine.style.opacity = s.avg > 0 ? '1' : '0';
   limitLine.style.setProperty('--y', `${px(lastLimit || 0).toFixed(1)}px`);
   limitLine.style.setProperty('--from', String(Math.max(0, s.limits.findIndex(l => !!l))));
   limitLine.style.opacity = showLimit ? '1' : '0';
-  const clash = showLimit && Math.abs(px(lastLimit) - px(s.visibleAvg)) < 13;
+  const clash = showLimit && Math.abs(px(lastLimit) - px(s.avg)) < 13;
   avgLine.querySelector('span').style.opacity = clash ? '0' : '1';
 
   cols.forEach(({ col, stack, segs, label }, i) => {
@@ -917,25 +922,24 @@ function renderChart(s, soft) {
     label.setAttribute('aria-label', `${fullDate.format(date)}: ${future ? 'upcoming' : fmt(s.dayTotals[i])}${s.over[i] ? ', over your limit' : ''}. Open this day.`);
     const delay = state.queue ? 260 + i * 45 + introWait('#chart-card') : soft ? 0 : i * 22;
     stack.style.setProperty('--d', `${delay}ms`);
-    const nonzero = CATEGORIES.filter(c => s.dayCats[i][c.id] > 0);
+    const parts = [...CATEGORIES.map(c => [c.id, s.dayCats[i][c.id] || 0]), [PRIVATE_KEY, s.dayPrivate[i]]];
+    const topId = parts.filter(([, ms]) => ms > 0).pop()?.[0];
     const apply = () => {
       let y = 0;
-      for (const cat of CATEGORIES) {
-        const seg = segs[cat.id];
+      for (const [id, ms] of parts) {
+        const seg = segs[id];
         seg.style.setProperty('--d', `${delay}ms`);
-        const ms = s.dayCats[i][cat.id] || 0;
         if (!ms) {
           seg.style.setProperty('--h', '0px');
           seg.style.setProperty('--y', `${y.toFixed(1)}px`);
           continue;
         }
         const share = px(ms);
-        const isTop = nonzero[nonzero.length - 1] === cat;
-        seg.style.setProperty('--h', `${Math.max(0.5, share - (isTop ? 0 : SEG_GAP)).toFixed(1)}px`);
+        seg.style.setProperty('--h', `${Math.max(0.5, share - (id === topId ? 0 : SEG_GAP)).toFixed(1)}px`);
         seg.style.setProperty('--y', `${y.toFixed(1)}px`);
         y += share;
       }
-      const th = `${(s.dayVisible[i] > 0 ? Math.max(3, px(s.dayVisible[i])) : 0).toFixed(1)}px`;
+      const th = `${(s.dayTotals[i] > 0 ? Math.max(3, px(s.dayTotals[i])) : 0).toFixed(1)}px`;
       stack.dataset.th = th;
       stack.style.setProperty('--th', th);
     };
@@ -969,7 +973,7 @@ function backLabel(v) {
 
 function captionFor(v) {
   const s = state.summary;
-  if (v.type === 'week') return `Average ${fmt(s.visibleAvg)} a day`;
+  if (v.type === 'week') return `Average ${fmt(s.avg)} a day`;
   if (v.type === 'trend') return 'Daily average, week by week';
   if (v.type === 'day') return dateOnly.format(dateFromKey(s.keys[v.day]));
   if (v.day != null) return hourRange(v.hour);
