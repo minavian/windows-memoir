@@ -19,7 +19,7 @@ import { runGauntlet } from './gauntlet.js';
 import { runTour, relight } from './tour.js';
 import { createWelcome } from './welcome.js';
 import { playLogo } from './shared/logo.js';
-import { initCursor, refreshCursor, setCursorPref, cursorEnabled, cursorSmooth, setCursorSmooth } from './shared/cursor.js';
+import { initCursor, setCursorPref, cursorEnabled, cursorSmooth, setCursorSmooth } from './shared/cursor.js';
 import { syncAppearance, adoptAppearance, saveAppearance } from './shared/appearance.js';
 import { createDust } from './shared/dust.js';
 import { initContextMenu } from './shared/context-menu.js';
@@ -3292,13 +3292,8 @@ const dayLetter = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' });
 const dayLong = d => longDay.format(new Date(2024, 0, 7 + d)); // 2024-01-07 was a Sunday
 
 // Smooth cursor only means something with the custom cursor on: otherwise its row
-// fades and the switch stays put (a press just nudges it). Performance mode does the same to Custom cursor (it
-// shows off, the choice kept for when the mode ends)
-const perfOn = () => !!window.memoirPerf?.on();
+// fades and the switch stays put (a press just nudges it)
 function lockSmooth() {
-  $('cursor-row').classList.toggle('locked', perfOn());
-  if (perfOn()) $('set-cursor').setAttribute('aria-disabled', 'true');
-  else $('set-cursor').removeAttribute('aria-disabled');
   const locked = !$('set-cursor').checked;
   $('smooth-row').classList.toggle('locked', locked);
   if (locked) $('set-smooth').setAttribute('aria-disabled', 'true');
@@ -3318,8 +3313,7 @@ function renderSettings() {
     : 'Only app and website names are saved, not titles, like Word or youtube.com.';
   const dd = $('detail-desc');
   if (dd.textContent !== desc) animateHeight(dd, () => swapText(dd, desc));
-  $('set-perf').checked = perfOn();
-  $('set-cursor').checked = cursorEnabled() && !perfOn();
+  $('set-cursor').checked = cursorEnabled();
   $('set-rainbow').checked = rainbowOn();
   $('set-smooth').checked = cursorSmooth();
   lockSmooth();
@@ -4819,14 +4813,6 @@ function wire() {
     toast(on ? 'Rainbow clock on' : 'Rainbow clock off');
     state.settings = await saveAppearance({ rainbow: on }); // the toolbar icon and a linked Memoir follow
   });
-  // Performance mode: no animations and the system's cursor (theme-boot.js); the cursor's rows fade and lock
-  $('set-perf').addEventListener('change', e => {
-    window.memoirPerf?.set(e.target.checked);
-    refreshCursor();
-    $('set-cursor').checked = cursorEnabled() && !e.target.checked;
-    lockSmooth();
-    toast(e.target.checked ? 'Performance mode on' : 'Performance mode off');
-  });
   $('set-cursor').addEventListener('change', e => {
     setCursorPref(e.target.checked);
     saveAppearance({ cursor: e.target.checked }).then(s => { state.settings = s; });
@@ -4834,16 +4820,6 @@ function wire() {
     toast(e.target.checked ? 'Custom cursor on' : 'Using your system cursor');
   });
   // locked: the switch doesn't move, it shakes its head (only the switch, not the row)
-  $('set-cursor').addEventListener('click', e => {
-    if (e.target.getAttribute('aria-disabled') !== 'true') return;
-    e.preventDefault();
-    const sw = e.target.closest('.switch');
-    if (reducedMotion() || sw._nudge?.playState === 'running') return;
-    sw._nudge = sw.animate([
-      { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(4px)' },
-      { transform: 'translateX(-3px)' }, { transform: 'translateX(1.5px)' }, { transform: 'translateX(0)' },
-    ], { duration: 420, easing: 'cubic-bezier(0.36, 0.07, 0.19, 0.97)' });
-  });
   $('set-smooth').addEventListener('click', e => {
     if (e.target.getAttribute('aria-disabled') !== 'true') return;
     e.preventDefault();

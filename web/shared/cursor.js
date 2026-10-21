@@ -21,11 +21,6 @@ const TEXT = 'input[type="text"], input[type="search"], input:not([type]), input
 export function cursorEnabled() {
   try { return localStorage.getItem(KEY) !== 'off'; } catch { return true; }
 }
-// Performance mode (theme-boot.js) puts the system's cursor in its place, whatever the choice here
-const performanceMode = () => !!window.memoirPerf?.on();
-const wanted = () => cursorEnabled() && !performanceMode();
-// Performance mode turned on or off on this page
-export function refreshCursor() { apply(wanted()); }
 export function cursorSmooth() {
   try { return localStorage.getItem(SMOOTH_KEY) === 'on'; } catch { return false; }
 }
@@ -56,9 +51,9 @@ export function initCursor({ edge = false } = {}) {
   edgeGuard = edge;
   smooth = cursorSmooth();
   watchSettled();
-  apply(wanted());
+  apply(cursorEnabled());
   addEventListener('storage', e => {
-    if (e.key === KEY || e.key === 'bst-perf') apply(wanted());
+    if (e.key === KEY) apply(cursorEnabled());
     if (e.key === SMOOTH_KEY) smooth = cursorSmooth();
   });
 }
@@ -68,7 +63,7 @@ export function setCursorPref(on) {
     if (on) localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, 'off');
   } catch { /* storage unavailable */ }
-  apply(on && !performanceMode());
+  apply(on);
 }
 
 export function setCursorSmooth(on) {
