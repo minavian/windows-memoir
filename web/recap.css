@@ -1487,11 +1487,12 @@ body { overflow: hidden; }
 .ip-choice:hover { background: var(--fill-2); }
 .ip-choice:focus-visible { outline: none; box-shadow: var(--ring); }
 .ip-choice:active { background: var(--fill-3); transform: scale(0.98); }
-/* Memoir for Windows: turning off Start with Windows asks first (recap.js askStartupOff): the question, what Memoir
-   costs (its memory counting up, the CPU's flat line drawing in), why it starts with Windows, then the choices */
-.startup-pop { width: 316px; }
-.startup-pop .ip-text { animation-delay: 300ms; }
-.sp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 10px; }
+/* Memoir for Windows: turning off Start with Windows asks first (recap.js askStartupOff): grown out of the switch,
+   what Memoir costs (its RAM counting up, the CPU's flat line drawing in; the asterisk: the PC it was measured
+   on), then Yes (red) or No, side by side */
+.startup-pop { width: 288px; padding-bottom: 12px; }
+.startup-pop .ip-title { text-wrap: balance; }
+.sp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 6px 0 12px; }
 .sp-stat {
   position: relative;
   padding: 9px 11px 10px;
@@ -1501,10 +1502,46 @@ body { overflow: hidden; }
 }
 .sp-stat b { display: block; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
 .sp-stat small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.3; color: var(--label-2); }
+.sp-star {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 1px;
+  vertical-align: 2px;
+  border-radius: 50%;
+  color: var(--label-2);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  outline: none;
+  transition: color 0.18s var(--ease), background-color 0.18s var(--ease);
+}
+.sp-star:hover, .sp-star:focus-visible { color: var(--label); background: var(--fill-2); }
 .sp-flat { position: absolute; top: 15px; right: 11px; width: 34px; height: 6px; overflow: visible; }
 .sp-flat path { fill: none; stroke: var(--goal-ok); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sp-flat-in 0.7s var(--ease-out) 0.45s forwards; }
 @keyframes sp-flat-in { to { stroke-dashoffset: 0; } }
-.sp-off b { color: var(--danger); }
+.sp-ask { margin: 0 4px 9px; font-size: 13.5px; font-weight: 600; animation: context-row-in 0.32s var(--ease-out) 300ms backwards; }
+.sp-actions { display: flex; gap: 6px; animation: context-row-in 0.32s var(--ease-out) 350ms backwards; }
+.sp-yes {
+  flex: 1 1 0;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-danger);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: var(--cursor-hand);
+  transition: background-color 0.18s var(--ease), transform 0.25s var(--ease-out);
+}
+.sp-yes:hover { background: color-mix(in srgb, var(--danger) 88%, #000); }
+.sp-yes:active { transform: scale(0.96); }
+.sp-yes:focus-visible { outline: none; box-shadow: var(--ring); }
+.sp-no { flex: 1.9 1 0; height: 32px; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .sp-flat path { animation: none; stroke-dashoffset: 0; } }
 .ip-cancel {
   align-self: center;

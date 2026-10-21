@@ -394,18 +394,19 @@
     </div>
     <button class="ip-cancel" type="button" data-mode="" style="--d:150ms">Cancel</button>
   </div>
-  <!-- Memoir for Windows: turning off Start with Windows asks first, with what Memoir costs in the background
-       (measured in the notification area: about 13 MB in Task Manager's Memory, 0% CPU; recap.js askStartupOff) -->
-  <div class="pop import-pop startup-pop" id="startup-pop" role="alertdialog" aria-labelledby="sp-title" aria-describedby="sp-text" hidden>
-    <p class="ip-title" id="sp-title">Keep <span class="wordmark-plain">Memoir</span> starting with Windows?</p>
+  <!-- Memoir for Windows: turning off Start with Windows asks first, grown out of the switch: what Memoir costs in
+       the background (measured in the notification area, the PC it was measured on: specs.html), then Yes or No
+       (recap.js askStartupOff) -->
+  <div class="pop import-pop startup-pop" id="startup-pop" role="alertdialog" aria-labelledby="sp-title" aria-describedby="sp-ask" hidden>
+    <p class="ip-title" id="sp-title"><span class="wordmark-plain">Memoir</span> virtually costs nothing to run.</p>
     <div class="sp-stats">
-      <div class="sp-stat" style="--d:200ms"><b class="num"><span id="sp-mem">13</span> MB</b><small>of memory in the background</small></div>
-      <div class="sp-stat" style="--d:250ms"><b class="num">0%</b><small>CPU, as Task Manager shows it</small><svg class="sp-flat" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><path d="M1 3H99" pathLength="1"/></svg></div>
+      <div class="sp-stat" style="--d:200ms"><b class="num"><span id="sp-mem">13</span> MB</b><small>of RAM</small></div>
+      <div class="sp-stat" style="--d:250ms"><b class="num">0%</b><small>CPU utilization<a class="sp-star" href="specs.html" target="_blank" aria-label="The PC it was tested on" title="The PC it was tested on">*</a></small><svg class="sp-flat" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><path d="M1 3H99" pathLength="1"/></svg></div>
     </div>
-    <p class="ip-text" id="sp-text">It costs almost nothing. Starting with Windows is how it counts your screen time accurately, from the moment you sign in, and that’s why you got it.</p>
-    <div class="ip-choices">
-      <button class="ip-choice" type="button" data-a="keep" style="--d:150ms"><b>Keep it on</b><small>Counting from the moment you sign in</small></button>
-      <button class="ip-choice sp-off" type="button" data-a="off" style="--d:190ms"><b>Turn it off anyway</b><small>Memoir only counts once you open it</small></button>
+    <p class="sp-ask" id="sp-ask">Still want it off?</p>
+    <div class="sp-actions">
+      <button class="sp-yes" type="button" data-a="off">Yes</button>
+      <button class="btn btn-primary sp-no" type="button" data-a="keep">No</button>
     </div>
   </div>
   <!-- Memoir for Windows: connecting a browser (recap.js openGuide) -->

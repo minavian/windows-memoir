@@ -103,6 +103,7 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.locator('#startup-row').isVisible()&&await page.locator('#set-startup').isChecked(),'Start with Windows shows, on');
     await startup.click(); await page.waitForTimeout(1600);
     verify(await page.locator('#startup-pop').isVisible()&&await page.locator('#set-startup').isChecked()&&(await page.locator('#startup-pop').innerText()).includes('13 MB'),'Turning it off asks first, with what Memoir costs, the switch still on');
+    verify(await page.locator('#startup-pop .sp-star').getAttribute('href')==='specs.html','Its asterisk leads to the PC it was tested on');
     await page.locator('#startup-pop [data-a="keep"]').click(); await page.waitForTimeout(700);
     verify(await page.locator('#startup-pop').isHidden()&&await page.locator('#set-startup').isChecked()&&await page.evaluate(()=>window.testStartup!==false),'Keep it on keeps it on');
     await startup.click(); await page.waitForTimeout(900);
@@ -137,7 +138,7 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.evaluate(()=>testData.goal?.history?.[0]?.limit===10800000&&testData.goal.history[1].limit===null),'Import brings the limits back');
     fs.rmSync(exportFile);
     // How Memoir works and the privacy policy: Windows' own words, and a way back to the report
-    for(const [file,words] of [['how-it-works.html','Memoir itself'],['privacy.html','Data folder next to Memoir']]) {
+    for(const [file,words] of [['how-it-works.html','Memoir itself'],['privacy.html','Data folder next to Memoir'],['specs.html','Tested on Windows 11 26H2, with an Intel i9-12th gen CPU']]) {
       await page.setViewportSize({width:1360,height:850}); await page.goto(`https://memoir.example/${file}`); await page.waitForTimeout(1500);
       const text=await page.locator('main').innerText();
       verify(text.includes(words) && !/\bthis browser\b|chrome:\/\/|extension/i.test(text),`${file} speaks for Windows`);

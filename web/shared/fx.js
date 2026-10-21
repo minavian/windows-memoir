@@ -468,6 +468,7 @@ const radiusFor = (r, rect) => (r === 'pill' || r === 'circle' ? Math.min(rect.w
 export function morph({
   from, to, fromRadius = 10, toRadius = 18, background = 'var(--raised)', fade = null, fromOpacity = null,
   duration = 440, easing = EASE_OUT, z = 3000, shadow = true, className = '', parent = document.body,
+  fromBackground = null, toBackground = null,
 }) {
   const shell = document.createElement('div');
   shell.className = `morph-shell ${className}`;
@@ -487,6 +488,8 @@ export function morph({
   // of its own, drawn between device pixels on scaled screens (125%…), so it would land
   // a soft edge away from the crisp box it turns into
   if (kf[0].opacity === 1 && kf[1].opacity === 1) for (const k of kf) delete k.opacity;
+  // a surface that starts (or ends) as something else's colour, a switch's: it turns into the popover's as it grows
+  if (fromBackground || toBackground) { kf[0].backgroundColor = fromBackground || background; kf[1].backgroundColor = toBackground || background; }
   if (reducedMotion()) {
     Object.assign(shell.style, kf[1]);
     return { shell, finished: Promise.resolve(shell), cancel: () => shell.remove() };
@@ -557,13 +560,15 @@ export class MorphPopover {
     this.shell = null;
     if (!shell || !shell.isConnected) return null;
     const style = getComputedStyle(shell);
-    const now = { rect: shell.getBoundingClientRect(), radius: parseFloat(style.borderTopLeftRadius) || 0, opacity: +style.opacity };
+    const now = { rect: shell.getBoundingClientRect(), radius: parseFloat(style.borderTopLeftRadius) || 0, opacity: +style.opacity, background: style.backgroundColor };
     shell.remove();
     return now;
   }
 
-  open(anchor, { fromRect = null, fromRadius = 8 } = {}) {
+  // fromRadius and fromBackground: the shape and colour it grows out of (and shrinks back into), as a switch's
+  open(anchor, { fromRect = null, fromRadius = 8, fromBackground = null } = {}) {
     const token = ++this.token;
+    this.from = { radius: fromRadius, background: fromBackground };
     const el = this.el;
     this.anchor = anchor;
     const flight = this.takeShell();
@@ -582,6 +587,7 @@ export class MorphPopover {
     // the shell goes next to the popover (same stacking context), so the content shows above it
     const m = morph({
       from: flight ? flight.rect : src, to, fromRadius: flight ? flight.radius : fromRadius, fromOpacity: flight ? flight.opacity : null,
+      fromBackground: fromBackground ? (flight ? flight.background : fromBackground) : null,
       toRadius: this.radius, background: bg, duration: 160 + 300 * left, easing: flight ? TURN : POP, z: this.z, parent: el.parentNode || document.body,
     });
     this.shell = m.shell;
@@ -640,7 +646,8 @@ export class MorphPopover {
     const left = remaining(from, target, full);
     const m = morph({
       from, to: target, fromRadius: flight ? flight.radius : this.radius, fromOpacity: flight ? flight.opacity : null,
-      toRadius: 8, background: bg, fade: 'out', duration: 120 + 180 * left, easing: flight ? TURN : EASE_OUT, z: this.z, parent: el.parentNode || document.body,
+      toRadius: this.from?.radius ?? 8, background: bg, fade: 'out',
+      fromBackground: this.from?.background && flight ? flight.background : null, toBackground: this.from?.background || null, duration: 120 + 180 * left, easing: flight ? TURN : EASE_OUT, z: this.z, parent: el.parentNode || document.body,
     });
     this.shell = m.shell;
     return m.finished.then(shell => {

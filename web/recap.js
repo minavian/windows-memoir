@@ -3776,15 +3776,16 @@ async function setStartup(want) {
   showStartup(s ? !!s.on : !want);
   if (s) toast(s.on ? 'Memoir starts with Windows' : 'Memoir won’t start with Windows');
 }
-// Turning it off asks first, from the switch (which stays on until the answer): what Memoir costs in the
-// background, its memory counting up, and why it starts with Windows
-const startupSwitch = () => $('set-startup').closest('.switch');
+// Turning it off asks first, grown out of the switch (its own pill and colour, back into it as it closes; the switch
+// stays on until the answer): what Memoir costs in the background, its RAM counting up, then Yes or No
+const startupSwitch = () => $('set-startup').closest('.switch').querySelector('.track');
 function askStartupOff() {
-  startupPop.open(startupSwitch());
+  const track = startupSwitch();
+  startupPop.open(track, { fromRadius: 'pill', fromBackground: getComputedStyle(track).backgroundColor });
   const mem = $('sp-mem');
   mem._value = 0;
   animateNumber(mem, 13, { duration: 1100, delay: 260 });
-  $('startup-pop').querySelector('[data-a="keep"]').focus({ preventScroll: true });
+  $('startup-pop').querySelector('.sp-no').focus({ preventScroll: true });
 }
 function closeStartup(instant = false) { if (!$('startup-pop').hidden) startupPop.close({ instant }); }
 
