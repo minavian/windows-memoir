@@ -27,7 +27,8 @@ export function cursorSmooth() {
 
 let live = null;
 let smooth = false;
-const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// (the system's own wish: the Animations switch leaves the cursor alone, theme-boot.js)
+const reduced = () => (window.memoirMotion ? window.memoirMotion.systemReduced() : matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 let edgeGuard = false;
 

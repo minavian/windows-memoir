@@ -364,57 +364,6 @@ body { overflow: hidden; }
 .ampm:focus-visible { outline: none; box-shadow: var(--ring); }
 .time-pill.h24 .ampm { display: none; }
 
-/* Performance: a small dial, built like the limit picker (shared/motion-dial.js; colours as the picker's) */
-.motion-row { align-items: center; }
-.md {
-  position: relative;
-  flex: none;
-  width: 96px;
-  height: 96px;
-  margin: 2px 0;
-  border-radius: 50%;
-  background: var(--pk-bg);
-  color: var(--pk-fg);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14), 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 0.5px var(--pk-track);
-  user-select: none;
-  touch-action: none;
-  outline: none;
-  transition: box-shadow 0.25s var(--ease);
-}
-.md:focus-visible { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14), 0 0 0 3px var(--pk-bg), 0 0 0 5px var(--pk-accent); }
-.md-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.md-track { fill: none; stroke: var(--pk-track); stroke-width: 7; stroke-linecap: round; }
-.md-fill { fill: none; stroke: var(--pk-accent); stroke-width: 7; stroke-linecap: round; }
-.md-stop { fill: var(--pk-dim); opacity: 0.6; pointer-events: none; transition: fill 0.25s var(--ease), opacity 0.25s var(--ease); }
-.md-stop.passed { fill: var(--pk-on-accent); opacity: 0.9; }
-.md-hit { fill: none; stroke: transparent; stroke-width: 26; stroke-linecap: round; pointer-events: stroke; cursor: var(--cursor-hand); }
-.md-knob { cursor: var(--cursor-hand); }
-.md-knob-halo { fill: var(--pk-accent); opacity: 0.16; r: 9px; transition: r 0.3s var(--ease-out), opacity 0.3s var(--ease); }
-.md-knob-dot { fill: var(--pk-bg); stroke: var(--pk-accent); stroke-width: 3; r: 5.5px; transition: r 0.7s var(--ease); }
-/* it grows slowly once it rests on a dot, as the picker's does */
-.md-knob.on-dot .md-knob-dot { r: 6.5px; transition: r 0.5s var(--ease-out); }
-.md:hover .md-knob-halo, .md.dragging .md-knob-halo { r: 12px; opacity: 0.22; }
-.md-names {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  font-family: var(--font-display);
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.md-names > span {
-  grid-area: 1 / 1;
-  opacity: 0;
-  transform: translateY(5px) scale(0.96);
-  filter: blur(2px);
-  transition: opacity 0.25s var(--ease), transform 0.4s var(--ease-out), filter 0.3s var(--ease);
-}
-.md-names > span.on { opacity: 1; transform: none; filter: none; }
-.md-names > span.gone { transform: translateY(-5px) scale(0.96); }
-
 /* your data: Clear all → big red "Are you sure?" → pressed, it grows into "Are you absolutely SURE?" → type the
    sentence, then Delete everything (recap.js setNukeStep, nukeSure; labels cross-fade rising: nukeLabel) */
 .data-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }

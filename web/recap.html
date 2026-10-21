@@ -101,11 +101,11 @@
                     </div>
                   </div>
 
-                  <!-- Performance: a dial like the limit picker's (shared/motion-dial.js, theme-boot.js applies it) -->
+                  <!-- Animations: off, everything happens at once (theme-boot.js); the custom cursor keeps its own -->
                   <div class="p-block">
-                    <div class="p-row motion-row">
-                      <span><b id="motion-name">Performance</b><small id="motion-desc">Every animation, as designed</small></span>
-                      <div id="motion-dial" aria-labelledby="motion-name" aria-describedby="motion-desc"></div>
+                    <div class="p-row">
+                      <span><b>Animations</b><small id="anim-desc">Off, everything happens at once, for slower computers. The cursor has its own switch</small></span>
+                      <label class="switch"><input type="checkbox" id="set-anim" aria-label="Animations" aria-describedby="anim-desc"><span class="track"></span><span class="knob"></span></label>
                     </div>
                   </div>
 
