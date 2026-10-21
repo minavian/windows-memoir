@@ -167,8 +167,8 @@ body { overflow: hidden; }
 /* a row that follows a description inside its section */
 .p-row-gap { margin-top: 4px; }
 /* Smooth cursor only works with Custom cursor on: otherwise it fades and is locked */
-#smooth-row > * { transition: opacity 0.3s var(--ease); }
-#smooth-row.locked > * { opacity: 0.4; }
+#cursor-row > *, #smooth-row > * { transition: opacity 0.3s var(--ease); }
+#cursor-row.locked > *, #smooth-row.locked > * { opacity: 0.4; }
 .segmented.wide { display: grid; }
 
 /* collapsible rows (reminder details, confirmations) */

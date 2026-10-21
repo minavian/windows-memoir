@@ -241,10 +241,9 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .display { font-family: var(--font-display); letter-spacing: -0.022em; }
 
-/* ---------- Animations off (Settings; theme-boot.js) ---------- */
-/* every animation and transition ends at once (still ending, so whatever waits for its end goes on); the custom
-   cursor (.cc) keeps its own */
-:root[data-motion="off"] :not(.cc, .cc *), :root[data-motion="off"] :not(.cc, .cc *)::before, :root[data-motion="off"] :not(.cc, .cc *)::after {
+/* ---------- Performance mode (Settings; theme-boot.js) ---------- */
+/* every animation and transition ends at once (still ending, so whatever waits for its end goes on) */
+:root[data-perf="on"] *, :root[data-perf="on"] *::before, :root[data-perf="on"] *::after {
   animation-duration: 1ms !important;
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
@@ -252,9 +251,9 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
   transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
-/* (the typed sentence's own caret glides: with animations off, the field's plain one) */
-:root[data-motion="off"] .nt-caret { display: none; }
-:root[data-motion="off"] .nt-input { caret-color: var(--danger); }
+/* (the typed sentence's own caret glides: in performance mode, the field's plain one) */
+:root[data-perf="on"] .nt-caret { display: none; }
+:root[data-perf="on"] .nt-input { caret-color: var(--danger); }
 
 /* ---------- the MEMOIR wordmark ---------- */
 /* As in the trailer: Unbounded at its heaviest, platinum (graphite on Light), a fine

@@ -91,7 +91,12 @@
                   </div>
 
                   <div class="p-block">
+                    <!-- Performance mode: no animations, and the system's cursor (theme-boot.js); on, the cursor's rows fade and lock -->
                     <div class="p-row">
+                      <span><b>Performance mode</b><small id="perf-desc">Turns off animations and the custom cursor, for slower computers</small></span>
+                      <label class="switch"><input type="checkbox" id="set-perf" aria-label="Performance mode" aria-describedby="perf-desc"><span class="track"></span><span class="knob"></span></label>
+                    </div>
+                    <div class="p-row" id="cursor-row">
                       <span><b>Custom cursor</b><small>Use the animated cursor. Turning it off is highly recommended on low-end devices</small></span>
                       <label class="switch"><input type="checkbox" id="set-cursor" aria-label="Custom cursor"><span class="track"></span><span class="knob"></span></label>
                     </div>
@@ -101,13 +106,6 @@
                     </div>
                   </div>
 
-                  <!-- Animations: off, everything happens at once (theme-boot.js); the custom cursor keeps its own -->
-                  <div class="p-block">
-                    <div class="p-row">
-                      <span><b>Animations</b><small id="anim-desc">Off, everything happens at once, for slower computers. The cursor has its own switch</small></span>
-                      <label class="switch"><input type="checkbox" id="set-anim" aria-label="Animations" aria-describedby="anim-desc"><span class="track"></span><span class="knob"></span></label>
-                    </div>
-                  </div>
 
                   <div class="p-block">
                     <span class="p-label">Tracking detail</span>

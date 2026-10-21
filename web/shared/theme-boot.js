@@ -13,39 +13,40 @@
       const icon = document.querySelector('link[rel="icon"]');
       if (icon) icon.href = 'icons/rainbow32.png';
     }
-    document.documentElement.dataset.cursor = localStorage.getItem('bst-cursor') === 'off' ? 'off' : 'on';
+    document.documentElement.dataset.cursor = localStorage.getItem('bst-cursor') === 'off' || localStorage.getItem('bst-perf') === 'on' ? 'off' : 'on';
   } catch { /* storage unavailable: follow the system */ }
-  // Animations (Settings): off, every animation and transition ends at once, in the styles (theme.css) and in
-  // scripts (Element.animate below), and every check for reduced motion says yes, so the scripts' own motion
-  // (waves, glides, flights) takes its instant way. The custom cursor keeps its own (shared/cursor.js, .cc).
+  // Performance mode (Settings): no animations (every animation and transition ends at once, in the styles,
+  // theme.css, and in scripts, Element.animate below, and every check for reduced motion says yes, so the scripts'
+  // own motion takes its instant way) and the system's cursor in place of the custom one (shared/cursor.js).
   const root = document.documentElement;
-  const off = () => root.dataset.motion === 'off';
-  try { if (localStorage.getItem('bst-motion') === 'off') root.dataset.motion = 'off'; } catch { /* storage unavailable */ }
+  const perf = () => root.dataset.perf === 'on';
+  try {
+    if (localStorage.getItem('bst-motion') === 'off') { localStorage.setItem('bst-perf', 'on'); localStorage.removeItem('bst-motion'); }   // (its first name)
+    if (localStorage.getItem('bst-perf') === 'on') { root.dataset.perf = 'on'; root.dataset.cursor = 'off'; }
+  } catch { /* storage unavailable */ }
   const nativeQuery = window.matchMedia.bind(window);
   window.matchMedia = query => {
     const q = String(query);
-    if (!off() || !/prefers-reduced-motion/.test(q)) return nativeQuery(query);
+    if (!perf() || !/prefers-reduced-motion/.test(q)) return nativeQuery(query);
     const matches = /reduce/.test(q) && !/no-preference/.test(q);
     return { matches, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false };
   };
   const nativeAnimate = Element.prototype.animate;
   Element.prototype.animate = function (keyframes, options) {
-    if (!off() || this.closest?.('.cc')) return nativeAnimate.call(this, keyframes, options);
+    if (!perf()) return nativeAnimate.call(this, keyframes, options);
     const o = typeof options === 'object' && options ? { ...options } : {};
     return nativeAnimate.call(this, keyframes, Object.assign(o, { duration: 0, delay: 0, endDelay: 0, iterations: 1 }));
   };
-  window.memoirMotion = {
-    off,
-    // the system's own wish (for the cursor, which the switch leaves alone)
-    systemReduced: () => nativeQuery('(prefers-reduced-motion: reduce)').matches,
+  window.memoirPerf = {
+    on: perf,
     set(on) {
-      try { if (on) localStorage.removeItem('bst-motion'); else localStorage.setItem('bst-motion', 'off'); } catch { /* kept for this page only */ }
-      if (on) delete root.dataset.motion;
-      else root.dataset.motion = 'off';
+      try { if (on) localStorage.setItem('bst-perf', 'on'); else localStorage.removeItem('bst-perf'); } catch { /* kept for this page only */ }
+      if (on) root.dataset.perf = 'on';
+      else delete root.dataset.perf;
     },
   };
-  // changed on another of Memoir's pages
-  addEventListener('storage', e => { if (e.key === 'bst-motion') window.memoirMotion.set(e.newValue !== 'off'); });
+  // changed on another of Memoir's pages (the cursor follows by itself: shared/cursor.js)
+  addEventListener('storage', e => { if (e.key === 'bst-perf') window.memoirPerf.set(e.newValue === 'on'); });
   // Inter is the text's font everywhere but on a Mac (SF Pro there): fetched now, so the first
   // paint already has it (theme.css; on a Mac it would only go unused)
   if (!/Mac/.test(navigator.userAgentData?.platform || navigator.platform)) {
