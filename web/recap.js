@@ -95,7 +95,7 @@ const author = mailPop($('author'), $('author-pop'), {
 });
 const memoirSite = mailPop($('memoir-site'), $('site-pop'));
 // and its version after it (Memoir for Windows: its own, desktop-bridge.js)
-$('version').textContent = `v${chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version}`;
+$('version').textContent = chrome.runtime.getManifest().version_name || `v${chrome.runtime.getManifest().version}`;   // (alpha v0.9)
 // and "Your data never leaves this computer": the privacy policy
 const privacyLink = mailPop($('privacy-link'), $('privacy-pop'));
 const footPops = [[author, 'author', 'author-pop'], [memoirSite, 'memoir-site', 'site-pop'], [privacyLink, 'privacy-link', 'privacy-pop']];
@@ -3999,7 +3999,7 @@ async function renderUpdate({ announce = false } = {}) {
   if (!window.memoir?.windows) return;
   const { sync, updateDismissed, updateAnnounced } = await chrome.storage.local.get(['sync', 'updateDismissed', 'updateAnnounced']);
   const manifest = chrome.runtime.getManifest();
-  const here = manifest.version_name || manifest.version;
+  const here = manifest.version;   // (the number: its name, alpha v0.9, isn't one)
   let latest = null;
   for (const peer of Object.values((sync && sync.peers) || {})) {
     const v = peer && peer.windowsLatest;

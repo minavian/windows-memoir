@@ -59,7 +59,7 @@
   window.chrome.runtime = {
     getURL: path => new URL(path.replace(/^\//, ''), `${host}/`).href,
     // the report reads the version (the bug report's subject); keep it with src/AssemblyInfo.cs
-    getManifest: () => ({ name: 'Memoir for Windows', version: '1.0.0 for Windows', version_name: '1.0.0' }),
+    getManifest: () => ({ name: 'Memoir for Windows', version: '0.9.0 for Windows', version_name: 'alpha v0.9' }),
     sendMessage: msg => request(msg.type === 'openRecap' ? 'window.report' : 'runtime.sync', msg),
   };
   window.chrome.tabs = { create: ({ url }) => request('link.open', { url }) };

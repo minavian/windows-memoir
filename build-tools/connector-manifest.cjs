@@ -3,7 +3,7 @@ const folder = path.resolve(__dirname, '../Browser Connector'), filename = path.
 fs.mkdirSync(folder, {recursive:true});
 const existing = fs.existsSync(filename) ? JSON.parse(fs.readFileSync(filename,'utf8')) : {};
 const key = existing.key || crypto.generateKeyPairSync('rsa',{modulusLength:2048}).publicKey.export({format:'der',type:'spki'}).toString('base64');
-const manifest = {manifest_version:3,name:'Memoir Windows Connector',version:'1.0.0',description:'Precise active-tab and audio tracking for the local Memoir Windows app. Made by Mina Vian.',key,permissions:['tabs','nativeMessaging','alarms'],background:{service_worker:'background.js'},action:{default_title:'Memoir browser connector'},icons:{32:'icon32.png',128:'icon128.png'}};
+const manifest = {manifest_version:3,name:'Memoir Windows Connector',version:'0.9.0',description:'Precise active-tab and audio tracking for the local Memoir Windows app. Made by Mina Vian.',key,permissions:['tabs','nativeMessaging','alarms'],background:{service_worker:'background.js'},action:{default_title:'Memoir browser connector'},icons:{32:'icon32.png',128:'icon128.png'}};
 fs.writeFileSync(filename,JSON.stringify(manifest,null,2)+'\n');
 for(const size of [32,128])fs.copyFileSync(path.join(__dirname,`../web/icons/icon${size}.png`),path.join(folder,`icon${size}.png`));
 const id = [...crypto.createHash('sha256').update(Buffer.from(key,'base64')).digest().subarray(0,16)].flatMap(b=>[b>>4,b&15]).map(n=>String.fromCharCode(97+n)).join('');

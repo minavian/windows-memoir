@@ -1,6 +1,6 @@
 # Windows Memoir verification
 
-Version 1.0.0, October 18, 2026. Made by Mina Vian.
+Version 0.9.0 (alpha v0.9), October 18, 2026. Made by Mina Vian.
 
 The 64-bit `Memoir.exe` was built with Windows' .NET Framework 4.8 compiler and run on this PC (2560 × 1440 at 125% display scaling) with a test data folder (`--data-dir`), so no personal history was read or changed.
 

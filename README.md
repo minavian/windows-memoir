@@ -1,6 +1,6 @@
 # Windows Memoir
 
-Made by Mina Vian. Version 1.0.0.
+Made by Mina Vian. Version 0.9.0, alpha v0.9 (a dev build).
 
 People install Memoir with **Memoir Setup.exe** (one file, about 1 MB; see Installing and uninstalling). This folder runs as it is too: open **Memoir.exe**, with the `web` folder, the three WebView2 DLLs, `Memoir.exe.config`, `Memoir.ico` and `Memoir-rainbow.ico` beside it. Neither needs administrator access. The app uses Windows' .NET Framework 4.8 and Microsoft Edge WebView2 Runtime, which come with Windows 10 and 11.
 
