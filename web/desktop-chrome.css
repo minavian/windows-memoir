@@ -14,7 +14,8 @@ html.win-chrome .win-edge[data-hit="13"] { cursor: nwse-resize !important; }
 html.win-chrome .win-edge[data-hit="14"] { cursor: nesw-resize !important; }
 html.win-max .win-edge, html.win-full .win-edge { display: none; }
 
-/* How it works and the privacy policy: the way back to the report stays at the window's top left as the page
+/* How it works, the privacy policy and PC specs tested: the way back to the report, a round ‹, stays at the window's
+   top left as the page
    scrolls (desktop-bridge.js), over a frosted backing so the words running under it never show through; its own
    room is kept above the page's name */
 .btn.desktop-back {
@@ -22,6 +23,10 @@ html.win-max .win-edge, html.win-full .win-edge { display: none; }
   top: 14px;
   left: 16px;
   z-index: 40;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
   background: color-mix(in srgb, var(--surface) 78%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   backdrop-filter: blur(14px) saturate(1.5);
@@ -30,4 +35,5 @@ html.win-max .win-edge, html.win-full .win-edge { display: none; }
 }
 .btn.desktop-back:hover { background: color-mix(in srgb, var(--surface) 92%, var(--label) 8%); }
 .btn.desktop-back.lifted { box-shadow: 0 0 0 0.5px var(--separator, rgba(0, 0, 0, 0.08)), 0 6px 18px rgba(0, 0, 0, 0.12); }
+.btn.desktop-back svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .desktop-back-room { height: 54px; }

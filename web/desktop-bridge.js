@@ -135,15 +135,17 @@
     }
     theme(); new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
-    // How Memoir works and the privacy policy open in this same window (there are no tabs here): a way back to the
-    // report, kept at the window's top left however far the page is read (its room kept above their name, so
+    // How Memoir works, the privacy policy and PC specs tested open in this same window (there are no tabs here): a
+    // way back to the report, a round ‹, kept at the window's top left however far the page is read (its room kept above their name, so
     // nothing there moves), and Esc
     const brand = document.querySelector('main > .brand');
     if (brand) {
       const back = document.createElement('a');
-      back.className = 'btn btn-secondary btn-xs desktop-back';
+      back.className = 'btn btn-secondary desktop-back';
       back.href = 'recap.html';
-      back.textContent = '‹ Back to Memoir';
+      back.title = 'Back to Memoir';
+      back.setAttribute('aria-label', 'Back to Memoir');
+      back.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>';
       const room = document.createElement('div');
       room.className = 'desktop-back-room';
       room.setAttribute('aria-hidden', 'true');
