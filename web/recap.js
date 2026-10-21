@@ -3782,10 +3782,42 @@ const startupSwitch = () => $('set-startup').closest('.switch').querySelector('.
 function askStartupOff() {
   const track = startupSwitch();
   startupPop.open(track, { fromRadius: 'pill', fromBackground: getComputedStyle(track).backgroundColor });
-  const mem = $('sp-mem');
-  mem._value = 0;
-  animateNumber(mem, 13, { duration: 1100, delay: 260 });
+  rollMemory();
   $('startup-pop').querySelector('.sp-no').focus({ preventScroll: true });
+}
+// 0 to 13 MB, rolling like an odometer: the ones column runs through 0…9, 0…3 and the tens comes in from blank to 1
+// as it passes 10, each blurred by how fast it's turning and sharp as it settles
+let memRoll = 0;
+function rollMemory() {
+  const box = $('sp-mem');
+  if (!box.querySelector('.odo-col')) {
+    box.innerHTML = '<span class="odo-col" aria-hidden="true"><span class="odo-strip"><i>&nbsp;</i><i>1</i></span></span>'
+      + `<span class="odo-col" aria-hidden="true"><span class="odo-strip">${Array.from({ length: 14 }, (_, i) => `<i>${i % 10}</i>`).join('')}</span></span>`;
+  }
+  const [tens, ones] = box.querySelectorAll('.odo-strip');
+  const show = (v, speed) => {
+    const t = Math.min(1, Math.max(0, v - 9));
+    ones.style.transform = `translateY(${(-v * 1.1).toFixed(4)}em)`;
+    tens.style.transform = `translateY(${(-t * 1.1).toFixed(4)}em)`;
+    ones.style.filter = speed > 0.05 ? `blur(${Math.min(3.2, speed * 0.11).toFixed(2)}px)` : '';
+    tens.style.filter = v > 9 && v < 10 && speed > 0.05 ? `blur(${Math.min(2.4, speed * 0.08).toFixed(2)}px)` : '';
+  };
+  cancelAnimationFrame(memRoll);
+  if (reducedMotion()) { show(13, 0); return; }
+  show(0, 0);
+  const DELAY = 240, DUR = 1650, TO = 13;
+  const ease = t => 1 - Math.pow(1 - t, 4);
+  const start = performance.now() + DELAY;
+  let lastV = 0, lastAt = start;
+  const step = now => {
+    const t = Math.min(1, Math.max(0, (now - start) / DUR));
+    const v = TO * ease(t);
+    const speed = now > lastAt ? ((v - lastV) / (now - lastAt)) * 1000 : 0;   // digits a second
+    lastV = v; lastAt = now;
+    show(v, t < 1 ? speed : 0);
+    if (t < 1) memRoll = requestAnimationFrame(step);
+  };
+  memRoll = requestAnimationFrame(step);
 }
 function closeStartup(instant = false) { if (!$('startup-pop').hidden) startupPop.close({ instant }); }
 

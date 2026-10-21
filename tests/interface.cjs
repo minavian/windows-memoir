@@ -102,7 +102,7 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     const startup=page.locator('#set-startup'); await startup.evaluate(el=>el.scrollIntoView({block:'center'})); await page.waitForTimeout(300);
     verify(await page.locator('#startup-row').isVisible()&&await page.locator('#set-startup').isChecked(),'Start with Windows shows, on');
     await startup.click(); await page.waitForTimeout(1600);
-    verify(await page.locator('#startup-pop').isVisible()&&await page.locator('#set-startup').isChecked()&&(await page.locator('#startup-pop').innerText()).includes('13 MB'),'Turning it off asks first, with what Memoir costs, the switch still on');
+    verify(await page.locator('#startup-pop').isVisible()&&await page.locator('#set-startup').isChecked()&&await page.locator('#sp-mem').getAttribute('aria-label')==='13'&&(await page.locator('#startup-pop').innerText()).includes('MB'),'Turning it off asks first, with what Memoir costs, the switch still on');
     verify(await page.locator('#startup-pop .sp-star').getAttribute('href')==='specs.html','Its asterisk leads to the PC it was tested on');
     await page.locator('#startup-pop [data-a="keep"]').click(); await page.waitForTimeout(700);
     verify(await page.locator('#startup-pop').isHidden()&&await page.locator('#set-startup').isChecked()&&await page.evaluate(()=>window.testStartup!==false),'Keep it on keeps it on');
