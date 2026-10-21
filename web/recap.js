@@ -25,6 +25,7 @@ import { createDust } from './shared/dust.js';
 import { initContextMenu } from './shared/context-menu.js';
 import { mailPop } from './shared/mail-pop.js';
 import { playOverShow } from './shared/overshow.js';
+import { createMotionDial } from './shared/motion-dial.js';
 
 const $ = id => document.getElementById(id);
 const sum = arr => arr.reduce((a, b) => a + b, 0);
@@ -4812,6 +4813,18 @@ function wire() {
     setRainbow(on);
     toast(on ? 'Rainbow clock on' : 'Rainbow clock off');
     state.settings = await saveAppearance({ rainbow: on }); // the toolbar icon and a linked Memoir follow
+  });
+  // Performance: Default, Reduced motion or No animations (shared/motion-dial.js; theme-boot.js applies it)
+  const MOTION_DESC = { full: 'Every animation, as designed', reduced: 'Reduced motion: fewer, gentler animations', off: 'No animations at all, for slower computers' };
+  const motionNow = window.memoirMotion?.level() || 'full';
+  $('motion-desc').textContent = MOTION_DESC[motionNow];
+  createMotionDial($('motion-dial'), {
+    value: motionNow,
+    onChange: level => {
+      window.memoirMotion?.set(level);
+      swapText($('motion-desc'), MOTION_DESC[level]);
+      toast({ full: 'Every animation is back', reduced: 'Reduced motion on', off: 'Animations off' }[level]);
+    },
   });
   $('set-cursor').addEventListener('change', e => {
     setCursorPref(e.target.checked);

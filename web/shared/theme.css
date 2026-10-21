@@ -241,6 +241,29 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .display { font-family: var(--font-display); letter-spacing: -0.022em; }
 
+/* ---------- Performance: Reduced motion and No animations (theme-boot.js) ---------- */
+/* Reduced motion: nothing moves (keyframes end at once, and only colours and fades ease); the rest as the
+   system's reduced motion would have it */
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-property: opacity, color, background-color, border-color, outline-color, box-shadow, fill, stroke, text-decoration-color !important;
+  scroll-behavior: auto !important;
+}
+/* every animation and transition ends at once (still ending, so whatever waits for its end goes on) */
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+/* (the typed sentence's own caret glides: with no animations, the field's plain one) */
+:root[data-motion="off"] .nt-caret { display: none; }
+:root[data-motion="off"] .nt-input { caret-color: var(--danger); }
+
 /* ---------- the MEMOIR wordmark ---------- */
 /* As in the trailer: Unbounded at its heaviest, platinum (graphite on Light), a fine
    grain, a tight glow. It's all painted once and never again: the grain is a small tile,
