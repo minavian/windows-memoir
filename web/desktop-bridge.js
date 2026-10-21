@@ -135,16 +135,24 @@
     }
     theme(); new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
-    // How Memoir works and the privacy policy open in this same window (there are no tabs here):
-    // a way back to the report above their name, and Esc
+    // How Memoir works and the privacy policy open in this same window (there are no tabs here): a way back to the
+    // report, kept at the window's top left however far the page is read (its room kept above their name, so
+    // nothing there moves), and Esc
     const brand = document.querySelector('main > .brand');
     if (brand) {
       const back = document.createElement('a');
       back.className = 'btn btn-secondary btn-xs desktop-back';
       back.href = 'recap.html';
       back.textContent = '‹ Back to Memoir';
-      back.style.marginBottom = '28px';
-      brand.before(back);
+      const room = document.createElement('div');
+      room.className = 'desktop-back-room';
+      room.setAttribute('aria-hidden', 'true');
+      brand.before(room);
+      document.body.prepend(back);
+      // lifted off the page, a soft shadow, once the page runs under it
+      const lift = () => back.classList.toggle('lifted', scrollY > 4);
+      addEventListener('scroll', lift, { passive: true });
+      lift();
       addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) location.href = 'recap.html'; });
     }
   });
