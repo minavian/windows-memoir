@@ -1495,7 +1495,7 @@ body { overflow: hidden; }
 .ip-choice:active { background: var(--fill-3); transform: scale(0.98); }
 /* Memoir for Windows: turning off Start with Windows asks first (recap.js askStartupOff): grown out of the switch,
    what Memoir costs (its RAM counting up, the CPU's flat line drawing in; the asterisk: the PC it was measured
-   on), then Yes (red) or No, side by side */
+   on), then a small red Yes beside a wide No, keep it on */
 .startup-pop { width: 288px; padding-bottom: 12px; }
 .startup-pop .ip-title { text-wrap: balance; }
 .sp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 6px 0 12px; }
@@ -1545,9 +1545,9 @@ body { overflow: hidden; }
 .sp-ask { margin: 0 4px 9px; font-size: 13.5px; font-weight: 600; animation: context-row-in 0.32s var(--ease-out) 300ms backwards; }
 .sp-actions { display: flex; gap: 6px; animation: context-row-in 0.32s var(--ease-out) 350ms backwards; }
 .sp-yes {
-  flex: 1 1 0;
-  height: 32px;
-  padding: 0 14px;
+  flex: none;
+  height: 34px;
+  padding: 0 15px;
   border: 0;
   border-radius: 999px;
   background: var(--danger);
@@ -1561,7 +1561,7 @@ body { overflow: hidden; }
 .sp-yes:hover { background: color-mix(in srgb, var(--danger) 88%, #000); }
 .sp-yes:active { transform: scale(0.96); }
 .sp-yes:focus-visible { outline: none; box-shadow: var(--ring); }
-.sp-no { flex: 1.9 1 0; height: 32px; font-size: 13px; }
+.sp-no { flex: 1 1 auto; height: 34px; font-size: 13.5px; }
 @media (prefers-reduced-motion: reduce) { .sp-flat path { animation: none; stroke-dashoffset: 0; } }
 .ip-cancel {
   align-self: center;
