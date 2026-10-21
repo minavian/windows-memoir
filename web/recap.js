@@ -84,6 +84,7 @@ const pages = {
 };
 const importPop = new MorphPopover($('import-pop'), { radius: 16 });
 const linkPop = new MorphPopover($('link-pop'), { radius: 16 });
+const startupPop = new MorphPopover($('startup-pop'), { radius: 16 });
 const guidePop = new MorphPopover($('guide-pop'), { radius: 16 });
 // the author's name in Settings: where bug reports go, and my website; the wordmark beside it: Memoir's
 // website (shared/mail-pop.js)
@@ -3211,6 +3212,7 @@ function closeSettings(focusTrigger = false) {
   answerImport(null, true);
   closeLink(true);
   closeGuide(true);
+  closeStartup(true);
   closeFootPops(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
   $('settings-btn').setAttribute('aria-label', 'Settings');
@@ -3769,6 +3771,22 @@ function showStartup(on) {
   $('set-startup').checked = on;
   swapText($('startup-desc'), on ? STARTUP_TEXT.on : STARTUP_TEXT.off);
 }
+async function setStartup(want) {
+  const s = await window.memoir?.request('startup.set', { on: want }).catch(() => null);
+  showStartup(s ? !!s.on : !want);
+  if (s) toast(s.on ? 'Memoir starts with Windows' : 'Memoir won’t start with Windows');
+}
+// Turning it off asks first, from the switch (which stays on until the answer): what Memoir costs in the
+// background, its memory counting up, and why it starts with Windows
+const startupSwitch = () => $('set-startup').closest('.switch');
+function askStartupOff() {
+  startupPop.open(startupSwitch());
+  const mem = $('sp-mem');
+  mem._value = 0;
+  animateNumber(mem, 13, { duration: 1100, delay: 260 });
+  $('startup-pop').querySelector('[data-a="keep"]').focus({ preventScroll: true });
+}
+function closeStartup(instant = false) { if (!$('startup-pop').hidden) startupPop.close({ instant }); }
 
 // ----- Memoir for Windows (Settings > Your data): link, see it's in sync, unlink -----
 // The extension links (it starts Memoir.exe as its native host; link.js); Memoir for Windows' own Settings
@@ -4288,6 +4306,7 @@ function wire() {
       else if (catPop.isOpen) closeCatPop();
       else if (pages.isOpen) { const back = popAnchor; closePagePop(); back?.querySelector('[role="button"]')?.focus({ preventScroll: true }); }
       else if (importAnswer) { answerImport(null); $('import').focus({ preventScroll: true }); }
+      else if (startupPop.isOpen) { closeStartup(); $('set-startup').focus({ preventScroll: true }); }
       else if (linkPop.isOpen) { closeLink(); $('link-btn').focus({ preventScroll: true }); }
       else if (guidePop.isOpen) { closeGuide(); guideFrom?.focus({ preventScroll: true }); }
       else if (footOpen()) { const [p] = footOpen(); p.close(); p.focusTrigger(); }
@@ -4429,9 +4448,10 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #startup-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
+    if (startupPop.isOpen && !e.target.closest('#startup-pop, #startup-row .switch')) closeStartup();
     if (guidePop.isOpen && !e.target.closest('#guide-pop, .link-btn, #link-more')) closeGuide();
     for (const [p, id, popId] of footPops) if (p.popover.isOpen && !e.target.closest(`#${id}, #${popId}`)) p.close();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
@@ -4744,6 +4764,7 @@ function wire() {
   $('settings-panel').addEventListener('scroll', () => {
     if (!$('import-pop').hidden) importPop.place($('import').getBoundingClientRect());
     if (!$('link-pop').hidden) linkPop.place($('link-btn').getBoundingClientRect());
+    if (!$('startup-pop').hidden) startupPop.place(startupSwitch().getBoundingClientRect());
     if (!$('guide-pop').hidden && guideFrom) guidePop.place(guideFrom.getBoundingClientRect());
     for (const [p, id, popId] of footPops) if (!$(popId).hidden) p.popover.place($(id).getBoundingClientRect());
   }, { passive: true });
@@ -4781,11 +4802,20 @@ function wire() {
     if (nukeMatched()) nukeNow();
   });
   $('nuke-cancel').addEventListener('click', () => { setNukeStep(0); $('nuke').focus({ preventScroll: true }); });
-  $('set-startup').addEventListener('change', async e => {
-    const want = e.target.checked;
-    const s = await window.memoir?.request('startup.set', { on: want }).catch(() => null);
-    showStartup(s ? !!s.on : !want);
-    if (s) toast(s.on ? 'Memoir starts with Windows' : 'Memoir won’t start with Windows');
+  // turning it on just does; turning it off asks first (the switch doesn't move until the answer)
+  $('set-startup').addEventListener('click', e => {
+    if (e.target.checked) return;
+    e.preventDefault();
+    if (startupPop.isOpen) closeStartup();
+    else askStartupOff();
+  });
+  $('set-startup').addEventListener('change', e => setStartup(e.target.checked));
+  $('startup-pop').addEventListener('click', e => {
+    const b = e.target.closest('[data-a]');
+    if (!b) return;
+    closeStartup();
+    if (b.dataset.a === 'off') setStartup(false);
+    else $('set-startup').focus({ preventScroll: true });
   });
   $('link-rows').addEventListener('click', e => {
     const btn = e.target.closest('.link-btn');

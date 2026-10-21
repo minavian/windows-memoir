@@ -1487,6 +1487,25 @@ body { overflow: hidden; }
 .ip-choice:hover { background: var(--fill-2); }
 .ip-choice:focus-visible { outline: none; box-shadow: var(--ring); }
 .ip-choice:active { background: var(--fill-3); transform: scale(0.98); }
+/* Memoir for Windows: turning off Start with Windows asks first (recap.js askStartupOff): the question, what Memoir
+   costs (its memory counting up, the CPU's flat line drawing in), why it starts with Windows, then the choices */
+.startup-pop { width: 316px; }
+.startup-pop .ip-text { animation-delay: 300ms; }
+.sp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 10px; }
+.sp-stat {
+  position: relative;
+  padding: 9px 11px 10px;
+  border-radius: 12px;
+  background: var(--fill-1);
+  animation: context-row-in 0.38s var(--ease-out) var(--d, 200ms) backwards;
+}
+.sp-stat b { display: block; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.sp-stat small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.3; color: var(--label-2); }
+.sp-flat { position: absolute; top: 15px; right: 11px; width: 34px; height: 6px; overflow: visible; }
+.sp-flat path { fill: none; stroke: var(--goal-ok); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sp-flat-in 0.7s var(--ease-out) 0.45s forwards; }
+@keyframes sp-flat-in { to { stroke-dashoffset: 0; } }
+.sp-off b { color: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .sp-flat path { animation: none; stroke-dashoffset: 0; } }
 .ip-cancel {
   align-self: center;
   margin-top: 6px;

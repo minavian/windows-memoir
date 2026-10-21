@@ -39,6 +39,8 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
         else if(op==='log') window.testLogs=(window.testLogs||[]).concat(args.message);
         else if(op==='theme') window.testAppearance=structuredClone(args);
         else if(op==='window.today'||op==='window.report') window.testView=op;
+        else if(op==='startup.get') result={available:true,on:window.testStartup!==false};
+        else if(op==='startup.set'){window.testStartup=!!args.on; result={available:true,on:window.testStartup};}
         receivers.forEach(fn=>fn({data:{id,result}}));
       },0)};
     },{fixture});
@@ -96,6 +98,18 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     verify(await page.locator('#update-row').isVisible(),'The next version shows again');
     await page.evaluate(()=>chrome.storage.local.remove(['sync','updateDismissed'])); await page.waitForTimeout(800);
     verify(await page.locator('#update-row').isHidden(),'Unlinked, the notice goes');
+    // Start with Windows: turning it off asks first (what Memoir costs, and why); only Turn it off anyway turns it off
+    const startup=page.locator('#set-startup'); await startup.evaluate(el=>el.scrollIntoView({block:'center'})); await page.waitForTimeout(300);
+    verify(await page.locator('#startup-row').isVisible()&&await page.locator('#set-startup').isChecked(),'Start with Windows shows, on');
+    await startup.click(); await page.waitForTimeout(1600);
+    verify(await page.locator('#startup-pop').isVisible()&&await page.locator('#set-startup').isChecked()&&(await page.locator('#startup-pop').innerText()).includes('13 MB'),'Turning it off asks first, with what Memoir costs, the switch still on');
+    await page.locator('#startup-pop [data-a="keep"]').click(); await page.waitForTimeout(700);
+    verify(await page.locator('#startup-pop').isHidden()&&await page.locator('#set-startup').isChecked()&&await page.evaluate(()=>window.testStartup!==false),'Keep it on keeps it on');
+    await startup.click(); await page.waitForTimeout(900);
+    await page.locator('#startup-pop [data-a="off"]').click(); await page.waitForTimeout(800);
+    verify(await page.locator('#startup-pop').isHidden()&&!(await page.locator('#set-startup').isChecked())&&await page.evaluate(()=>window.testStartup===false),'Turn it off anyway turns it off');
+    await startup.click(); await page.waitForTimeout(600);
+    verify(await page.locator('#startup-pop').isHidden()&&await page.locator('#set-startup').isChecked()&&await page.evaluate(()=>window.testStartup===true),'Turning it on asks nothing');
     await page.keyboard.press('Escape'); await page.waitForTimeout(600);
     await page.setViewportSize({width:780,height:600}); await page.waitForTimeout(500);
     verify(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight),'Narrow report scrolls');
