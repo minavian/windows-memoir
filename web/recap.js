@@ -4443,6 +4443,8 @@ function wire() {
   }
 
   // settings morph
+  // Settings only ever scroll up and down: anything that would scroll them sideways (a drag, a focus) is undone
+  document.querySelector('.morph-panel').addEventListener('scroll', e => { if (e.target.scrollLeft) e.target.scrollLeft = 0; }, { passive: true });
   $('settings-btn').addEventListener('click', () => {
     if ($('settings').classList.contains('open')) closeSettings();
     else openSettings();
