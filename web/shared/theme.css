@@ -241,6 +241,9 @@ button, input { font: inherit; color: inherit; letter-spacing: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .display { font-family: var(--font-display); letter-spacing: -0.022em; }
 
+/* links and pictures never lift off the page to be dragged out (theme-boot.js stops any drag) */
+a, img { -webkit-user-drag: none; }
+
 /* ---------- the MEMOIR wordmark ---------- */
 /* As in the trailer: Unbounded at its heaviest, platinum (graphite on Light), a fine
    grain, a tight glow. It's all painted once and never again: the grain is a small tile,

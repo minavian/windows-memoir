@@ -15,6 +15,12 @@
     }
     document.documentElement.dataset.cursor = localStorage.getItem('bst-cursor') === 'off' ? 'off' : 'on';
   } catch { /* storage unavailable: follow the system */ }
+  // Nothing is dragged out of Memoir: a link, a picture or chosen words pulled off the page (to the desktop, a
+  // browser, another app) would only carry its address along. Fields keep their own drags.
+  document.addEventListener('dragstart', e => {
+    const t = e.target instanceof Element ? e.target : e.target?.parentElement;
+    if (!t?.closest('input, textarea')) e.preventDefault();
+  }, true);
   // Inter is the text's font everywhere but on a Mac (SF Pro there): fetched now, so the first
   // paint already has it (theme.css; on a Mac it would only go unused)
   if (!/Mac/.test(navigator.userAgentData?.platform || navigator.platform)) {
