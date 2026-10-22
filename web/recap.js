@@ -3778,47 +3778,78 @@ async function setStartup(want) {
   if (s) toast(s.on ? 'Memoir starts with Windows' : 'Memoir won’t start with Windows');
 }
 // Turning it off asks first, grown out of the switch (its own pill and colour, back into it as it closes; the switch
-// stays on until the answer): what Memoir costs in the background, its RAM counting up, then Yes or No
+// stays on until the answer): what Memoir costs, its RAM counting up, then Yes or No
 const startupSwitch = () => $('set-startup').closest('.switch').querySelector('.track');
 function askStartupOff() {
   const track = startupSwitch();
   startupPop.open(track, { fromRadius: 'pill', fromBackground: getComputedStyle(track).backgroundColor });
-  rollMemory();
+  watchMemory();
   $('startup-pop').querySelector('.sp-no').focus({ preventScroll: true });
 }
-// 0 to 13 MB, rolling like an odometer: the ones column runs through 0…9, 0…3 and the tens comes in from blank to 1
-// as it passes 10, each blurred by how fast it's turning and sharp as it settles
-let memRoll = 0;
-function rollMemory() {
+// The RAM is the recorder's, right now, as Task Manager shows it (MainForm's memory: not the bridge a browser starts,
+// nor its pages' WebView2): it counts up from 0 as the popover opens, then follows it a second at a time while it's
+// open. 13, the PC it was tested on (specs.html), when Memoir can't say.
+const MEMORY_TESTED = 13;
+const memory = { shown: 0, to: 0, roll: 0, watch: 0, run: 0 };
+async function recorderMB() {
+  const bytes = await window.memoir?.request('memory').catch(() => null);
+  return Number.isFinite(bytes) && bytes > 0 ? Math.max(1, Math.round(bytes / 1048576)) : null;   // (Task Manager's MB)
+}
+async function watchMemory() {
+  const run = ++memory.run;
+  clearInterval(memory.watch);
+  rollMemory(0, 0, { room: memory.to || MEMORY_TESTED });   // 0, as wide as the number will likely be
+  const asked = performance.now();
+  const mb = (await recorderMB()) ?? MEMORY_TESTED;
+  if (run !== memory.run || !startupPop.isOpen) return;
+  rollMemory(0, mb, { delay: Math.max(0, 240 - (performance.now() - asked)), duration: 1650 });
+  memory.watch = setInterval(async () => {
+    if (run !== memory.run || !startupPop.isOpen) { clearInterval(memory.watch); return; }
+    const now = await recorderMB();
+    if (now && now !== memory.to && run === memory.run && startupPop.isOpen) rollMemory(memory.shown, now, { duration: 700 });
+  }, 1000);
+}
+// Rolling like an odometer, a column a digit: the ones run through every number on the way (0…9, 0…3 for 13), and
+// each column to their left comes in from blank, turning as the one to its right passes 9; each blurred by how fast
+// it's turning and sharp as it settles. room: the largest number the columns make room for.
+function rollMemory(from, to, { delay = 0, duration = 0, room = 0 } = {}) {
   const box = $('sp-mem');
-  if (!box.querySelector('.odo-col')) {
-    box.innerHTML = '<span class="odo-col" aria-hidden="true"><span class="odo-strip"><i>&nbsp;</i><i>1</i></span></span>'
-      + `<span class="odo-col" aria-hidden="true"><span class="odo-strip">${Array.from({ length: 14 }, (_, i) => `<i>${i % 10}</i>`).join('')}</span></span>`;
+  cancelAnimationFrame(memory.roll);
+  memory.to = to;
+  box.setAttribute('aria-label', String(to));
+  // column p (0: the ones) shows entry ⌊v / 10^p⌋ of its strip: that digit (blank before the first)
+  const top = Math.max(from, to, room);
+  const strips = Array.from({ length: String(Math.floor(top)).length }, (_, p) =>
+    Array.from({ length: Math.floor(top / 10 ** p) + 1 }, (_, k) => p && !k ? '&nbsp;' : String(k % 10)));
+  const size = strips.map(s => s.length).join();
+  if (box.dataset.size !== size) {
+    box.dataset.size = size;
+    box.innerHTML = [...strips].reverse().map(s => `<span class="odo-col" aria-hidden="true"><span class="odo-strip">${s.map(d => `<i>${d}</i>`).join('')}</span></span>`).join('');
   }
-  const [tens, ones] = box.querySelectorAll('.odo-strip');
+  const cols = [...box.querySelectorAll('.odo-strip')].reverse();
   const show = (v, speed) => {
-    const t = Math.min(1, Math.max(0, v - 9));
-    ones.style.transform = `translateY(${(-v * 1.1).toFixed(4)}em)`;
-    tens.style.transform = `translateY(${(-t * 1.1).toFixed(4)}em)`;
-    ones.style.filter = speed > 0.05 ? `blur(${Math.min(3.2, speed * 0.11).toFixed(2)}px)` : '';
-    tens.style.filter = v > 9 && v < 10 && speed > 0.05 ? `blur(${Math.min(2.4, speed * 0.08).toFixed(2)}px)` : '';
+    memory.shown = v;
+    cols.forEach((col, p) => {
+      const unit = 10 ** p, whole = Math.floor(v / unit);
+      const at = p ? whole + Math.min(1, Math.max(0, v - whole * unit - (unit - 1))) : v;
+      col.style.transform = `translateY(${(-at * 1.1).toFixed(4)}em)`;
+      col.style.filter = (!p || at % 1 > 0) && speed > 0.05 ? `blur(${Math.min(p ? 2.4 : 3.2, speed * (p ? 0.08 : 0.11)).toFixed(2)}px)` : '';
+    });
   };
-  cancelAnimationFrame(memRoll);
-  if (reducedMotion()) { show(13, 0); return; }
-  show(0, 0);
-  const DELAY = 240, DUR = 1650, TO = 13;
+  if (reducedMotion() || !duration) { show(to, 0); return; }
+  show(from, 0);
   const ease = t => 1 - Math.pow(1 - t, 4);
-  const start = performance.now() + DELAY;
-  let lastV = 0, lastAt = start;
+  const start = performance.now() + delay;
+  let lastV = from, lastAt = start;
   const step = now => {
-    const t = Math.min(1, Math.max(0, (now - start) / DUR));
-    const v = TO * ease(t);
-    const speed = now > lastAt ? ((v - lastV) / (now - lastAt)) * 1000 : 0;   // digits a second
+    const t = Math.min(1, Math.max(0, (now - start) / duration));
+    const v = from + (to - from) * ease(t);
+    const speed = now > lastAt ? (Math.abs(v - lastV) / (now - lastAt)) * 1000 : 0;   // digits a second
     lastV = v; lastAt = now;
     show(v, t < 1 ? speed : 0);
-    if (t < 1) memRoll = requestAnimationFrame(step);
+    if (t < 1) memory.roll = requestAnimationFrame(step);
   };
-  memRoll = requestAnimationFrame(step);
+  memory.roll = requestAnimationFrame(step);
 }
 function closeStartup(instant = false) { if (!$('startup-pop').hidden) startupPop.close({ instant }); }
 
