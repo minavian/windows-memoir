@@ -84,19 +84,19 @@ const verify=(value,message)=>{assert(value,message); ++checks;};
     await page.screenshot({path:path.join(__dirname,'report-settings.png')});
     verify((await page.locator('#settings-panel').innerText()).includes('Your data never leaves this computer'),'Settings says this computer, not this browser');
     verify(await page.locator('.desktop-status').count()===0,'No extra note under Settings');
-    // a newer Memoir for Windows, as a linked browser's Memoir says: Settings shows it until Not now
+    // a newer Memoir for Windows, as a linked browser's Memoir says: Settings shows it for as long as it's older (no X)
     const peer=v=>page.evaluate(v=>chrome.storage.local.set({sync:{peers:{['e'.repeat(32)]:{name:'Memoir in Edge',windowsLatest:v}}}}),v);
     verify(await page.locator('#update-row').isHidden(),'No update notice with no browser linked');
     await peer('0.9.0'); await page.waitForTimeout(600);
     verify(await page.locator('#update-row').isHidden(),'No update notice when the browser knows this same version');
+    await page.evaluate(()=>chrome.storage.local.set({updateDismissed:'0.9.1'}));   // what the X it once had saved
     await peer('0.9.1'); await page.waitForTimeout(800);
     verify(await page.locator('#update-row').isVisible()&&(await page.locator('#update-row').innerText()).includes('0.9.1'),'A browser that knows a newer Memoir for Windows: Settings says so');
     verify(await page.locator('#update-get').getAttribute('href')==='https://memoir.minavian.com','Get it goes to Memoir’s website');
-    await page.locator('#update-x').click(); await page.waitForTimeout(800);
-    verify(await page.locator('#update-row').isHidden()&&await page.evaluate(()=>testData.updateDismissed==='0.9.1'),'Not now puts it off for that version');
+    verify(await page.locator('#update-x').count()===0&&await page.evaluate(()=>testData.updateDismissed===undefined),'No X, and a Not now saved by the old one is gone: the notice stays');
     await peer('0.9.2'); await page.waitForTimeout(800);
-    verify(await page.locator('#update-row').isVisible(),'The next version shows again');
-    await page.evaluate(()=>chrome.storage.local.remove(['sync','updateDismissed'])); await page.waitForTimeout(800);
+    verify(await page.locator('#update-row').isVisible()&&(await page.locator('#update-row').innerText()).includes('0.9.2'),'The next version shows in its place');
+    await page.evaluate(()=>chrome.storage.local.remove('sync')); await page.waitForTimeout(800);
     verify(await page.locator('#update-row').isHidden(),'Unlinked, the notice goes');
     // Start with Windows: turning it off asks first (what Memoir costs, and why); only Turn it off anyway turns it off
     const startup=page.locator('#set-startup'); await startup.evaluate(el=>el.scrollIntoView({block:'center'})); await page.waitForTimeout(300);

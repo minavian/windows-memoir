@@ -3987,8 +3987,8 @@ async function linkWith(mode) {
 
 // ---------- a newer Memoir for Windows ----------
 // Memoir for Windows never looks online. A linked browser's Memoir, which its store keeps up to date, says which is
-// the newest Memoir for Windows (windowsLatest, link.js); an older one here says so in Settings until it's put off
-// for that version (Not now), and once in a toast.
+// the newest Memoir for Windows (windowsLatest, link.js); an older one here says so in Settings for as long as it's
+// older (it has no X: put off, it never came back), and once in a toast.
 const versionOf = v => String(v || '').split(/[^0-9.]/)[0].split('.').map(n => parseInt(n, 10) || 0);
 function isNewer(a, b) {
   const x = versionOf(a), y = versionOf(b);
@@ -3999,6 +3999,7 @@ let updateShown = null;
 async function renderUpdate({ announce = false } = {}) {
   if (!window.memoir?.windows) return;
   const { sync, updateDismissed, updateAnnounced } = await chrome.storage.local.get(['sync', 'updateDismissed', 'updateAnnounced']);
+  if (updateDismissed !== undefined) chrome.storage.local.remove('updateDismissed').catch(() => {});   // (what its X once saved)
   const manifest = chrome.runtime.getManifest();
   const here = manifest.version;   // (the number: its name, alpha v0.9, isn't one)
   let latest = null;
@@ -4006,7 +4007,7 @@ async function renderUpdate({ announce = false } = {}) {
     const v = peer && peer.windowsLatest;
     if (/^\d{1,4}(\.\d{1,4}){1,3}$/.test(v || '') && isNewer(v, here) && (!latest || isNewer(v, latest))) latest = v;
   }
-  const show = latest && updateDismissed !== latest ? latest : null;
+  const show = latest;
   if (show === updateShown) return;
   updateShown = show;
   const row = $('update-row');
@@ -4547,8 +4548,6 @@ function wire() {
     else toast(e.target.checked ? 'Tracking resumed' : 'Tracking paused');
   });
   $('set-tracking').addEventListener('blur', () => askPause(false));
-  // a newer Memoir for Windows: Not now puts it off until the next one (renderUpdate)
-  $('update-x').addEventListener('click', () => { if (updateShown) chrome.storage.local.set({ updateDismissed: updateShown }).catch(() => {}); });
   $('resume').addEventListener('click', async () => {
     state.settings = await updateSettings({ paused: false });
     $('set-tracking').checked = true;
@@ -5513,7 +5512,7 @@ function onStorageChanged(changes, area) {
   }
   if (area !== 'local') return;
   if (changes.link || changes.sync) loadLink();
-  if (changes.sync || changes.updateDismissed) renderUpdate();
+  if (changes.sync) renderUpdate();
   if (changes.linkTour) maybeLinkTour();
   if (changes.settings) {
     state.settings = { ...state.settings, ...(changes.settings.newValue || {}) };
