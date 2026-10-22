@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // The page's side of the dust (see dust-engine.js): a canvas per hidden word, handed to a
 // worker that draws them all, sized by a ResizeObserver and paused while off screen or
 // while nothing that holds them is open.

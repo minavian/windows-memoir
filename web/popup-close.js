@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // The popup's close button, at its top right beside Resume (Memoir for Windows: Today by the clock, src/Flyout.cs).
 // A click closes it, or pull it down and let go, as the report's gear closes its tab or window (pull-close.js); a
 // short pull springs back. A click elsewhere and Esc still close it too. Styles in popup.css.

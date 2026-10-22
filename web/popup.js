@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 import {
   CATEGORIES, CATEGORY_BY_ID, isPrivate, siteName, categorize, dayKey, addDays, getDays, normalizeDay,
   getSettings, updateSettings, getCategoryOverrides, getSession, unsavedMs, getOrigins,

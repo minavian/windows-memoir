@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // Memoir: Browser Screen Time — shared data layer.
 // Everything here runs locally; nothing ever leaves the browser.
 

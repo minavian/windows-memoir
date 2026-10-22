@@ -1,4 +1,3 @@
-// Made with care and love by Mina Vian
 using System;
 using System.IO;
 using Microsoft.Win32;

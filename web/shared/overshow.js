@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // Over the daily limit: the ring's own flame takes the stage. It comes up as big as the
 // overshoot (four sizes, each burning harder than the last), with how far over, and past an
 // hour a dry line, then flies home into its ring. One element all the way: the flame leaves

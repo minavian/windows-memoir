@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // A guided tour: the page dims, a spotlight glides from one feature to the next
 // and a small card explains it. Keys: → / Enter next, ← back, Esc to leave. The
 // arrows are the tour's wherever the focus is (a step can lend them to the page with

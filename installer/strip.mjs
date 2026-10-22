@@ -1,6 +1,5 @@
 // What ships is only what runs: copies a folder of Memoir's web files with every developer comment taken out and the
 // code written compactly (JavaScript through terser, its code unchanged; CSS and HTML by a careful pass of our own).
-// A /*! comment stays: the credit atop every script and stylesheet.
 // node strip.mjs <from> <to>
 import { minify } from 'terser';
 import { promises as fs } from 'node:fs';
@@ -16,7 +15,7 @@ export function stripCss(text) {
     const c = text[i];
     if (quote) { out += c; if (c === '\\') { out += text[i + 1] ?? ''; i += 2; continue; } if (c === quote) quote = null; i++; continue; }
     if (c === '"' || c === "'") { quote = c; out += c; i++; continue; }
-    if (c === '/' && text[i + 1] === '*') { const end = text.indexOf('*/', i + 2), next = end < 0 ? text.length : end + 2; if (text[i + 2] === '!') out += text.slice(i, next); i = next; continue; }
+    if (c === '/' && text[i + 1] === '*') { const end = text.indexOf('*/', i + 2); i = end < 0 ? text.length : end + 2; continue; }
     out += c; i++;
   }
   return out.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join('\n') + '\n';
@@ -35,7 +34,7 @@ function stripHtml(text) {
 
 async function stripJs(text, file) {
   const module = /^\s*(import|export)\b/m.test(text) || /\bimport\s*\(/.test(text);
-  const result = await minify(text, { module, compress: false, mangle: false, ecma: 2022, format: { comments: /^!/ } });
+  const result = await minify(text, { module, compress: false, mangle: false, ecma: 2022, format: { comments: false } });
   if (!result.code) throw new Error(`terser gave nothing for ${file}`);
   return result.code + '\n';
 }

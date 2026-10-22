@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 import { reducedMotion, EASE_OUT } from './fx.js';
 import { siteName } from './core.js';
 

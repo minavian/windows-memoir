@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // First run: a welcome card before the tour, on the same dim the tour uses. It
 // covers the report while the report gets ready, then plays in: the clock pops up
 // and sets itself to 10:10, the name rises letter by letter, the rest follows in a

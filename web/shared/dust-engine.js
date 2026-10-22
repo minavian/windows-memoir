@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // Dust: a cloud of fine specks drifting over a hidden word (the sites under Never track).
 // Each speck fades in and out on its own clock, so the cloud shimmers without moving as a
 // whole; stirring it (hover, a first click) makes it livelier. Revealing blows the specks

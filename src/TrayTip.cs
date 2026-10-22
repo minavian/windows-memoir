@@ -1,4 +1,3 @@
-// Made with care and love by Mina Vian
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;

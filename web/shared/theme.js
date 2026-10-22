@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // Appearance: System (default — follows light/dark), Light or Dark.
 // Stored in localStorage so the popup and the report share it instantly and it
 // can be applied before first paint (see theme-boot.js).

@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // "Reset the limit": ten increasingly pointed questions before a committed
 // limit can be undone the same day. Every "no" is one click; every "yes" is work.
 // Nothing says how many are left. Each kind of question has four versions, the

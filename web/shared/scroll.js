@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // One long, soft glide for every scrollable surface, independent of refresh rate.
 const SMOOTH_MS = 145;
 const controllers = new WeakMap();

@@ -1,4 +1,3 @@
-/*! Made with care and love by Mina Vian */
 // Installing and uninstalling Memoir (setup.html), in a small window of Memoir.exe's own (Setup.cs).
 //
 // Installing: the clock comes in while the files go in, then it winds once and says it's ready, and Memoir opens
