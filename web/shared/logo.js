@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // The Memoir clock on its black disc, built from parts so its entrance runs on the
 // compositor: the disc pops in, the ring turns into place, the hands sweep from 9:00
 // round to 10:10, and the knob clicks onto the ring's seam.

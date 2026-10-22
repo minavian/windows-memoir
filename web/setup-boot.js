@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Installing and uninstalling (setup.html): the look Memoir.exe asks for, before the first paint. The installer
 // follows Windows' light or dark; the uninstaller follows the Memoir it's removing (its theme, Rainbow clock and
 // cursor).

@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Trend over time: the daily average of each week as one line.
 // Draws in on first show; switching the range morphs the line into its new shape.
 

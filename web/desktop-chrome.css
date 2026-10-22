@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 /* Memoir for Windows has no title bar (src/TitleBar.cs gives the window's caption to the page): the page goes right up
    to the top, with the extension's own spacing. What a title bar did is still there, unseen: the window's top edge
    resizes it (.win-edge), the empty top of a page moves it and a double-click there maximizes it (desktop-bridge.js),

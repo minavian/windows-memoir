@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Appearance (the theme, the Rainbow clock, the custom cursor and its smoothing) lives in this place's
 // localStorage, so it's there before first paint (theme-boot.js), with a copy in settings: the copy is what a
 // linked Memoir shares (link.js, like the other settings), and what the toolbar icon reads (rainbow). A change

@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // The privacy page and How Memoir works: the report's cursor and scrolling, the live clock
 // beside the name, the text popping on, and (privacy) the address to copy, the same popover
 // as the report's "Made by".

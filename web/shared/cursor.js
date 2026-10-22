@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // An animated pointer. One arrow in every state: over something clickable it
 // tilts and shrinks a little; pressing squeezes it. Its colours never flip.
 // Text fields keep the system's I-beam. Can be turned off in Settings.

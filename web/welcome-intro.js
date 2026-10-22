@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // The welcome's opening, before the card. On black (on Light a soft white), a light drifting in behind,
 // WELCOME TO and a big MEMOIR (the trailer's wordmark) arrive letter by letter from left
 // to right while the page gets ready behind them (the week drawn, the tour's sample

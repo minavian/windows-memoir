@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // The web interface talks only to the native host; no localhost server is exposed.
 (() => {
   const native = window.chrome?.webview;

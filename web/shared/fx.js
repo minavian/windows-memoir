@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Motion & UI primitives shared by the popup and the report.
 // Hover motion never overshoots; bounce is saved for things that pop open.
 

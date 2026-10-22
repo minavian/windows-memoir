@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // A name or a word that opens a small popover on hover: the report's "Made by" name in
 // Settings (where bug reports go, and my website), the wordmark beside it (Memoir's
 // website) and the privacy page's address. Markup: a trigger (.p-author) and a

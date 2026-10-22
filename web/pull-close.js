@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // The report's Settings button closes it too. Pull it down and let go: in the browser, this tab closes; Memoir for
 // Windows (no title bar, so the button does what its buttons did) closes to the notification area, where it keeps
 // counting, as closing its window always did. Memoir for Windows only: pull it up for full screen, or back (as F11

@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Daily limit: a countdown ring, and a circular picker to set the limit.
 //
 // Ring colours by how much of the limit is used:

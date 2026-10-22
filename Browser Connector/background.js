@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Only tab metadata goes to Memoir on this computer. No page scripts or network calls.
 let port = null, retryAfter = 0, generation = 0;
 function connect() {

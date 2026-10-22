@@ -1,3 +1,4 @@
+/*! Made with care and love by Mina Vian */
 // Runs before first paint so a saved Light/Dark choice never flashes the wrong theme.
 (() => {
   try {

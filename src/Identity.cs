@@ -1,3 +1,4 @@
+// Made with care and love by Mina Vian
 using System;
 using System.Security.Cryptography;
 using System.Text;

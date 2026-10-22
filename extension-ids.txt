@@ -1,3 +1,3 @@
 # The Memoir extensions that may link with this Memoir for Windows (Registration.cs), one ID a line.
-inmjfjnbijgnbhnkdjnhciemdnconhhf   # the extension loaded unpacked from M:\Code\MEMOIR\memoir-browser-screen-time - Claude Code (development)
+inmjfjnbijgnbhnkdjnhciemdnconhhf   # the extension loaded unpacked from its own folder (development)
 # The Chrome Web Store ID goes here once the store item exists (see the extension's SYNC-PLAN.md).
