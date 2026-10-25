@@ -539,7 +539,7 @@ function weekTitle() {
 // as it settles. A column or a unit that comes or goes (an hour's digits, "h", "<") opens or closes its room as it
 // fades in or out. Changed again mid-roll, every column goes on from where it is. The words stay in a hidden copy,
 // for screen readers and anything that reads the text.
-const ODO = { ms: 1000, line: 1.1, cycle: 10 };   // a digit's height in em (recap.css .odo-strip i); its strip holds 0-9 three times
+const ODO = { ms: 1000, line: 1.5, cycle: 10 };   // a digit's height in em (recap.css .odo-t), a whole window apart; its strip holds 0-9 three times
 const ODO_ORDER = ['lt', 'h3', 'h2', 'h1', 'h0', 'hu', 'sp', 'm1', 'm0', 'mu'];
 function odoSlots(ms) {
   const [, lt, h, m] = fmt(ms).match(/^(<)?(?:(\d+)h)? ?(?:(\d+)m)?$/) || [];
@@ -564,7 +564,7 @@ function rollTime(el, ms, { instant = false, delay = 0, from = null } = {}) {
   if (!st || !el.contains(st.box)) {
     // drawn afresh (or after plain words were put in): as it is, or from `from` if it's to roll in
     const box = document.createElement('span');
-    box.className = 'odo';
+    box.className = 'odo odo-t';
     box.setAttribute('aria-hidden', 'true');
     const said = document.createElement('span');
     said.className = 'odo-said';

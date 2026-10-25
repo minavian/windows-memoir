@@ -1552,6 +1552,13 @@ body { overflow: hidden; }
 /* a time that rolls the same way (recap.js rollTime, Categories): its letters, which open and close their room, and
    its words, kept for screen readers */
 .odo-ch { display: inline-block; height: 1.1em; line-height: 1.1em; overflow: hidden; white-space: pre; }
+/* its digits a whole window apart, so at rest no neighbour shows at the window's edges (small type showed their tops),
+   and on the line's baseline like the words beside it: clipped, not hidden (a box that hides its overflow would sit
+   on its bottom edge instead) */
+.odo-t { vertical-align: baseline; align-items: baseline; }
+.odo-t .odo-col, .odo-t .odo-ch { overflow: clip; }
+.odo-t .odo-strip { padding-top: 0; }
+.odo-t .odo-strip i { height: 1.5em; line-height: 1.5em; }
 .odo-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .sp-ask { margin: 0 4px 9px; font-size: 13.5px; font-weight: 600; animation: context-row-in 0.32s var(--ease-out) 300ms backwards; }
 .sp-actions { display: flex; gap: 6px; animation: context-row-in 0.32s var(--ease-out) 350ms backwards; }
