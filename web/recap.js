@@ -86,6 +86,7 @@ const importPop = new MorphPopover($('import-pop'), { radius: 16 });
 const linkPop = new MorphPopover($('link-pop'), { radius: 16 });
 const startupPop = new MorphPopover($('startup-pop'), { radius: 16 });
 const guidePop = new MorphPopover($('guide-pop'), { radius: 16 });
+const browsersPop = new MorphPopover($('browsers-pop'), { radius: 16 });
 // the author's name in Settings: where bug reports go, and my website; the wordmark beside it: Memoir's
 // website (shared/mail-pop.js)
 const author = mailPop($('author'), $('author-pop'), {
@@ -3497,6 +3498,7 @@ function closeSettings(focusTrigger = false) {
   answerImport(null, true);
   closeLink(true);
   closeGuide(true);
+  closeBrowsers(true);
   closeStartup(true);
   closeFootPops(true);
   $('settings-btn').setAttribute('aria-expanded', 'false');
@@ -4181,9 +4183,20 @@ function renderLink() {
   let rows;
   if (window.memoir?.windows) {
     const peers = linkUi.peers;
-    rows = peers.length
-      ? peers.map(p => ({ key: p.device, name: p.label, title: 'Memoir in browser', state: p.connected ? 'insync' : 'offline', label: p.connected ? 'In sync' : 'Linked', desc: `${p.label} · ${p.connected ? syncedText(p.lastSync) : 'syncs when it’s open'}` }))
-      : [{ key: '', title: 'Memoir in browser', state: 'guide', label: 'Guide', desc: 'Not linked yet' }];
+    // down to one browser while their list is open: the row going finishes folding, the list shrinks back into what
+    // it came from, and only then does the row become that browser's
+    if (peers.length < 2 && browsersPop.isOpen) {
+      if (!linkUi.listClosing) {
+        linkUi.listClosing = true;
+        Promise.resolve(linkUi.folding).then(() => closeBrowsers()).then(() => { linkUi.listClosing = false; renderLink(); });
+      }
+      return;
+    }
+    rows = peers.length > 1 ? [manyRow(peers)]
+      : peers.length
+        ? peers.map(p => ({ key: p.device, name: p.label, title: 'Memoir in browser', state: p.connected ? 'insync' : 'offline', label: p.connected ? 'In sync' : 'Linked', desc: `${p.label} · ${p.connected ? syncedText(p.lastSync) : 'syncs when it’s open'}` }))
+        : [{ key: '', title: 'Memoir in browser', state: 'guide', label: 'Guide', desc: 'Not linked yet' }];
+    if (browsersPop.isOpen) renderBrowsers();
     // a browser linked or unlinked: its row comes or goes, and the block makes room
     const box = $('link-rows');
     const fit = () => {
@@ -4205,7 +4218,54 @@ function renderLink() {
   clearTimeout(linkUi.tick);
   if (rows.some(r => r.state === 'insync') && $('settings').classList.contains('open')) linkUi.tick = setTimeout(renderLink, 30_000);
 }
-function paintLinkRow(el, { key, name, title, state, label, desc }) {
+// Two browsers or more: one row for them all, "Chrome & Comet · Synced just now"; once their names no longer fit
+// its line, "3 browsers". Either way they're a button, and so is the row's own: the list of them grows out of it,
+// each with its own state and Unlink (renderBrowsers).
+function manyRow(peers) {
+  const on = peers.filter(p => p.connected);
+  const status = on.length === peers.length ? syncedText(Math.min(...on.map(p => p.lastSync || 0)))
+    : on.length ? `${on.length} of ${peers.length} in sync` : 'syncs when they’re open';
+  return { key: '~many', title: 'Memoir in browsers', state: on.length ? 'insync' : 'offline', label: on.length ? 'In sync' : 'Linked', many: { names: peers.map(p => p.label), status } };
+}
+const namesText = names => (names.length > 1 ? `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}` : names[0] || '');
+// the browsers' part of a many row's line: their names, if the whole line fits with room to spare, else how many
+function whoText(desc, { names, status }) {
+  const full = namesText(names);
+  // the room the row's button leaves once it's done changing (it may still be growing into its new label, its check
+  // still coming in): measured on a still copy of it
+  const row = desc.closest('.link-row');
+  if (!row.clientWidth) return full;
+  const btn = row.querySelector('.link-btn');
+  const still = btn.cloneNode(true);
+  still.removeAttribute('id');
+  for (const n of [still, ...still.querySelectorAll('*')]) { n.style.transition = 'none'; n.style.animation = 'none'; }
+  Object.assign(still.style, { position: 'absolute', visibility: 'hidden', width: 'auto', pointerEvents: 'none' });
+  btn.parentNode.appendChild(still);
+  const room = row.clientWidth - still.getBoundingClientRect().width - parseFloat(getComputedStyle(row).columnGap || 0);
+  still.remove();
+  const probe = desc.cloneNode(false);
+  probe.removeAttribute('id');
+  probe.innerHTML = `<button class="link-who" type="button">${escapeHtml(full)}</button> · ${escapeHtml(status)}`;
+  Object.assign(probe.style, { position: 'absolute', visibility: 'hidden', width: 'max-content', pointerEvents: 'none' });
+  desc.parentNode.appendChild(probe);
+  const fits = probe.getBoundingClientRect().width <= room - 6;
+  probe.remove();
+  return fits ? full : `${names.length} browsers`;
+}
+function paintManyDesc(desc, many) {
+  let who = desc.querySelector('.link-who');
+  if (!who) {
+    desc.innerHTML = '<button class="link-who" type="button" aria-haspopup="dialog" aria-expanded="false"></button> · <span class="link-status"></span>';
+    who = desc.querySelector('.link-who');
+    replay(desc, 'swap');
+  }
+  const text = whoText(desc, many);
+  if (who.textContent !== text) { if (who.textContent) swapText(who, text); else who.textContent = text; }
+  who.setAttribute('aria-label', `${text}: see which browsers`);
+  const status = desc.querySelector('.link-status');
+  if (status.textContent !== many.status) swapText(status, many.status);
+}
+function paintLinkRow(el, { key, name, title, state, label, desc, many }) {
   const btn = el.querySelector('.link-btn');
   const armed = !!key && linkUi.armed === key;
   // (which browser it is stays in sight while it asks)
@@ -4218,7 +4278,15 @@ function paintLinkRow(el, { key, name, title, state, label, desc }) {
   btn.dataset.arm = armed ? '1' : '';
   btn.setAttribute('aria-label', state === 'guide' ? 'How to connect a browser' : armed ? `Press again to unlink ${name || title}` : `${label}: ${name ? `${title}, ${name}` : title}`);
   if (label) relabel(btn, label);
-  swapText(el.querySelector('.link-desc'), desc);
+  el.classList.toggle('many', !!many);
+  if (many) {
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.setAttribute('aria-label', `${label}: see which browsers`);
+    paintManyDesc(el.querySelector('.link-desc'), many);
+  } else {
+    btn.removeAttribute('aria-haspopup');
+    swapText(el.querySelector('.link-desc'), desc);
+  }
 }
 // another row like the first, for one more linked browser
 let linkRowSeq = 0;
@@ -4240,6 +4308,91 @@ function relabel(btn, text) {
   const to = btn.getBoundingClientRect().width;
   if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
 }
+// The browsers' list (Memoir for Windows, two or more linked), grown out of what was pressed, in its own shape and
+// colour, and back into it as it closes: a row for each, with its icon, when it last synced, and its own button,
+// "✓ Synced" (or Linked while it's closed). Pressed, it turns into a red Sure?; pressed again, that browser is
+// unlinked and its row folds away, the list closing up and the popover shrinking with it.
+let browsersFrom = null;
+const LINK_OK = '<svg class="link-ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4 4.9 8.8 9.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// "Just now", "At 12:04": a row's sync, its button already saying Synced
+const syncedWhen = at => { const t = syncedText(at).replace(/^Synced /, ''); return t[0].toUpperCase() + t.slice(1); };
+function browserRow(p) {
+  const li = document.createElement('li');
+  li.className = 'bp-row';
+  li.dataset.key = p.device;
+  li.innerHTML = `<span class="bp-text"><b></b><small></small></span><button class="btn btn-secondary btn-xs link-btn bp-btn" type="button">${LINK_OK}<span class="link-label"></span></button>`;
+  li.prepend(faviconTile(`app:${String(p.browser || '').toLowerCase()}`, 'var(--label-3)'));
+  li.querySelector('b').textContent = p.label;
+  return li;
+}
+function paintBrowserRow(li, p) {
+  const armed = linkUi.armed === p.device;
+  const said = armed ? 'Both keep what they have' : p.connected ? syncedWhen(p.lastSync) : 'Syncs when it’s open';
+  const small = li.querySelector('small');
+  if (!small.textContent) small.textContent = said;
+  else swapText(small, said);
+  const btn = li.querySelector('.bp-btn');
+  btn.dataset.state = p.connected ? 'insync' : 'offline';
+  btn.dataset.arm = armed ? '1' : '';
+  btn.setAttribute('aria-label', armed ? `Sure? Press again to unlink ${p.label}` : `${p.connected ? 'Synced' : 'Linked'}: ${p.label}. Press to unlink`);
+  const label = armed ? 'Sure?' : p.connected ? 'Synced' : 'Linked';
+  if (!btn.querySelector('.link-label').textContent) btn.querySelector('.link-label').textContent = label;
+  else relabel(btn, label);
+}
+// a row going: it folds away (its height, its room and its words), and the list closes up under it
+function foldBrowserRow(li) {
+  if (li.classList.contains('leaving')) return;
+  li.classList.add('leaving');
+  li.inert = true;
+  const h = li.getBoundingClientRect().height;
+  if (reducedMotion() || !h) { li.remove(); return; }
+  const gone = li.animate([{ height: `${h}px`, opacity: 1 }, { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }], { duration: 340, easing: EASE_OUT, fill: 'forwards' })
+    .finished.then(() => li.remove(), () => li.remove());
+  linkUi.folding = Promise.all([linkUi.folding, gone]);
+}
+function renderBrowsers() {
+  const ul = $('bp-list');
+  const open = browsersPop.isOpen;
+  const want = new Set(linkUi.peers.map(p => p.device));
+  const live = key => ul.querySelector(`.bp-row[data-key="${CSS.escape(key)}"]:not(.leaving)`);
+  const going = key => ul.querySelector(`.bp-row.leaving[data-key="${CSS.escape(key)}"]`);
+  // rows of browsers no longer linked fold away; while the list is shut they simply go
+  for (const li of [...ul.children]) if (!li.classList.contains('leaving') && !want.has(li.dataset.key)) (open ? foldBrowserRow(li) : li.remove());
+  linkUi.peers.forEach((p, i) => {
+    if (going(p.device)) return;   // (unlinked just now: on its way out already)
+    let li = live(p.device);
+    if (!li) {
+      li = browserRow(p);
+      li.style.setProperty('--d', `${190 + i * 40}ms`);
+      ul.appendChild(li);
+      // one linked while the list is open joins it, unfolding (the list opening shows them all at once)
+      if (open && !reducedMotion()) {
+        const h = li.getBoundingClientRect().height;
+        li.style.animation = 'none';
+        li.animate([{ height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }, { height: `${h}px`, opacity: 1 }], { duration: 340, easing: EASE_OUT });
+      }
+    }
+    paintBrowserRow(li, p);
+  });
+}
+function openBrowsers(from) {
+  browsersFrom = from;
+  renderBrowsers();
+  const cs = getComputedStyle(from);
+  const bg = cs.backgroundColor;
+  browsersPop.open(from, { fromRadius: from.classList.contains('link-btn') ? 'pill' : parseFloat(cs.borderTopLeftRadius) || 6, fromBackground: /^rgba\(0, 0, 0, 0\)$|^transparent$/.test(bg) ? null : bg });
+  for (const b of document.querySelectorAll('.link-who, #link-rows .link-btn')) b.setAttribute('aria-expanded', String(b === from));
+  $('browsers-pop').focus({ preventScroll: true });
+}
+function closeBrowsers(instant = false) {
+  if ($('browsers-pop').hidden) return Promise.resolve();
+  for (const b of document.querySelectorAll('.link-who, #link-rows .link-btn')) b.setAttribute('aria-expanded', 'false');
+  // an Unlink? still asking is let go with it
+  if (linkUi.armed && linkUi.peers.some(p => p.device === linkUi.armed)) { linkUi.armed = ''; clearTimeout(linkUi.timer); }
+  return browsersPop.close({ instant });
+}
+const toggleBrowsers = from => (browsersPop.isOpen ? closeBrowsers() : openBrowsers(from));
+
 // key: 'app' in the extension; in Memoir for Windows, the device of the browser whose row it is (none: the guide)
 async function pressLink(key, btn) {
   if (!key) { if (window.memoir?.windows) openGuide(btn); return; }
@@ -4645,6 +4798,7 @@ function wire() {
       else if (startupPop.isOpen) { closeStartup(); $('set-startup').focus({ preventScroll: true }); }
       else if (linkPop.isOpen) { closeLink(); $('link-btn').focus({ preventScroll: true }); }
       else if (guidePop.isOpen) { closeGuide(); guideFrom?.focus({ preventScroll: true }); }
+      else if (browsersPop.isOpen) { closeBrowsers(); browsersFrom?.focus({ preventScroll: true }); }
       else if (footOpen()) { const [p] = footOpen(); p.close(); p.focusTrigger(); }
       else if ($('settings').classList.contains('open')) {
         if ($('data-row').dataset.step !== '0') setNukeStep(0);
@@ -4786,11 +4940,12 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #startup-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #browsers-pop, #startup-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
     if (startupPop.isOpen && !e.target.closest('#startup-pop, #startup-row .switch')) closeStartup();
     if (guidePop.isOpen && !e.target.closest('#guide-pop, .link-btn, #link-more')) closeGuide();
+    if (browsersPop.isOpen && !e.target.closest('#browsers-pop, .link-who, #link-rows .link-btn')) closeBrowsers();
     for (const [p, id, popId] of footPops) if (p.popover.isOpen && !e.target.closest(`#${id}, #${popId}`)) p.close();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
     if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
@@ -5102,6 +5257,7 @@ function wire() {
     if (!$('link-pop').hidden) linkPop.place($('link-btn').getBoundingClientRect());
     if (!$('startup-pop').hidden) startupPop.place(startupSwitch().getBoundingClientRect());
     if (!$('guide-pop').hidden && guideFrom) guidePop.place(guideFrom.getBoundingClientRect());
+    if (!$('browsers-pop').hidden && browsersFrom?.isConnected) browsersPop.place(browsersFrom.getBoundingClientRect());
     for (const [p, id, popId] of footPops) if (!$(popId).hidden) p.popover.place($(id).getBoundingClientRect());
   }, { passive: true });
   $('nuke').addEventListener('click', () => {
@@ -5154,10 +5310,21 @@ function wire() {
     else $('set-startup').focus({ preventScroll: true });
   });
   $('link-rows').addEventListener('click', e => {
+    const who = e.target.closest('.link-who');
+    if (who) { toggleBrowsers(who); return; }
     const btn = e.target.closest('.link-btn');
     if (!btn) return;
     if (linkPop.isOpen) closeLink();
+    else if (btn.closest('.link-row').dataset.key === '~many') toggleBrowsers(btn);
     else pressLink(btn.closest('.link-row').dataset.key, btn);
+  });
+  $('browsers-pop').addEventListener('click', e => {
+    const b = e.target.closest('.bp-btn');
+    if (!b) return;
+    const li = b.closest('.bp-row');
+    // the second press (Sure?): the row goes at once, the unlinking follows
+    if (linkUi.armed === li.dataset.key) foldBrowserRow(li);
+    pressLink(li.dataset.key, b);
   });
   $('link-more').addEventListener('click', e => (guidePop.isOpen ? closeGuide() : openGuide(e.currentTarget)));
   $('guide-pop').addEventListener('click', e => { if (e.target.closest('[data-close]')) { closeGuide(); guideFrom?.focus({ preventScroll: true }); } });

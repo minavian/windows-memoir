@@ -1818,6 +1818,43 @@ body { overflow: hidden; }
   transition: color 0.2s var(--ease);
 }
 .link-more:hover, .link-more:focus-visible { color: var(--label); outline: none; text-decoration: underline; }
+/* Memoir for Windows with two browsers or more: one row, "Chrome & Comet · Synced just now" on one line (its
+   browsers' part a button: their list grows out of it, recap.js openBrowsers). The words take the room the row's
+   button leaves, so the line can be measured against it. */
+.link-row > span:first-child { flex: 1; min-width: 0; }
+.link-row.many .link-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.link-who {
+  margin: 0 -4px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-weight: 600;
+  cursor: var(--cursor-hand);
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.link-who:hover, .link-who[aria-expanded="true"] { background: var(--fill-2); }
+.link-who:focus-visible { outline: none; box-shadow: var(--ring); }
+/* the list: a row a browser, its icon, its name and when it synced, and its button (✓ Synced, then a red Sure?:
+   .link-btn's). Rows are spaced by their own padding, so one folding away takes all its room with it. */
+.browsers-pop { width: 290px; outline: none; }
+.bp-list { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; }
+.bp-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  animation: context-row-in 0.32s var(--ease-out) var(--d, 190ms) backwards;
+}
+.bp-row.leaving { overflow: hidden; pointer-events: none; }
+.bp-text { min-width: 0; }
+.bp-text b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-text small { display: block; font-size: 11.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-text small.swap { animation: swap 0.35s var(--ease-out); }
+
 .guide-pop { width: 320px; }
 .gp-steps {
   display: grid;
