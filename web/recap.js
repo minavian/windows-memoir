@@ -555,7 +555,11 @@ function odoNode(key, slot) {
   n.dataset.k = key;
   if (slot.ch != null) { n.className = 'odo-ch'; n.textContent = slot.ch; return n; }
   n.className = 'odo-col';
-  n.innerHTML = `<span class="odo-strip">${Array.from({ length: ODO.cycle * 3 }, (_, i) => `<i>${i % 10}</i>`).join('')}</span>`;
+  // its strip: the digits as lines of one text, not an element each (a card full of them was slow to change)
+  const strip = document.createElement('span');
+  strip.className = 'odo-strip';
+  strip.textContent = Array.from({ length: ODO.cycle * 3 }, (_, i) => i % 10).join('\n');
+  n.appendChild(strip);
   return n;
 }
 const odoAt = (n, pos) => { n._pos = pos; n.firstChild.style.transform = `translateY(${(-pos * ODO.line).toFixed(4)}em)`; };
@@ -584,31 +588,39 @@ function rollTime(el, ms, { instant = false, delay = 0, from = null } = {}) {
   if (instant || reducedMotion()) {
     st.box.replaceChildren(...ODO_ORDER.filter(k => want.has(k)).map(k => {
       const n = have.get(k) || odoNode(k, want.get(k));
-      for (const a of n.getAnimations()) a.cancel();
+      n._fade?.cancel();
       if (want.get(k).d != null) { odoAt(n, ODO.cycle + want.get(k).d); n.firstChild.style.filter = ''; }
       return n;
     }));
     return;
   }
-  // where each column is now (mid-roll too), then every one there will be, in order
-  const now = new Map([...have].map(([k, n]) => [k, { w: n.getBoundingClientRect().width, o: +getComputedStyle(n).opacity }]));
-  for (const n of have.values()) for (const a of n.getAnimations()) a.cancel();
+  // where each column is now: whole, or (cut short opening or closing) as wide and clear as it is right then;
+  // only those are measured, so a change mostly asks nothing of the page's layout. Then every one there will be,
+  // in order.
+  const now = new Map([...have].map(([k, n]) => {
+    if (!n._fade || n._fade.playState !== 'running') return [k, null];
+    const was = { w: `${n.getBoundingClientRect().width}px`, o: +getComputedStyle(n).opacity };
+    n._fade.cancel();
+    return [k, was];
+  }));
   const nodes = [];
   for (const k of ODO_ORDER) {
     if (!want.has(k) && !have.has(k)) continue;
     const n = have.get(k) || odoNode(k, want.get(k));
-    if (!have.has(k)) { now.set(k, { w: 0, o: 0 }); if (want.get(k).d != null) odoAt(n, ODO.cycle + (dir < 0 ? 9 : 0)); }
+    if (!have.has(k)) { now.set(k, { w: '0px', o: 0 }); if (want.get(k).d != null) odoAt(n, ODO.cycle + (dir < 0 ? 9 : 0)); }
     nodes.push(n);
   }
   st.box.replaceChildren(...nodes);
   for (const n of nodes) if (n.className === 'odo-col') n.firstChild.style.filter = '';
-  const natural = new Map(nodes.map(n => [n.dataset.k, n.getBoundingClientRect().width]));
+  // a column opens or closes its room up to a width no digit or letter reaches (so none is measured)
+  const WHOLE = { w: '1.1em', o: 1 };
   const turns = [];
   for (const n of nodes) {
-    const k = n.dataset.k, was = now.get(k), stays = want.has(k);
-    const to = { w: stays ? natural.get(k) : 0, o: stays ? 1 : 0 };
-    if (Math.abs(was.w - to.w) > 0.3 || Math.abs(was.o - to.o) > 0.01) {
-      const a = n.animate([{ width: `${was.w}px`, opacity: was.o }, { width: `${to.w}px`, opacity: to.o }], { duration: 560, delay, easing: EASE_OUT, fill: stays ? 'backwards' : 'both' });
+    const k = n.dataset.k, stays = want.has(k);
+    const was = now.get(k) || WHOLE;
+    const to = stays ? WHOLE : { w: '0px', o: 0 };
+    if (was.w !== to.w || Math.abs(was.o - to.o) > 0.01) {
+      const a = n._fade = n.animate([{ maxWidth: was.w, opacity: was.o }, { maxWidth: to.w, opacity: to.o }], { duration: 560, delay, easing: EASE_OUT, fill: stays ? 'backwards' : 'both' });
       if (!stays) a.finished.then(() => { if (st.run === run) n.remove(); }, () => {});
     } else if (!stays) n.remove();
     if (n.className !== 'odo-col') continue;
@@ -2007,14 +2019,17 @@ function setScope(scope) {
   for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.scope === scope));
   renderScoped();
 }
+let scopedSites = 0;
 function renderScoped() {
   const s = state.summary;
   if (!s || s.total < 60_000) return;
   closeCatPop(true);
   if (focusCat) setFocusCat(null);
-  // the same categories with new numbers: the legend changes in place, not drawn afresh
+  // the same categories with new numbers: the legend changes in place, not drawn afresh. Most used comes in a frame
+  // later (its rows make their own entrance): drawn with the legend, the two held up the frame a switch starts on
   renderDonut(s, true);
-  renderSites(s, false);
+  cancelAnimationFrame(scopedSites);
+  scopedSites = requestAnimationFrame(() => { if (state.summary) renderSites(state.summary, false); });
 }
 // on Day, the shown day follows the one opened in Daily activity
 function followDay() {
@@ -2052,8 +2067,12 @@ function renderDonut(s, soft) {
 
   if (!focusCat) {
     rollTime($('donut-total'), sc.total, { from: 0, delay: state.queue ? 320 + introWait('.donut-card') : 0 });
-    if (state.queue) $('donut-sub').textContent = sc.sub;
-    else swapText($('donut-sub'), sc.sub);
+    // (rises in as swapText's do, without the layout it forces: this runs with the legend's measuring)
+    const sub = $('donut-sub');
+    if (sub.textContent !== sc.sub) {
+      sub.textContent = sc.sub;
+      if (!state.queue && !reducedMotion()) sub.animate([{ opacity: 0, translate: '0 4px' }, { opacity: 1, translate: '0 0' }], { duration: 400, easing: EASE_OUT });
+    }
   }
 
   const rows = CATEGORIES.filter(c => sc.cats[c.id]).sort((a, b) => sc.cats[b.id] - sc.cats[a.id]);
@@ -2119,16 +2138,18 @@ function updateLegend(rows, sc, soft) {
     let at = ul.firstChild;
     for (const li of keep) { if (li === at) at = at.nextSibling; else ul.insertBefore(li, at); }
     if (going.length) ul.style.overflow = 'visible';
-    const box = ul.getBoundingClientRect();
-    for (const li of going) {
-      const r = before.get(li);
-      Object.assign(li.style, { top: `${(r.top - box.top).toFixed(2)}px`, left: `${(r.left - box.left).toFixed(2)}px`, width: `${r.width.toFixed(2)}px` });
-    }
   }, { duration: LEGEND_MS });
-  // everything that stays glides from where it was, as the card does
+  // where everything is now, in one read (the card's new height was just measured, so it's laid out already); then
+  // the rows going are put back where they were, and everything that stays glides from where it was, as the card does
+  const box = ul.getBoundingClientRect();
+  const after = new Map([...before.keys()].filter(el => !going.includes(el) && el.isConnected).map(el => [el, el.getBoundingClientRect()]));
+  for (const li of going) {
+    const r = before.get(li);
+    Object.assign(li.style, { top: `${(r.top - box.top).toFixed(2)}px`, left: `${(r.left - box.left).toFixed(2)}px`, width: `${r.width.toFixed(2)}px` });
+  }
   for (const [el, r0] of before) {
-    if (going.includes(el) || !el.isConnected) continue;
-    const r1 = el.getBoundingClientRect();
+    const r1 = after.get(el);
+    if (!r1) continue;
     const dx = r0.left - r1.left;
     const dy = r0.top - r1.top;
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
