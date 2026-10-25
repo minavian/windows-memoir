@@ -1853,6 +1853,7 @@ body { overflow: hidden; }
 .bp-text { min-width: 0; }
 .bp-text b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bp-text small { display: block; font-size: 11.5px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-text small:empty { display: none; }
 .bp-text small.swap { animation: swap 0.35s var(--ease-out); }
 
 .guide-pop { width: 320px; }

@@ -4309,13 +4309,12 @@ function relabel(btn, text) {
   if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
 }
 // The browsers' list (Memoir for Windows, two or more linked), grown out of what was pressed, in its own shape and
-// colour, and back into it as it closes: a row for each, with its icon, when it last synced, and its own button,
-// "✓ Synced" (or Linked while it's closed). Pressed, it turns into a red Sure?; pressed again, that browser is
-// unlinked and its row folds away, the list closing up and the popover shrinking with it.
+// colour, and back into it as it closes: a row for each, with its icon, its name (and, closed, that it syncs when
+// it's open) and its own button, "✓ Synced" (or Linked while it's closed). Pressed, it turns into a red Sure?;
+// pressed again, that browser is unlinked and its row folds away, the list closing up and the popover shrinking
+// with it. (When a browser synced is the row's to say, under Your data.)
 let browsersFrom = null;
 const LINK_OK = '<svg class="link-ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.4 6.4 4.9 8.8 9.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-// "Just now", "At 12:04": a row's sync, its button already saying Synced
-const syncedWhen = at => { const t = syncedText(at).replace(/^Synced /, ''); return t[0].toUpperCase() + t.slice(1); };
 function browserRow(p) {
   const li = document.createElement('li');
   li.className = 'bp-row';
@@ -4327,9 +4326,9 @@ function browserRow(p) {
 }
 function paintBrowserRow(li, p) {
   const armed = linkUi.armed === p.device;
-  const said = armed ? 'Both keep what they have' : p.connected ? syncedWhen(p.lastSync) : 'Syncs when it’s open';
+  const said = p.connected ? '' : 'Syncs when it’s open';
   const small = li.querySelector('small');
-  if (!small.textContent) small.textContent = said;
+  if (!small.textContent || !said) small.textContent = said;
   else swapText(small, said);
   const btn = li.querySelector('.bp-btn');
   btn.dataset.state = p.connected ? 'insync' : 'offline';
