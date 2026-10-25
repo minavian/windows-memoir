@@ -56,8 +56,11 @@ export function createGoalRing(root, { variant = 'card', onSet = null } = {}) {
       first = false;
     }
     if (mini) {
+      // what's left, as the arc and the words beside it count it (not what's used): under 1% is <1%, as under a
+      // minute is <1m, and 0% only once it's all gone
       const t = el.querySelector('.gr-mini-text');
-      t.textContent = !limit ? '-' : level === 'over' ? '' : `${Math.min(100, Math.round((used / limit) * 100))}%`;
+      const left = rem * 100;
+      t.textContent = !limit ? '-' : level === 'over' ? '' : left <= 0 ? '0%' : left < 0.5 ? '<1%' : `${Math.round(left)}%`;
       return level;
     }
     const big = el.querySelector('.gr-big');
