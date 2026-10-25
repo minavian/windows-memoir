@@ -1553,12 +1553,24 @@ body { overflow: hidden; }
    its words, kept for screen readers */
 .odo-ch { display: inline-block; height: 1.1em; line-height: 1.1em; overflow: hidden; white-space: pre; }
 /* its digits a whole window apart, so at rest no neighbour shows at the window's edges (small type showed their tops),
-   and on the line's baseline like the words beside it: clipped, not hidden (a box that hides its overflow would sit
-   on its bottom edge instead) */
-.odo-t { vertical-align: baseline; align-items: baseline; }
-.odo-t .odo-col, .odo-t .odo-ch { overflow: clip; }
+   and on the line's baseline like the words beside it. Every edge is soft: the fade above and below is the whole
+   number's (its own mask, with room at its sides for the blur), and a column clips only above and below, so a blurred
+   digit, or one whose column is opening or closing, spreads softly sideways (centred on its room) instead of being
+   cut. (Clipped, not hidden: a box that hides its overflow would sit on its bottom edge, not the baseline.) */
+.odo-t {
+  vertical-align: baseline;
+  align-items: baseline;
+  padding: 0.35em;
+  margin: -0.35em;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 0.5em, #000 calc(100% - 0.5em), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 0.5em, #000 calc(100% - 0.5em), transparent);
+}
+/* a window 1.8em tall, the fades 0.5em deep: a digit at rest is wholly inside the solid middle, and one on the move
+   fades in and out over most of its height */
+.odo-t .odo-col { display: inline-flex; justify-content: center; align-items: flex-start; height: 1.8em; margin: -0.35em 0; overflow: visible clip; -webkit-mask-image: none; mask-image: none; }
+.odo-t .odo-ch { display: inline-flex; justify-content: center; overflow: visible; }
 .odo-t .odo-strip { padding-top: 0; }
-.odo-t .odo-strip i { height: 1.5em; line-height: 1.5em; }
+.odo-t .odo-strip i { height: 1.8em; line-height: 1.8em; }
 .odo-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .sp-ask { margin: 0 4px 9px; font-size: 13.5px; font-weight: 600; animation: context-row-in 0.32s var(--ease-out) 300ms backwards; }
 .sp-actions { display: flex; gap: 6px; animation: context-row-in 0.32s var(--ease-out) 350ms backwards; }

@@ -539,14 +539,14 @@ function weekTitle() {
 // as it settles. A column or a unit that comes or goes (an hour's digits, "h", "<") opens or closes its room as it
 // fades in or out. Changed again mid-roll, every column goes on from where it is. The words stay in a hidden copy,
 // for screen readers and anything that reads the text.
-const ODO = { ms: 1000, line: 1.5, cycle: 10 };   // a digit's height in em (recap.css .odo-t), a whole window apart; its strip holds 0-9 three times
+const ODO = { ms: 1000, line: 1.8, cycle: 10 };   // a digit's height in em (recap.css .odo-t), a whole window apart; its strip holds 0-9 three times
 const ODO_ORDER = ['lt', 'h3', 'h2', 'h1', 'h0', 'hu', 'sp', 'm1', 'm0', 'mu'];
 function odoSlots(ms) {
   const [, lt, h, m] = fmt(ms).match(/^(<)?(?:(\d+)h)? ?(?:(\d+)m)?$/) || [];
   const slots = new Map();
   if (lt) slots.set('lt', { ch: '<' });
   const digits = (n, u) => [...n].forEach((d, i) => slots.set(`${u}${n.length - 1 - i}`, { d: +d }));
-  if (h) { digits(h, 'h'); slots.set('hu', { ch: 'h' }); if (m) slots.set('sp', { ch: ' ' }); }
+  if (h) { digits(h, 'h'); slots.set('hu', { ch: 'h' }); if (m) slots.set('sp', { ch: '\u00a0' }); }   // (a space alone isn't drawn in its box)
   if (m) { digits(m, 'm'); slots.set('mu', { ch: 'm' }); }
   return slots;
 }
