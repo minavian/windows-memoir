@@ -1810,19 +1810,22 @@ body { overflow: hidden; }
 .data-row[data-step="1"] ~ .nuke-also.on, .data-row[data-step="2"] ~ .nuke-also.on { height: 16px; opacity: 1; }
 /* How Memoir works' Open: pointed at, it grows to make room for the arrow site links show,
    which comes in the same way (from below left, small to full) */
-/* the button keeps its size, with the arrow's room in it from the start: growing for the arrow pushed the word
-   along a pixel at a time, which shook. The word sits in the middle, and slides over for the arrow. */
-.open-btn .ob-label { display: inline-block; transform: translateX(calc(0.4em + 2px)); transition: transform 0.32s var(--ease-out); }
+/* the button keeps its size (growing for the arrow pushed the word along a pixel at a time, which shook) and is as
+   snug as any other: the word slides over and the arrow comes into the room its padding leaves */
+.open-btn { padding: 0 12px; }
+.open-btn .ob-label { display: inline-block; transition: transform 0.32s var(--ease-out); }
 .open-btn .ext {
-  flex: none;
-  width: 0.8em;
-  height: 0.8em;
-  margin-left: 4px;
+  position: absolute;
+  top: 50%;
+  right: 6.5px;
+  width: 0.75em;
+  height: 0.75em;
+  margin-top: -0.375em;
   opacity: 0;
   transform: translate(-4px, 4px) scale(0.6);
   transition: opacity 0.18s var(--ease), transform 0.32s var(--ease-out);
 }
-.open-btn:hover .ob-label, .open-btn:focus-visible .ob-label { transform: none; }
+.open-btn:hover .ob-label, .open-btn:focus-visible .ob-label { transform: translateX(-7px); }
 .open-btn:hover .ext, .open-btn:focus-visible .ext { opacity: 1; transform: none; }
 #limit-reset:not(:disabled) { color: var(--danger); }
 
