@@ -2568,15 +2568,17 @@ function setKind(kind) {
   if (state.view.type === 'day') renderDetail({ soft: true });
 }
 
-let sweepEnd = 0;
-let sweepLater = 0;
+// the Apps ⇄ Browsers sweep running, till every row and bar in it is done (sweepSites)
+let sweeping = null;
+let sweepRedraw = false;
 function renderSites(s, soft) {
-  // a quiet redraw during an Apps ⇄ Browsers sweep (the board resizing to the other list's length, say) waits
-  // till the sweep is done, so it doesn't cut it short
-  const left = sweepEnd - performance.now();
-  if (soft && left > 0) {
-    clearTimeout(sweepLater);
-    sweepLater = setTimeout(() => { if (state.summary) renderSites(state.summary, true); }, left + 20);
+  // a quiet redraw during a sweep (the board resizing to the other list's length, say) waits till it's done,
+  // so no row or bar in it is cut short
+  if (soft && sweeping) {
+    if (!sweepRedraw) {
+      sweepRedraw = true;
+      sweeping.then(() => { sweepRedraw = false; if (state.summary) renderSites(state.summary, true); });
+    }
     return;
   }
   // the rows are about to be rebuilt: a site's pages close back into their row first
@@ -2595,41 +2597,49 @@ function sweepSites(s, dx) {
   if (pages.isOpen) closePagePop();
   const box = ol.getBoundingClientRect();
   const rows = [];
-  for (const li of ol.querySelectorAll(':scope > .site')) {
+  for (const li of ol.querySelectorAll(':scope > .site:not(.going)')) {
     // a row still on its way in (switched straight back) leaves from where it is: its place is its box less
     // the slide it's in the middle of, and the slide goes on from there
     const cs = getComputedStyle(li);
     if (+cs.opacity < 0.02) continue;
     const m = new DOMMatrixReadOnly(cs.transform);
     const b = li.getBoundingClientRect();
-    const r = { left: b.left - m.m41, top: b.top - m.m42, width: b.width };
-    if (r.top + b.height <= box.top || r.top >= box.bottom) continue;
+    const r = { left: b.left - m.m41, top: b.top - m.m42, width: b.width, height: b.height };
+    if (r.top + r.height <= box.top || r.top >= box.bottom) continue;
     rows.push({ li, r, from: { opacity: cs.opacity, transform: cs.transform } });
   }
-  buildSites(s, true, dx);
-  if (!rows.length) return;
-  // the rows going are laid over the new ones (the list is back at its top), clipped to it, till they're gone
-  const out = document.createElement('div');
-  out.className = 'sites-out';
-  out.inert = true;
-  out.setAttribute('aria-hidden', 'true');
-  out.style.height = `${ol.clientHeight}px`;
-  ol.appendChild(out);
-  const runs = rows.map(({ li, r, from }, k) => {
+  // the rows going stay in the list (taken out and put back, a bar still growing would stop short): laid over
+  // the new rows where they were (the list goes back to its top), out of the way and out of reach
+  for (const { li, r } of rows) {
     for (const a of li.getAnimations()) a.cancel();
+    li.classList.add('going');
+    li.removeAttribute('data-domain');
+    li.inert = true;
+    li.setAttribute('aria-hidden', 'true');
     Object.assign(li.style, { position: 'absolute', top: `${(r.top - box.top).toFixed(2)}px`, left: `${(r.left - box.left).toFixed(2)}px`, width: `${r.width.toFixed(2)}px` });
-    out.appendChild(li);
-    return li.animate([from, { opacity: 0, transform: `translateX(${-16 * dx}px)` }], { duration: 200, delay: k * 40, easing: EASE_OUT, fill: 'both' }).finished;
+  }
+  const grown = buildSites(s, true, dx);
+  // one cut off at the list's foot stays cut there, so the list doesn't scroll for it
+  const room = ol.clientHeight;
+  rows.forEach(({ li, r, from }, k) => {
+    const top = r.top - box.top;
+    if (top + r.height > room) Object.assign(li.style, { height: `${Math.max(0, room - top).toFixed(2)}px`, overflow: 'hidden' });
+    li.animate([from, { opacity: 0, transform: `translateX(${-16 * dx}px)` }], { duration: 200, delay: k * 40, easing: EASE_OUT, fill: 'both' })
+      .finished.then(() => li.remove(), () => li.remove());
   });
-  Promise.allSettled(runs).then(() => out.remove());
+  // done when everything in it is: the rows going and coming and every bar growing (a few seconds at most)
+  const run = sweeping = grown.then(() => Promise.race([
+    Promise.allSettled(ol.getAnimations({ subtree: true }).filter(a => a.effect?.getComputedTiming().endTime < Infinity).map(a => a.finished)),
+    new Promise(resolve => setTimeout(resolve, 4000)),
+  ]));
+  run.then(() => { if (sweeping === run) sweeping = null; });
 }
 
 function buildSites(s, soft, sweep = 0) {
   const ol = $('sites');
   ol.classList.toggle('soft', soft);
-  // a sweep's rows still on their way out stay till they're gone
-  const going = [...ol.querySelectorAll(':scope > .sites-out')];
-  ol.textContent = '';
+  // a sweep's rows still on their way out stay where they are till they're gone
+  for (const el of [...ol.children]) if (!el.classList.contains('going')) el.remove();
   const scroller = makeScroller(ol);
   if (!soft || sweep) scroller.reset();
   // every site (of the week, or of the day on Day), in a list that scrolls
@@ -2689,10 +2699,8 @@ function buildSites(s, soft, sweep = 0) {
     ol.appendChild(li);
   });
   if (!top.length) ol.appendChild(Object.assign(emptyNote(`Nothing ${sc.when}.`), { className: 'dv-empty sites-none' }));
-  ol.append(...going);
   // the sweep: the rows that show once they're laid out (the list can be as tall as they are), in from the side
-  // switched to, a beat behind the row each replaces; each bar grows once its row is in, and the sweep is done
-  // when the last bar has
+  // switched to, a beat behind the row each replaces; each bar grows once its row is in
   if (sweep) {
     const room = ol.clientHeight;
     let k = 0;
@@ -2703,10 +2711,13 @@ function buildSites(s, soft, sweep = 0) {
       grow.push([fill, w]);
       k++;
     }
-    sweepEnd = performance.now() + 1160 + Math.max(0, k - 1) * 40;
   }
-  // every bar that grows starts from one frame, not a pair of frames each
-  if (grow.length) requestAnimationFrame(() => requestAnimationFrame(() => { for (const [f, w] of grow) f.style.setProperty('--w', w); }));
+  // every bar that grows starts from one frame, not a pair of frames each (and a sweep knows when they have)
+  if (!grow.length) return Promise.resolve();
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+    for (const [f, w] of grow) f.style.setProperty('--w', w);
+    resolve();
+  })));
 }
 
 function setCatBtn(btn, cat, domain) {

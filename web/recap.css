@@ -1256,8 +1256,8 @@ body { overflow: hidden; }
 
 .sites-card > .scroller { flex: 1; min-height: 0; margin: -4px -10px -8px; }
 .sites { position: relative; list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; }
-/* Apps ⇄ Browsers (sweepSites): the rows going, laid over the list where they were till they're gone */
-.sites-out { position: absolute; top: 0; left: 0; right: 0; overflow: hidden; pointer-events: none; }
+/* Apps ⇄ Browsers (sweepSites): a row going, laid over the list where it was till it's gone */
+.site.going { pointer-events: none; }
 .site {
   position: relative;
   display: grid;
@@ -1271,7 +1271,7 @@ body { overflow: hidden; }
   animation: enter 0.45s var(--ease-out) backwards;
   animation-delay: calc(var(--i, 0) * 40ms + 200ms + var(--intro-wait, 0ms));
 }
-.sites.soft .site, .sites-out .site { animation: none; }
+.sites.soft .site, .site.going { animation: none; }
 .site:hover { background: var(--fill-1); }
 .site-main { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .site-domain { max-width: calc(100% - 16px); min-width: 0; display: flex; font-size: 13.5px; font-weight: 600; }
