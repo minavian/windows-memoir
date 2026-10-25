@@ -4290,18 +4290,10 @@ const namesText = names => (names.length > 1 ? `${names.slice(0, -1).join(', ')}
 // the browsers' part of a many row's line: their names, if the whole line fits with room to spare, else how many
 function whoText(desc, { names, status }) {
   const full = namesText(names);
-  // the room the row's button leaves once it's done changing (it may still be growing into its new label, its check
-  // still coming in): measured on a still copy of it
+  // the room the row's button leaves once it's done changing
   const row = desc.closest('.link-row');
   if (!row.clientWidth) return full;
-  const btn = row.querySelector('.link-btn');
-  const still = btn.cloneNode(true);
-  still.removeAttribute('id');
-  for (const n of [still, ...still.querySelectorAll('*')]) { n.style.transition = 'none'; n.style.animation = 'none'; }
-  Object.assign(still.style, { position: 'absolute', visibility: 'hidden', width: 'auto', pointerEvents: 'none' });
-  btn.parentNode.appendChild(still);
-  const room = row.clientWidth - still.getBoundingClientRect().width - parseFloat(getComputedStyle(row).columnGap || 0);
-  still.remove();
+  const room = row.clientWidth - stillWidth(row.querySelector('.link-btn')) - parseFloat(getComputedStyle(row).columnGap || 0);
   const probe = desc.cloneNode(false);
   probe.removeAttribute('id');
   probe.innerHTML = `<button class="link-who" type="button">${escapeHtml(full)}</button> · ${escapeHtml(status)}`;
@@ -4358,13 +4350,27 @@ function copyLinkRow() {
   return el;
 }
 // a button's label swaps, and its width follows
+// A button's width once it's done changing (it may still be growing into its new label, its check still coming in
+// or going): measured on a still copy of it.
+function stillWidth(btn) {
+  const still = btn.cloneNode(true);
+  still.removeAttribute('id');
+  for (const n of [still, ...still.querySelectorAll('*')]) { n.style.transition = 'none'; n.style.animation = 'none'; }
+  Object.assign(still.style, { position: 'absolute', visibility: 'hidden', width: 'auto', pointerEvents: 'none' });
+  btn.parentNode.appendChild(still);
+  const w = still.getBoundingClientRect().width;
+  still.remove();
+  return w;
+}
 function relabel(btn, text) {
   const el = btn.querySelector('.link-label');
   if (el.textContent === text) return;
   const from = btn.getBoundingClientRect().width;
   el.textContent = text;
   replay(el, 'swap');
-  const to = btn.getBoundingClientRect().width;
+  // (to the width it has once its check is done: measured as it is now, it still had the old one's, and the button
+  // ended a few pixels wide, then snapped in, its label jumping with it)
+  const to = stillWidth(btn);
   if (from && Math.abs(to - from) > 1 && !reducedMotion()) btn.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 320, easing: EASE_OUT });
 }
 // The browsers' list (Memoir for Windows, two or more linked), grown out of what was pressed, in its own shape and

@@ -1801,7 +1801,9 @@ body { overflow: hidden; }
 .link-btn[data-arm="1"]:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 .link-btn .link-label { white-space: nowrap; }
 .link-btn .link-label.swap { animation: link-label 0.32s var(--ease-out); }
-@keyframes link-label { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+/* (its colour, from none: faded or slid, it was drawn on a layer of its own till it stopped, then drawn again with
+   the button, its letters shifting a hair) */
+@keyframes link-label { from { color: transparent; } }
 @media (prefers-reduced-motion: reduce) { .link-btn .link-ok { transition: none; } .link-btn .link-label.swap { animation: none; } }
 /* Memoir for Windows: under the browsers' rows, the guide again */
 .link-more {
