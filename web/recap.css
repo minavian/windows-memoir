@@ -1536,7 +1536,7 @@ body { overflow: hidden; }
 /* the CPU's flat line draws in slowly, easing in and out */
 .sp-flat path { fill: none; stroke: var(--goal-ok); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sp-flat-in 1.4s cubic-bezier(0.83, 0, 0.17, 1) 0.45s forwards; }
 @keyframes sp-flat-in { to { stroke-dashoffset: 0; } }
-/* the RAM rolls up to the recorder's like an odometer, and follows it (recap.js rollMemory): a column a digit,
+/* the RAM rolls up to Memoir's in the background like an odometer (recap.js rollMemory): a column a digit,
    blurred by its speed, the digits fading in and out at the window's top and bottom */
 .odo { display: inline-flex; vertical-align: top; }
 .odo-col {

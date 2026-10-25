@@ -36,28 +36,6 @@ namespace Memoir {
         [DllImport("wtsapi32.dll")] internal static extern bool WTSUnRegisterSessionNotification(IntPtr hwnd);
         [DllImport("user32.dll")] internal static extern bool SetProcessDPIAware();
         [DllImport("kernel32.dll")] internal static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimum, IntPtr maximum);
-        [DllImport("kernel32.dll", EntryPoint = "K32QueryWorkingSet", SetLastError = true)] private static extern bool QueryWorkingSet(IntPtr process, IntPtr list, int size);
-        [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
-        // This Memoir's memory as Task Manager's Memory column shows it (its private working set; Process.WorkingSet64
-        // counts what it shares with other programs too). Only the recorder: not the WebView2 processes its pages run in,
-        // nor the bridge a browser starts. Windows lists the working set an entry a page (bit 8: shareable); a list that
-        // grew since its size was asked is asked for again.
-        public static long PrivateWorkingSet() {
-            IntPtr process = GetCurrentProcess(); int entries = 8192;
-            for (int attempt = 0; attempt < 4; attempt++) {
-                int size = (entries + 1) * IntPtr.Size; IntPtr list = Marshal.AllocHGlobal(size);
-                try {
-                    if (QueryWorkingSet(process, list, size)) {
-                        long count = Marshal.ReadIntPtr(list).ToInt64(), own = 0;
-                        for (long i = 1; i <= count; i++) if ((Marshal.ReadIntPtr(list, (int)(i * IntPtr.Size)).ToInt64() & 0x100) == 0) own++;
-                        return own * Environment.SystemPageSize;
-                    }
-                    if (Marshal.GetLastWin32Error() != 24) return -1;   // (ERROR_BAD_LENGTH: more pages than room)
-                    entries = (int)Marshal.ReadIntPtr(list).ToInt64() + 1024;
-                } finally { Marshal.FreeHGlobal(list); }
-            }
-            return -1;
-        }
         [DllImport("kernel32.dll")] private static extern IntPtr OpenProcess(uint access, bool inherit, int processId);
         // Installed from the Microsoft Store: Windows gives that copy a package identity, which Setup's copies don't have
         // (APPMODEL_ERROR_NO_PACKAGE). The Store brings such a copy its updates by itself.

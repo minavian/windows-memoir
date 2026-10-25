@@ -4043,33 +4043,19 @@ const startupSwitch = () => $('set-startup').closest('.switch').querySelector('.
 function askStartupOff() {
   const track = startupSwitch();
   startupPop.open(track, { fromRadius: 'pill', fromBackground: getComputedStyle(track).backgroundColor });
-  watchMemory();
+  showMemory();
   $('startup-pop').querySelector('.sp-no').focus({ preventScroll: true });
 }
-// The RAM is the recorder's, right now, as Task Manager shows it (MainForm's memory: not the bridge a browser starts,
-// nor its pages' WebView2): it counts up from 0 as the popover opens, then follows it a second at a time while it's
-// open. 13, the PC it was tested on (specs.html), when Memoir can't say.
-const MEMORY_TESTED = 13;
-const memory = { shown: 0, to: 0, roll: 0, watch: 0, run: 0 };
-async function recorderMB() {
-  const bytes = await window.memoir?.request('memory').catch(() => null);
-  return Number.isFinite(bytes) && bytes > 0 ? Math.max(1, Math.round(bytes / 1048576)) : null;   // (Task Manager's MB)
+// The RAM is what Memoir takes in the background, minimized to the notification area, as Task Manager shows it
+// (about 10 MB, specs.html): it counts up from 0 as the popover opens. A reading taken now, with this window open,
+// would count the window too, so none is taken.
+const MEMORY_MB = 10;
+const memory = { shown: 0, to: 0, roll: 0 };
+function showMemory() {
+  rollMemory(0, 0, { room: MEMORY_MB });   // 0, as wide as the number will be
+  rollMemory(0, MEMORY_MB, { delay: 240, duration: 1650 });
 }
-async function watchMemory() {
-  const run = ++memory.run;
-  clearInterval(memory.watch);
-  rollMemory(0, 0, { room: memory.to || MEMORY_TESTED });   // 0, as wide as the number will likely be
-  const asked = performance.now();
-  const mb = (await recorderMB()) ?? MEMORY_TESTED;
-  if (run !== memory.run || !startupPop.isOpen) return;
-  rollMemory(0, mb, { delay: Math.max(0, 240 - (performance.now() - asked)), duration: 1650 });
-  memory.watch = setInterval(async () => {
-    if (run !== memory.run || !startupPop.isOpen) { clearInterval(memory.watch); return; }
-    const now = await recorderMB();
-    if (now && now !== memory.to && run === memory.run && startupPop.isOpen) rollMemory(memory.shown, now, { duration: 700 });
-  }, 1000);
-}
-// Rolling like an odometer, a column a digit: the ones run through every number on the way (0…9, 0…3 for 13), and
+// Rolling like an odometer, a column a digit: the ones run through every number on the way (0…9, then 0 for 10), and
 // each column to their left comes in from blank, turning as the one to its right passes 9; each blurred by how fast
 // it's turning and sharp as it settles. room: the largest number the columns make room for.
 function rollMemory(from, to, { delay = 0, duration = 0, room = 0 } = {}) {
