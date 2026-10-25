@@ -233,12 +233,15 @@ async function init() {
     if (+ws !== +state.weekStart) goToWeek(ws);
   });
 
-  // Everything sizes to the window: re-lay the charts, highlights and lists on resize.
+  // Everything sizes to the window: re-lay the charts, highlights and lists on resize. The window's, not the board's:
+  // where the page scrolls, the board grows and shrinks with what's in it (Most used's rows on Week ⇄ Day), and
+  // redrawing for that cut the lists' own animations short. Its width and the window's height are what the cards
+  // are sized by.
   let raf = 0;
   let size = '';
   new ResizeObserver(entries => {
     const r = entries[0].contentRect;
-    const next = `${Math.round(r.width)}x${Math.round(r.height)}`;
+    const next = `${Math.round(r.width)}x${innerHeight}`;
     if (!size || next === size) { size = next; return; }
     size = next;
     cancelAnimationFrame(raf);
