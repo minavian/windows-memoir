@@ -632,9 +632,39 @@ export async function getDays(keys) {
   for (const k of keys) {
     let d = normalizeDay(raw[storageKeyForDay(k)]);
     for (const p of peers) if (raw[linkKey(p, k)]) d = mergeDay(d, normalizeDay(raw[linkKey(p, k)]));
-    out[k] = d;
+    out[k] = foldOwnApps(d);
   }
   return out;
+}
+
+// Memoir's own windows are Memoir (~memoir), whatever copy of it ran them. Memoir for Windows counted only its own
+// window so: another copy's (an older one, its installer, a test copy) was an app named Memoir, a second Memoir in
+// the lists, with whatever icon that copy had the first time (the old hourglass). Those days are read as one Memoir
+// (its words dropped: Memoir keeps none of its own).
+const OWN_APP = /^app:memoir[^\/]*\.exe$/i;
+const isOwnApp = d => isApp(d) && OWN_APP.test(d) && appInfo(d)?.name === 'Memoir';
+export function foldOwnApps(day) {
+  const own = new Set(Object.keys(day.s).filter(isOwnApp));
+  for (const slot of Object.values(day.hs)) for (const k of Object.keys(slot || {})) if (isOwnApp(k)) own.add(k);
+  if (!own.size) return day;
+  const into = map => {
+    const out = {};
+    for (const [k, v] of Object.entries(map || {})) {
+      if (own.has(k)) out['~memoir'] = (out['~memoir'] || 0) + v;
+      else out[k] = (out[k] || 0) + v;
+    }
+    return out;
+  };
+  const without = map => Object.fromEntries(Object.entries(map || {}).filter(([k]) => !own.has(k)));
+  return {
+    ...day,
+    s: into(day.s),
+    hs: Object.fromEntries(Object.entries(day.hs).map(([hr, slot]) => [hr, into(slot)])),
+    ti: without(day.ti),
+    th: Object.fromEntries(Object.entries(day.th).map(([hr, m]) => [hr, without(m)])),
+    tu: without(day.tu),
+    tp: day.tp.filter(k => !own.has(k)),
+  };
 }
 
 // The dates that have a day ("YYYY-MM-DD"), on this side or a linked one, oldest first.

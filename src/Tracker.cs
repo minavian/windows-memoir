@@ -82,6 +82,7 @@ namespace Memoir {
             if (pid == Process.GetCurrentProcess().Id) { target = new Target { Domain = "~memoir", Name = "Memoir", Category = "other" }; engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); return; }
             app = Describe((int)pid);
             if (app == null) return;
+            if (app.Domain == "~memoir") { target = app; app = null; engine.Observe(target, Engine.Now, Native.IdleMilliseconds()); return; }
             target = app.Copy(); target.Title = Json.Bool(Json.Get(engine.Settings, "titles")) ? Native.Title(next) : null;
             Remember(app);
             engine.Observe(target, Engine.Now, Native.IdleMilliseconds());
@@ -124,11 +125,15 @@ namespace Memoir {
         private Target Describe(int pid) {
             try {
                 string processName = Native.ProcessName(pid), file = processName.ToLowerInvariant() + ".exe", path = null, name = processName;
-                Target cached; if (apps.TryGetValue(pid, out cached) && cached.Domain == "app:" + file) return cached.Copy();
+                Target cached; string known;
+                if (apps.TryGetValue(pid, out cached) && (cached.Domain == "app:" + file || cached.Domain == "~memoir" && executables.TryGetValue(pid, out known) && Path.GetFileName(known).Equals(file, StringComparison.OrdinalIgnoreCase))) return cached.Copy();
                 using (var process = Process.GetProcessById(pid)) {
-                    try { path = process.MainModule.FileName; var info = FileVersionInfo.GetVersionInfo(path); if (!String.IsNullOrWhiteSpace(info.FileDescription)) name = info.FileDescription; } catch { }
+                    // another Memoir's window (an older copy, its installer, a test copy: its file says Memoir, by Mina
+                    // Vian) is Memoir too, as this one's own is, not an app of the same name beside it
+                    bool own = false;
+                    try { path = process.MainModule.FileName; var info = FileVersionInfo.GetVersionInfo(path); if (!String.IsNullOrWhiteSpace(info.FileDescription)) name = info.FileDescription; own = info.ProductName == "Memoir" && info.CompanyName == "Mina Vian"; } catch { }
                     if (file == "applicationframehost.exe") name = Native.Title(foreground);
-                    var result = new Target { Domain = "app:" + file, Name = name, Category = Category(file), ProcessId = pid };
+                    var result = own ? new Target { Domain = "~memoir", Name = "Memoir", Category = "other", ProcessId = pid } : new Target { Domain = "app:" + file, Name = name, Category = Category(file), ProcessId = pid };
                     if (apps.Count >= 128) { apps.Clear(); executables.Clear(); }
                     apps[pid] = result.Copy(); if (path != null) executables[pid] = path;
                     return result;
