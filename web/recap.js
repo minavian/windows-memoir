@@ -1903,7 +1903,8 @@ function renderScoped() {
   if (!s || s.total < 60_000) return;
   closeCatPop(true);
   if (focusCat) setFocusCat(null);
-  renderDonut(s, false);
+  // the same categories with new numbers: the legend changes in place, not drawn afresh
+  renderDonut(s, true);
   renderSites(s, false);
 }
 // on Day, the shown day follows the one opened in Daily activity
@@ -1942,27 +1943,106 @@ function renderDonut(s, soft) {
 
   if (!focusCat) {
     animateNumber($('donut-total'), sc.total, { format: v => fmt(v), delay: state.queue ? 320 + introWait('.donut-card') : 0, duration: 1000 });
-    $('donut-sub').textContent = sc.sub;
+    if (state.queue) $('donut-sub').textContent = sc.sub;
+    else swapText($('donut-sub'), sc.sub);
   }
 
-  // a legend with more or fewer rows changes the card's height: it glides there, and
-  // Most used below it follows, instead of both jumping (on short windows the legend
-  // decides the card's height)
-  const buildLegend = () => {
-    const ul = $('cat-legend');
-    ul.classList.toggle('soft', soft);
-    ul.textContent = '';
-    CATEGORIES.filter(c => sc.cats[c.id]).sort((a, b) => sc.cats[b.id] - sc.cats[a.id]).forEach((c, i) => {
-      const li = document.createElement('li');
-      li.dataset.cat = c.id;
+  const rows = CATEGORIES.filter(c => sc.cats[c.id]).sort((a, b) => sc.cats[b.id] - sc.cats[a.id]);
+  if (state.queue) buildLegend(rows, sc, soft);
+  else updateLegend(rows, sc, soft);
+}
+
+// one row of the legend: its dot, name and time, a button that opens the category's sites
+function legendRow(c, ms, i) {
+  const li = document.createElement('li');
+  li.dataset.cat = c.id;
+  li.style.setProperty('--i', i);
+  if (c.id === focusCat) li.classList.add('on');
+  li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} - see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(ms)}</span></button>`;
+  li.querySelector('.time')._value = ms;
+  return li;
+}
+function buildLegend(rows, sc, soft) {
+  const ul = $('cat-legend');
+  ul.classList.toggle('soft', soft);
+  ul.textContent = '';
+  ul.style.overflow = '';
+  rows.forEach((c, i) => ul.appendChild(legendRow(c, sc.cats[c.id], i)));
+}
+
+// A legend with more or fewer rows changes the card's height: it glides there (Most used below it follows), and
+// everything in it glides with it, the ring to its new place too (on short windows the legend decides the
+// card's height). New numbers (Week ⇄ Day, time coming in, a site moved) change the legend in place: a row that
+// stays is the same row, gliding to its new place as its time counts to the new one; one that goes fades where
+// it was (swallowed by the card's edge as it shrinks); one that comes fades in at its place. A fresh legend
+// (another week) is drawn anew.
+const LEGEND_MS = 520;
+function updateLegend(rows, sc, soft) {
+  const card = document.querySelector('.donut-card');
+  const ul = $('cat-legend');
+  const ring = card.querySelector('.donut-box');
+  const was = new Map();
+  if (soft) for (const li of ul.children) if (!li.classList.contains('going')) was.set(li.dataset.cat, li);
+  // where each is on screen now (mid-glide too, so a glide cut short goes on from there)
+  const before = new Map([ring, ...was.values()].map(el => [el, el.getBoundingClientRect()]));
+  const going = [...was.values()].filter(li => !sc.cats[li.dataset.cat]);
+  const fading = going.map(li => +getComputedStyle(li).opacity);
+  const fresh = [];
+  animateHeight(card, () => {
+    for (const el of before.keys()) for (const a of el.getAnimations()) if (a.id === 'glide' || going.includes(el)) a.cancel();
+    if (!soft) { buildLegend(rows, sc, false); return; }
+    ul.classList.add('soft');
+    const keep = rows.map((c, i) => {
+      let li = was.get(c.id);
+      if (li) animateNumber(li.querySelector('.time'), sc.cats[c.id], { format: v => fmt(v), duration: 1000 });
+      else fresh.push(li = legendRow(c, sc.cats[c.id], i));
       li.style.setProperty('--i', i);
-      if (c.id === focusCat) li.classList.add('on');
-      li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} - see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(sc.cats[c.id])}</span></button>`;
-      ul.appendChild(li);
+      li.classList.toggle('on', c.id === focusCat);
+      return li;
     });
-  };
-  if (state.queue) buildLegend();
-  else animateHeight(document.querySelector('.donut-card'), () => (soft ? regroup($('cat-legend'), 'cat', buildLegend) : buildLegend()), { duration: 520 });
+    // the ones going leave the layout first, then stay where they were, over it, out of reach
+    for (const li of going) {
+      li.classList.add('going');
+      li.inert = true;
+      li.setAttribute('aria-hidden', 'true');
+      li.style.position = 'absolute';
+    }
+    let at = ul.firstChild;
+    for (const li of keep) { if (li === at) at = at.nextSibling; else ul.insertBefore(li, at); }
+    if (going.length) ul.style.overflow = 'visible';
+    const box = ul.getBoundingClientRect();
+    for (const li of going) {
+      const r = before.get(li);
+      Object.assign(li.style, { top: `${(r.top - box.top).toFixed(2)}px`, left: `${(r.left - box.left).toFixed(2)}px`, width: `${r.width.toFixed(2)}px` });
+    }
+  }, { duration: LEGEND_MS });
+  // everything that stays glides from where it was, as the card does
+  for (const [el, r0] of before) {
+    if (going.includes(el) || !el.isConnected) continue;
+    const r1 = el.getBoundingClientRect();
+    const dx = r0.left - r1.left;
+    const dy = r0.top - r1.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+    const a = el.animate([{ transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)` }, { transform: 'none' }], { id: 'glide', duration: LEGEND_MS, easing: EASE_OUT });
+    if (el === ring) continue;
+    // a row passing others goes over them on the card's own colour (the one going farthest on top), so their
+    // words never run into each other
+    el.classList.add('gliding');
+    el.style.zIndex = String(1 + Math.round(Math.abs(dy)));
+    const landed = () => {
+      if (el.getAnimations().some(g => g.id === 'glide' && g !== a)) return;
+      el.classList.remove('gliding');
+      el.style.zIndex = '';
+    };
+    a.finished.then(landed, landed);
+  }
+  going.forEach((li, k) => {
+    li.animate([{ opacity: fading[k] }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' }).finished.then(() => {
+      li.remove();
+      if (!ul.querySelector('.going')) ul.style.overflow = '';
+    }, () => {});
+  });
+  for (const li of fresh) li.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 380, delay: 140, easing: 'ease-out', fill: 'backwards' });
 }
 
 let centerTimer = 0;
