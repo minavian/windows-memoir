@@ -1549,6 +1549,10 @@ body { overflow: hidden; }
 }
 .odo-strip { display: flex; flex-direction: column; padding-top: 0.2em; will-change: transform, filter; }
 .odo-strip i { display: block; height: 1.1em; line-height: 1.1em; font-style: normal; text-align: center; }
+/* a time that rolls the same way (recap.js rollTime, Categories): its letters, which open and close their room, and
+   its words, kept for screen readers */
+.odo-ch { display: inline-block; height: 1.1em; line-height: 1.1em; overflow: hidden; white-space: pre; }
+.odo-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .sp-ask { margin: 0 4px 9px; font-size: 13.5px; font-weight: 600; animation: context-row-in 0.32s var(--ease-out) 300ms backwards; }
 .sp-actions { display: flex; gap: 6px; animation: context-row-in 0.32s var(--ease-out) 350ms backwards; }
 .sp-yes {

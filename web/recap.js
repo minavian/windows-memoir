@@ -531,6 +531,112 @@ function weekTitle() {
   return state.demo ? 'Sample week' : agoTitle(weeksAgo(state.weekStart));
 }
 
+// A time that rolls like an odometer as it changes (the RAM's look, rollMemory): a column a digit, each turning from
+// its old digit to its new one, up as the time grows and down as it shrinks, blurred by how fast it turns and sharp
+// as it settles. A column or a unit that comes or goes (an hour's digits, "h", "<") opens or closes its room as it
+// fades in or out. Changed again mid-roll, every column goes on from where it is. The words stay in a hidden copy,
+// for screen readers and anything that reads the text.
+const ODO = { ms: 1000, line: 1.1, cycle: 10 };   // a digit's height in em (recap.css .odo-strip i); its strip holds 0-9 three times
+const ODO_ORDER = ['lt', 'h3', 'h2', 'h1', 'h0', 'hu', 'sp', 'm1', 'm0', 'mu'];
+function odoSlots(ms) {
+  const [, lt, h, m] = fmt(ms).match(/^(<)?(?:(\d+)h)? ?(?:(\d+)m)?$/) || [];
+  const slots = new Map();
+  if (lt) slots.set('lt', { ch: '<' });
+  const digits = (n, u) => [...n].forEach((d, i) => slots.set(`${u}${n.length - 1 - i}`, { d: +d }));
+  if (h) { digits(h, 'h'); slots.set('hu', { ch: 'h' }); if (m) slots.set('sp', { ch: ' ' }); }
+  if (m) { digits(m, 'm'); slots.set('mu', { ch: 'm' }); }
+  return slots;
+}
+function odoNode(key, slot) {
+  const n = document.createElement('span');
+  n.dataset.k = key;
+  if (slot.ch != null) { n.className = 'odo-ch'; n.textContent = slot.ch; return n; }
+  n.className = 'odo-col';
+  n.innerHTML = `<span class="odo-strip">${Array.from({ length: ODO.cycle * 3 }, (_, i) => `<i>${i % 10}</i>`).join('')}</span>`;
+  return n;
+}
+const odoAt = (n, pos) => { n._pos = pos; n.firstChild.style.transform = `translateY(${(-pos * ODO.line).toFixed(4)}em)`; };
+function rollTime(el, ms, { instant = false, delay = 0, from = null } = {}) {
+  let st = el._odo;
+  if (!st || !el.contains(st.box)) {
+    // drawn afresh (or after plain words were put in): as it is, or from `from` if it's to roll in
+    const box = document.createElement('span');
+    box.className = 'odo';
+    box.setAttribute('aria-hidden', 'true');
+    const said = document.createElement('span');
+    said.className = 'odo-said';
+    el.replaceChildren(said, box);
+    st = el._odo = { box, said, ms: from ?? ms, run: 0, raf: 0 };
+    for (const [k, s] of odoSlots(st.ms)) { const n = odoNode(k, s); box.appendChild(n); if (s.d != null) odoAt(n, ODO.cycle + s.d); }
+    if (from == null) instant = true;
+  }
+  st.said.textContent = fmt(ms);
+  const dir = Math.sign(ms - st.ms);
+  st.ms = ms;
+  const run = ++st.run;
+  cancelAnimationFrame(st.raf);
+  clearTimeout(st.wait);
+  const want = odoSlots(ms);
+  const have = new Map([...st.box.children].map(n => [n.dataset.k, n]));
+  if (instant || reducedMotion()) {
+    st.box.replaceChildren(...ODO_ORDER.filter(k => want.has(k)).map(k => {
+      const n = have.get(k) || odoNode(k, want.get(k));
+      for (const a of n.getAnimations()) a.cancel();
+      if (want.get(k).d != null) { odoAt(n, ODO.cycle + want.get(k).d); n.firstChild.style.filter = ''; }
+      return n;
+    }));
+    return;
+  }
+  // where each column is now (mid-roll too), then every one there will be, in order
+  const now = new Map([...have].map(([k, n]) => [k, { w: n.getBoundingClientRect().width, o: +getComputedStyle(n).opacity }]));
+  for (const n of have.values()) for (const a of n.getAnimations()) a.cancel();
+  const nodes = [];
+  for (const k of ODO_ORDER) {
+    if (!want.has(k) && !have.has(k)) continue;
+    const n = have.get(k) || odoNode(k, want.get(k));
+    if (!have.has(k)) { now.set(k, { w: 0, o: 0 }); if (want.get(k).d != null) odoAt(n, ODO.cycle + (dir < 0 ? 9 : 0)); }
+    nodes.push(n);
+  }
+  st.box.replaceChildren(...nodes);
+  for (const n of nodes) if (n.className === 'odo-col') n.firstChild.style.filter = '';
+  const natural = new Map(nodes.map(n => [n.dataset.k, n.getBoundingClientRect().width]));
+  const turns = [];
+  for (const n of nodes) {
+    const k = n.dataset.k, was = now.get(k), stays = want.has(k);
+    const to = { w: stays ? natural.get(k) : 0, o: stays ? 1 : 0 };
+    if (Math.abs(was.w - to.w) > 0.3 || Math.abs(was.o - to.o) > 0.01) {
+      const a = n.animate([{ width: `${was.w}px`, opacity: was.o }, { width: `${to.w}px`, opacity: to.o }], { duration: 560, delay, easing: EASE_OUT, fill: stays ? 'backwards' : 'both' });
+      if (!stays) a.finished.then(() => { if (st.run === run) n.remove(); }, () => {});
+    } else if (!stays) n.remove();
+    if (n.className !== 'odo-col') continue;
+    // the column turns to its new digit the way the time went (a column going turns to 0), from where it is
+    const mod = v => ((v % ODO.cycle) + ODO.cycle) % ODO.cycle;
+    const p0 = ODO.cycle + mod(n._pos ?? ODO.cycle);
+    const d = stays ? want.get(k).d : 0;
+    const p1 = dir > 0 ? p0 + mod(d - p0) : dir < 0 ? p0 - mod(p0 - d) : ODO.cycle + d;
+    odoAt(n, p0);
+    if (Math.abs(p1 - p0) > 1e-3) turns.push({ n, p0, p1, last: p0 });
+  }
+  if (!turns.length) return;
+  const ease = t => 1 - Math.pow(1 - t, 4);
+  let start = 0, lastAt = 0;
+  const step = time => {
+    if (!start) { start = lastAt = time; }
+    const t = Math.min(1, (time - start) / ODO.ms);
+    for (const c of turns) {
+      const pos = c.p0 + (c.p1 - c.p0) * ease(t);
+      const speed = time > lastAt ? (Math.abs(pos - c.last) / (time - lastAt)) * 1000 : 0;   // digits a second
+      c.last = pos;
+      odoAt(c.n, pos);
+      c.n.firstChild.style.filter = t < 1 && speed > 0.05 ? `blur(${Math.min(3.2, speed * 0.11).toFixed(2)}px)` : '';
+    }
+    lastAt = time;
+    if (t < 1) st.raf = requestAnimationFrame(step);
+  };
+  const go = () => { st.raf = requestAnimationFrame(step); };
+  if (delay) st.wait = setTimeout(go, delay); else go();
+}
+
 function swapText(el, text, asHtml = false) {
   if (asHtml ? el.innerHTML === text : el.textContent === text) return;
   if (asHtml) el.innerHTML = text;
@@ -1942,7 +2048,7 @@ function renderDonut(s, soft) {
   }, { delay: state.queue ? 320 + introWait('.donut-card') : 0 });
 
   if (!focusCat) {
-    animateNumber($('donut-total'), sc.total, { format: v => fmt(v), delay: state.queue ? 320 + introWait('.donut-card') : 0, duration: 1000 });
+    rollTime($('donut-total'), sc.total, { from: 0, delay: state.queue ? 320 + introWait('.donut-card') : 0 });
     if (state.queue) $('donut-sub').textContent = sc.sub;
     else swapText($('donut-sub'), sc.sub);
   }
@@ -1959,7 +2065,7 @@ function legendRow(c, ms, i) {
   li.style.setProperty('--i', i);
   if (c.id === focusCat) li.classList.add('on');
   li.innerHTML = `<button type="button" data-cat="${c.id}" title="${c.label} - see its apps and websites"><span class="dot" style="--c:${c.color}"></span><span class="name">${c.short}</span><span class="time">${fmt(ms)}</span></button>`;
-  li.querySelector('.time')._value = ms;
+  rollTime(li.querySelector('.time'), ms, { instant: true });
   return li;
 }
 function buildLegend(rows, sc, soft) {
@@ -1994,7 +2100,7 @@ function updateLegend(rows, sc, soft) {
     ul.classList.add('soft');
     const keep = rows.map((c, i) => {
       let li = was.get(c.id);
-      if (li) animateNumber(li.querySelector('.time'), sc.cats[c.id], { format: v => fmt(v), duration: 1000 });
+      if (li) rollTime(li.querySelector('.time'), sc.cats[c.id]);
       else fresh.push(li = legendRow(c, sc.cats[c.id], i));
       li.style.setProperty('--i', i);
       li.classList.toggle('on', c.id === focusCat);
@@ -2046,14 +2152,12 @@ function updateLegend(rows, sc, soft) {
 }
 
 let centerTimer = 0;
-function setDonutCenter(total, sub) {
+function setDonutCenter(ms, sub) {
   const c = $('donut-center');
   clearTimeout(centerTimer);
   c.classList.add('swapping');
   centerTimer = setTimeout(() => {
-    const t = $('donut-total');
-    cancelAnimationFrame(t._raf);
-    t.textContent = total;
+    rollTime($('donut-total'), ms, { instant: true });
     $('donut-sub').textContent = sub;
     c.classList.remove('swapping');
   }, 130);
@@ -2073,10 +2177,9 @@ function setFocusCat(id) {
   const sc = scoped();
   if (id) {
     const cat = CATEGORY_BY_ID[id];
-    setDonutCenter(fmt(sc.cats[id] || 0), `${cat.label} · ${pct(sc.cats[id] || 0, sc.total)}%`);
+    setDonutCenter(sc.cats[id] || 0, `${cat.label} · ${pct(sc.cats[id] || 0, sc.total)}%`);
   } else {
-    $('donut-total')._value = sc.total;
-    setDonutCenter(fmt(sc.total), sc.sub);
+    setDonutCenter(sc.total, sc.sub);
   }
 }
 
