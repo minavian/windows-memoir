@@ -1657,6 +1657,44 @@ body { overflow: hidden; }
   .head .mark { display: none; }
 }
 
+/* ---------- portrait (taller than wide, at any width): the highlights beside the limit, then the week's
+   chart, the hour grid, the categories and Most used, each across the window, scrolling ---------- */
+@media (orientation: portrait) {
+  body { overflow: auto; }
+  .dash { height: auto; min-height: 100vh; }
+  .board {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      "summary goal"
+      "chart   chart"
+      "heat    heat"
+      "donut   donut"
+      "sites   sites";
+  }
+  .board > .card { min-height: 300px; }
+  /* the highlights as tall as the limit beside them: the facts go (the highlights say the same) and as many
+     highlights stay as fit (fitStory) */
+  .summary, .goal-card { height: clamp(300px, 34vw, 360px); }
+  .summary .facts { display: none; }
+  .summary .story-title { margin-top: 14px; }
+  .chart-card { height: clamp(320px, 46vw, 500px); }
+  /* across the window, the ring and its legend stay together in the middle, each time near its name */
+  .donut-wrap { justify-content: center; gap: clamp(18px, 6cqw, 56px); }
+  .cat-legend { flex: 0 1 340px; }
+  .board.is-empty > .heat-card { display: none; }
+  .heat { --s: max(6px, calc((100cqw - 34px - 24 * var(--gap)) / 24)); }
+  .empty { grid-area: auto; grid-column: 1 / -1; }
+}
+/* too narrow for two side by side: one column, in the same order */
+@media (orientation: portrait) and (max-width: 560px) {
+  .board { grid-template-columns: minmax(0, 1fr); grid-template-areas: "summary" "goal" "chart" "heat" "donut" "sites"; }
+  .summary { height: auto; }
+  .goal-card { height: 300px; }
+  .summary .facts { display: block; }
+  .summary .story-title { margin-top: 12px; }
+}
+
 /* ---------- trend over time ---------- */
 .tr-top { align-items: center; row-gap: 8px; }
 .tr-meta strong { color: var(--label); font-weight: 600; }
