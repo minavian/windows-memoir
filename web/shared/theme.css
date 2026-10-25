@@ -652,6 +652,8 @@ a.btn { text-decoration: none; } /* a link that looks like a button (Settings: H
 .site-link:hover .ext, .site-link:focus-visible .ext { opacity: 1; transform: none; }
 .site-link:focus-visible { box-shadow: var(--ring); }
 .private-name { font-style: normal; color: var(--label-2); }
+/* an app's name in a row: one line, cut short like a site's (it ran onto a second, over its bar) */
+:is(.row-name, .site-domain) > :is(.app-name, .page-name) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* bold words in the highlights that do something */
 .hl {

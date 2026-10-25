@@ -2143,10 +2143,39 @@ body { overflow: hidden; }
 .touring .pop { z-index: 5191; }
 /* the category menu, opened from a popover's row (Categories): over that popover, which stays open behind it */
 .menu.over-pop { z-index: 2100; }
-/* the Categories popover's rows: their category buttons all at the right, in one column before the times (a long
-   name gives way to it) */
-.row-main > .cat-btn { flex: none; margin: 0 0 0 auto; }
+/* The Categories popover's rows: what they are goes without saying there (it's the popover's heading), so a row's
+   category button shows only while its row is pointed at, reached with Tab, or its menu is open. It stands at the
+   right, in one column before the times, over the end of a name that long: the row's own colour, fading in from its
+   left, covers what it's over. In turn, never both at once: the name's end fades under first, then the button comes
+   up; going, the button fades first, then the name's end comes back. Only colours change, the name never gives way
+   (no shift) and nothing gets a layer of its own, so every word stays drawn the same from the first frame to the
+   last. */
+@property --pick-r { syntax: '<color>'; inherits: false; initial-value: transparent; }
+@property --pick-f { syntax: '<color>'; inherits: false; initial-value: transparent; }
+#cat-pop .row-main { display: grid; grid-template-columns: minmax(0, 1fr); align-items: baseline; }
+#cat-pop .row-main > * { grid-area: 1 / 1; }
+#cat-pop .row-name { justify-self: start; max-width: 100%; }
 #cat-pop .row-time { min-width: var(--time-w, 0); text-align: right; }
+.cat-pick {
+  position: relative;
+  justify-self: end;
+  display: flex;
+  padding-left: 22px;
+  /* the popover under the row, and the row's own tint while it's pointed at */
+  --pick-r: var(--raised);
+  background: linear-gradient(to right, transparent, var(--pick-f) 22px), linear-gradient(to right, transparent, var(--pick-r) 22px);
+  /* (the tint keeps the row's own pace, 0.2 s, both ways) */
+  transition: --pick-r 0.16s var(--ease), --pick-f 0.2s var(--ease);
+}
+.row:hover .cat-pick { --pick-f: var(--fill-1); }
+.cat-pick .cat-btn { margin: 0; transition: background-color 0.2s var(--ease), color 0.2s var(--ease) 0.09s; }
+.cat-pick .cat-btn:hover { transition-delay: 0s; }
+.cat-pick .dot { transition: background-color 0.2s var(--ease) 0.09s; }
+@media (hover: hover) {
+  .row:not(:hover, :focus-within) .cat-pick:not(:has(> [aria-expanded="true"])) { --pick-r: transparent; transition: --pick-r 0.2s var(--ease) 0.08s, --pick-f 0.2s var(--ease); }
+  .row:not(:hover, :focus-within) .cat-pick .cat-btn:not([aria-expanded="true"]) { color: transparent; transition: background-color 0.2s var(--ease), color 0.13s var(--ease); }
+  .row:not(:hover, :focus-within) .cat-pick .cat-btn:not([aria-expanded="true"]) .dot { background-color: transparent; transition: background-color 0.13s var(--ease); }
+}
 .touring .menu { z-index: 5192; }
 .touring .tip { z-index: 5300; }
 .tour-link { height: 30px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--label-2); font-size: 12.5px; font-weight: 600; transition: color 0.2s var(--ease), background-color 0.2s var(--ease); }

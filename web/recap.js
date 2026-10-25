@@ -1897,7 +1897,8 @@ function siteRows(entries, soft, dayIdxs, pages = null, pick = false) {
   return ol;
 }
 
-// pick: its category is a button, as in Most used (the menu to change it; a right click offers it too)
+// pick: its category is a button, as in Most used (the menu to change it; a right click offers it too), shown as
+// its row is pointed at
 function siteRow(domain, ms, max, i, soft, pick = false) {
   const cat = CATEGORY_BY_ID[categorize(domain, activeOverrides())];
   const li = document.createElement('li');
@@ -1916,7 +1917,10 @@ function siteRow(domain, ms, max, i, soft, pick = false) {
     btn.dataset.domain = domain;
     btn.setAttribute('aria-haspopup', 'menu');
     setCatBtn(btn, cat, domain);
-    li.querySelector('.row-cat').replaceWith(btn);
+    const pickEl = document.createElement('span');
+    pickEl.className = 'cat-pick';
+    pickEl.append(btn);
+    li.querySelector('.row-cat').replaceWith(pickEl);
   }
   return li;
 }
@@ -3389,6 +3393,7 @@ function openCatMenu(btn) {
   if (!btn.closest('#cat-pop')) closeCatPop(true);
   menu.classList.toggle('over-pop', !!btn.closest('.pop'));
   menuFor = btn;
+  btn.setAttribute('aria-expanded', 'true');
   const domain = btn.dataset.domain;
   const current = categorize(domain, activeOverrides());
   menu.innerHTML = `<p class="menu-title">${escapeHtml(siteName(domain))}</p>` + CATEGORIES.map(c => `
@@ -3420,6 +3425,7 @@ function closeCatMenu(instant = false) {
   if (menu.hidden) return;
   const btn = menuFor;
   menuFor = null;
+  btn?.setAttribute('aria-expanded', 'false');
   const hadFocus = menu.contains(document.activeElement);
   if (instant || reducedMotion()) menu.hidden = true;
   else {
