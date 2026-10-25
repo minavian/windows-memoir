@@ -1827,16 +1827,22 @@ body { overflow: hidden; }
   transition: height 0.4s var(--ease-out), opacity 0.25s var(--ease);
 }
 .data-row[data-step="1"] ~ .nuke-also.on, .data-row[data-step="2"] ~ .nuke-also.on { height: 16px; opacity: 1; }
-/* How Memoir works' Open: pointed at, it grows to make room for the arrow site links show,
-   which comes in the same way (from below left, small to full) */
-/* the button keeps its size (growing for the arrow pushed the word along a pixel at a time, which shook) and is as
-   snug as any other: the word slides over and the arrow comes into the room its padding leaves */
-.open-btn { padding: 0 12px; }
+/* How Memoir works' Open: snug at rest, like any pill. Pointed at, it widens to its left for the arrow site links show,
+   which comes in the same way (from below left, small to full), as the word slides over. The room for the arrow is
+   always there, only cut away at rest (clip-path), so nothing changes size: growing the button itself pushed the
+   word along a pixel at a time, which shook. Fully shown, the cut is the pill's own shape plus room for its focus
+   ring. */
+.open-btn {
+  --grow: calc(0.75em + 4px);
+  padding: 0 12px 0 calc(12px + var(--grow));
+  clip-path: inset(0 0 0 var(--grow) round 999px);
+  transition: transform 0.3s var(--ease-out), background-color 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease), clip-path 0.32s var(--ease-out);
+}
 .open-btn .ob-label { display: inline-block; transition: transform 0.32s var(--ease-out); }
 .open-btn .ext {
   position: absolute;
   top: 50%;
-  right: 6.5px;
+  right: 12px;
   width: 0.75em;
   height: 0.75em;
   margin-top: -0.375em;
@@ -1844,7 +1850,8 @@ body { overflow: hidden; }
   transform: translate(-4px, 4px) scale(0.6);
   transition: opacity 0.18s var(--ease), transform 0.32s var(--ease-out);
 }
-.open-btn:hover .ob-label, .open-btn:focus-visible .ob-label { transform: translateX(-7px); }
+.open-btn:hover, .open-btn:focus-visible { clip-path: inset(-3px round 999px); }
+.open-btn:hover .ob-label, .open-btn:focus-visible .ob-label { transform: translateX(calc(-1 * var(--grow))); }
 .open-btn:hover .ext, .open-btn:focus-visible .ext { opacity: 1; transform: none; }
 #limit-reset:not(:disabled) { color: var(--danger); }
 
