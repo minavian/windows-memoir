@@ -2141,6 +2141,8 @@ body { overflow: hidden; }
 
 /* while touring, what the lit parts open (menus, popovers, tooltips) shows above the tour */
 .touring .pop { z-index: 5191; }
+/* the category menu, opened from a popover's row (Categories): over that popover, which stays open behind it */
+.menu.over-pop { z-index: 2100; }
 .touring .menu { z-index: 5192; }
 .touring .tip { z-index: 5300; }
 .tour-link { height: 30px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--label-2); font-size: 12.5px; font-weight: 600; transition: color 0.2s var(--ease), background-color 0.2s var(--ease); }

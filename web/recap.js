@@ -1876,7 +1876,7 @@ function privateNote(ms) {
 
 // Horizontal bars, one per site; the list scrolls when there are many.
 // pages: { hour } when a click on a row shows its pages (the day and hour views)
-function siteRows(entries, soft, dayIdxs, pages = null) {
+function siteRows(entries, soft, dayIdxs, pages = null, pick = false) {
   const ol = document.createElement('ol');
   ol.className = `rows${soft ? ' soft' : ''}`;
   ol._days = dayIdxs;
@@ -1884,7 +1884,7 @@ function siteRows(entries, soft, dayIdxs, pages = null) {
   const list = entries.filter(([dom, ms]) => !isPrivate(dom) && ms >= 1000).sort((a, b) => b[1] - a[1]).slice(0, 80);
   const max = list.length ? list[0][1] : 1;
   list.forEach(([domain, ms], i) => {
-    const li = siteRow(domain, ms, max, i, soft);
+    const li = siteRow(domain, ms, max, i, soft, pick);
     if (pages && hasPages(domain, dayIdxs, pages.hour)) {
       li.classList.add('has-pages');
       const time = li.querySelector('.row-time');
@@ -1897,16 +1897,27 @@ function siteRows(entries, soft, dayIdxs, pages = null) {
   return ol;
 }
 
-function siteRow(domain, ms, max, i, soft) {
+// pick: its category is a button, as in Most used (the menu to change it; a right click offers it too)
+function siteRow(domain, ms, max, i, soft, pick = false) {
   const cat = CATEGORY_BY_ID[categorize(domain, activeOverrides())];
   const li = document.createElement('li');
   li.className = 'row';
   li.dataset.domain = domain;
+  li.dataset.ms = ms;
   li.style.setProperty('--i', Math.min(i, 12));
   li.innerHTML = `<div class="row-main"><span class="row-name">${siteLinkHtml(domain)}</span><span class="row-cat"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span></div>
     <span class="row-time">${fmt(ms, { seconds: true })}</span>
     <div class="row-bar"><i style="--c:${cat.color};--d:${260 + Math.min(i, 12) * 45}ms${soft ? `;--w:${Math.max(2, (ms / max) * 100).toFixed(2)}%` : ''}" data-w="${Math.max(2, (ms / max) * 100).toFixed(2)}"></i></div>`;
   li.prepend(faviconTile(domain, cat.color));
+  if (pick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cat-btn';
+    btn.dataset.domain = domain;
+    btn.setAttribute('aria-haspopup', 'menu');
+    setCatBtn(btn, cat, domain);
+    li.querySelector('.row-cat').replaceWith(btn);
+  }
   return li;
 }
 
@@ -2211,6 +2222,36 @@ function setFocusCat(id) {
 // ----- category popover: grows out of the word or slice you clicked -----
 
 let popCat = null;
+let catPopScoped = true;
+const catPopScope = (s = state.summary) => (catPopScoped ? scoped(s) : { cats: s.cats, siteList: s.siteList, total: s.total, priv: s.privateTotal, when: 'this week' });
+// A site moved out of the open category (or no longer tracked): its row folds away, the list closing up, the others'
+// bars easing to their new share and the heading to its new time; the last one gone, the popover goes back into
+// what it came from.
+function dropCatPopRow(domain) {
+  const el = $('cat-pop');
+  if (!catPop.isOpen) return;
+  const li = [...el.querySelectorAll('.rows > .row')].find(r => r.dataset.domain === domain && !r.classList.contains('leaving'));
+  if (!li) return;
+  const sc = catPopScope();
+  const meta = el.querySelector('.pop-meta');
+  if (meta) swapText(meta, `${fmt(sc.cats[popCat] || 0)} · ${pct(sc.cats[popCat] || 0, sc.total)}%`);
+  const rest = [...el.querySelectorAll('.rows > .row')].filter(r => r !== li && !r.classList.contains('leaving'));
+  if (!rest.length) { closeCatPop(); return; }
+  const max = Math.max(...rest.map(r => +r.dataset.ms || 0), 1);
+  for (const r of rest) {
+    const bar = r.querySelector('.row-bar i');
+    const w = `${Math.max(2, ((+r.dataset.ms || 0) / max) * 100).toFixed(2)}%`;
+    bar.dataset.w = w.slice(0, -1);
+    bar.style.setProperty('--w', w);
+  }
+  li.classList.add('leaving');
+  li.inert = true;
+  const h = li.getBoundingClientRect().height;
+  if (reducedMotion() || !h) { li.remove(); li.parentElement?._scroller?.update(); return; }
+  const list = li.parentElement;
+  li.animate([{ height: `${h}px`, opacity: 1 }, { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' }], { duration: 340, easing: EASE_OUT, fill: 'forwards' })
+    .finished.then(() => { li.remove(); list?._scroller?.update(); }, () => li.remove());
+}
 function openCatPop(catId, anchor) {
   const s = state.summary;
   if (!s || !CATEGORY_BY_ID[catId]) return;
@@ -2219,11 +2260,12 @@ function openCatPop(catId, anchor) {
   closeCatMenu(true);
   const cat = CATEGORY_BY_ID[catId];
   // from the donut it follows Week / Day; from a highlight it's always the week
-  const sc = anchor.closest && anchor.closest('.donut-card') ? scoped(s) : { cats: s.cats, siteList: s.siteList, total: s.total, priv: s.privateTotal, when: 'this week' };
+  catPopScoped = !!(anchor.closest && anchor.closest('.donut-card'));
+  const sc = catPopScope();
   const entries = sc.siteList.filter(([d]) => categorize(d, activeOverrides()) === catId);
   const el = $('cat-pop');
   el.innerHTML = `<div class="pop-head"><span class="pop-title"><span class="dot" style="--c:${cat.color}"></span>${cat.label}</span><span class="pop-meta num">${fmt(sc.cats[catId] || 0)} · ${pct(sc.cats[catId] || 0, sc.total)}%</span></div>`;
-  const list = siteRows(entries, false, null);
+  const list = siteRows(entries, false, null, null, true);
   el.appendChild(list);
   makeScroller(list);
   const priv = catId === 'other' && sc.priv >= 60_000 ? sc.priv : 0;
@@ -3337,7 +3379,8 @@ function openCatMenu(btn) {
   const menu = $('cat-menu');
   if (menuFor === btn) { closeCatMenu(); return; }
   if (!menu.hidden) closeCatMenu(true);
-  closeCatPop(true);
+  if (!btn.closest('#cat-pop')) closeCatPop(true);
+  menu.classList.toggle('over-pop', !!btn.closest('.pop'));
   menuFor = btn;
   const domain = btn.dataset.domain;
   const current = categorize(domain, activeOverrides());
@@ -3395,12 +3438,12 @@ async function applyCategory(domain, catId) {
   renderSummary(s, true);
   if (state.view.type !== 'week') renderDetail({ soft: true });
   const cat = CATEGORY_BY_ID[catId];
-  const btn = document.querySelector(`.cat-btn[data-domain="${CSS.escape(domain)}"]`);
-  if (btn) {
+  for (const btn of document.querySelectorAll(`.cat-btn[data-domain="${CSS.escape(domain)}"]`)) {
     setCatBtn(btn, cat, domain);
     replay(btn, 'changed');
-    btn.closest('.site').querySelector('.site-bar i').style.setProperty('--c', cat.color);
+    btn.closest('.site, .row')?.querySelector('.site-bar i, .row-bar i')?.style.setProperty('--c', cat.color);
   }
+  if (popCat && popCat !== catId) dropCatPopRow(domain);
   toast(`${siteName(domain)} moved to ${cat.label}`);
 }
 
@@ -4738,7 +4781,7 @@ function wire() {
     beforeOpen: () => { tip.hide(); closeCatMenu(true); },
     getItems: ({ target }) => {
       if (target.closest('.pk-layer, .gx-layer, .tour, .wel')) return [];
-      const category = target.closest('.site')?.querySelector('.cat-btn');
+      const category = target.closest('.site, #cat-pop .row')?.querySelector('.cat-btn');
       return [
         ...(category ? [{ label: 'Change category', icon: 'category', action: () => openCatMenu(category) }, { separator: true }] : []),
         { label: $('settings').classList.contains('open') ? 'Close settings' : 'Settings', icon: 'settings', action: () => $('settings-btn').click() },
@@ -4947,7 +4990,7 @@ function wire() {
     if (browsersPop.isOpen && !e.target.closest('#browsers-pop, .link-who, #link-rows .link-btn')) closeBrowsers();
     for (const [p, id, popId] of footPops) if (p.popover.isOpen && !e.target.closest(`#${id}, #${popId}`)) p.close();
     if (!$('cat-menu').hidden && !e.target.closest('#cat-menu') && !e.target.closest('.cat-btn')) closeCatMenu();
-    if (catPop.isOpen && !e.target.closest('#cat-pop') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
+    if (catPop.isOpen && !e.target.closest('#cat-pop, #cat-menu, .context-menu') && !e.target.closest('[data-act="cat"]') && !e.target.closest('.cat-legend') && !e.target.closest('.donut-seg')) closeCatPop();
     // another row with pages opens its own (the click does that); anywhere else closes it
     if (pages.isOpen && !e.target.closest('#page-pop') && !(e.target.closest('.site.has-pages, #detail-view .row.has-pages') && !e.target.closest('.site-link, .cat-btn'))) closePagePop();
   });
@@ -4967,12 +5010,16 @@ function wire() {
     const btn = e.target.closest('.cat-btn');
     if (btn) openCatMenu(btn);
   });
+  $('cat-pop').addEventListener('click', e => {
+    const btn = e.target.closest('.cat-btn');
+    if (btn) openCatMenu(btn);
+  });
   $('cat-menu').addEventListener('click', e => {
     const item = e.target.closest('.menu-item');
     if (!item || !menuFor) return;
     const domain = menuFor.dataset.domain;
     closeCatMenu();
-    if (item.dataset.exclude) addExcluded(domain);
+    if (item.dataset.exclude) { addExcluded(domain); dropCatPopRow(domain); }
     else applyCategory(domain, item.dataset.cat);
   });
   $('cat-menu').addEventListener('keydown', e => {
