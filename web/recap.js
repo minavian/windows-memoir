@@ -2138,7 +2138,7 @@ function updateLegend(rows, sc, soft) {
     let at = ul.firstChild;
     for (const li of keep) { if (li === at) at = at.nextSibling; else ul.insertBefore(li, at); }
     if (going.length) ul.style.overflow = 'visible';
-  }, { duration: LEGEND_MS });
+  }, { duration: LEGEND_MS, whole: true });
   // where everything is now, in one read (the card's new height was just measured, so it's laid out already); then
   // the rows going are put back where they were, and everything that stays glides from where it was, as the card does
   const box = ul.getBoundingClientRect();

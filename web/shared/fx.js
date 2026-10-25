@@ -695,7 +695,11 @@ export function slicePath(cx, cy, r1, r2, a0, a1, corner) {
 
 // Runs `mutate`, then animates the element from its old height to its new one.
 // delay: ms (or a function giving them once mutate has run) to hold the old height first.
-export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT, delay = 0 } = {}) {
+// whole: in whole pixels of the screen, for an element with words below it that it moves (Categories, above Most
+// used). Its height reaches the new one's fraction of a pixel on the first step, while it's quick, then goes a whole
+// pixel at a time to the very height it ends on. Gliding through fractions, the words below crept the last pixel at
+// the end of the ease, each line snapping to the pixels on a frame of its own: a shake.
+export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT, delay = 0, whole = false } = {}) {
   if (!el) { mutate(); return Promise.resolve(); }
   const from = el.getBoundingClientRect().height;
   if (el._hAnim) { el._hAnim.cancel(); el._hAnim = null; }
@@ -709,7 +713,9 @@ export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT, d
   // remember the element's own overflow once, so back-to-back runs can't leave it clipped
   if (el._hOverflow == null) el._hOverflow = el.style.overflow;
   el.style.overflow = 'clip';
-  const a = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration, easing, delay: wait, fill: 'backwards' });
+  const a = whole
+    ? el.animate(wholeSteps(from, to, easing), { duration, delay: wait, fill: 'backwards' })
+    : el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration, easing, delay: wait, fill: 'backwards' });
   el._hAnim = a;
   const done = () => {
     if (el._hAnim !== a) return;
@@ -718,6 +724,30 @@ export function animateHeight(el, mutate, { duration = 380, easing = EASE_OUT, d
     el._hOverflow = null;
   };
   return a.finished.then(done, done);
+}
+// animateHeight's whole steps: a keyframe a screen pixel, each held until the eased height has gone halfway to the
+// next, counted back from where it ends, so every step is a whole pixel and the last is the height it ends on
+function wholeSteps(from, to, easing) {
+  const px = 1 / (window.devicePixelRatio || 1);
+  const n = Math.max(1, Math.round(Math.abs(to - from) / px));
+  const dir = Math.sign(to - from);
+  const at = easedTime(easing);
+  const frames = [{ offset: 0, height: `${from}px`, easing: 'step-end' }];
+  for (let k = 1; k <= n; k++) frames.push({ offset: at((k - 0.5) / n), height: `${to - dir * (n - k) * px}px`, easing: 'step-end' });
+  frames.push({ offset: 1, height: `${to}px` });
+  return frames;
+}
+// when an easing (cubic-bezier(…), or linear) reaches a share of the way
+function easedTime(easing) {
+  const m = String(easing).match(/cubic-bezier\(([^)]+)\)/);
+  if (!m) return p => p;
+  const [x1, y1, x2, y2] = m[1].split(',').map(Number);
+  const bez = (a, b, s) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * b + s * s * s;
+  return p => {
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 40; i++) { const s = (lo + hi) / 2; if (bez(y1, y2, s) < p) lo = s; else hi = s; }
+    return Math.min(1, Math.max(0, bez(x1, x2, (lo + hi) / 2)));
+  };
 }
 
 // ---------- scrolling lists: eased wheel scrolling and a slim slider ----------
