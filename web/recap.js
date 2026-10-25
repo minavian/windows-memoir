@@ -2275,7 +2275,14 @@ function openCatPop(catId, anchor) {
   if (anchor.classList && anchor.classList.contains('hl')) anchor.classList.add('active');
   const wasOpen = catPop.isOpen;
   popCat = catId;
-  const go = () => catPop.open(anchor, { fromRadius: anchor instanceof SVGElement ? 12 : 6 }).then(() => growBars(el));
+  const go = () => {
+    const opening = catPop.open(anchor, { fromRadius: anchor instanceof SVGElement ? 12 : 6 });
+    // (shown now, to the eye not yet: every row's time as wide as the widest, so the category buttons before them
+    // stand in one column)
+    const times = [...list.querySelectorAll('.row-time')];
+    if (times.length) list.style.setProperty('--time-w', `${Math.ceil(Math.max(...times.map(t => t.getBoundingClientRect().width)))}px`);
+    return opening.then(() => growBars(el));
+  };
   if (wasOpen) catPop.close({ instant: true }).then(go);
   else go();
 }
