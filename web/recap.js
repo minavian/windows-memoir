@@ -2899,8 +2899,6 @@ function sweepSites(s, dx) {
 function buildSites(s, soft, sweep = 0) {
   const ol = $('sites');
   ol.classList.toggle('soft', soft);
-  // a sweep's rows still on their way out stay where they are till they're gone
-  for (const el of [...ol.children]) if (!el.classList.contains('going')) el.remove();
   const scroller = makeScroller(ol);
   if (!soft || sweep) scroller.reset();
   // every site (of the week, or of the day on Day), in a list that scrolls
@@ -2912,6 +2910,7 @@ function buildSites(s, soft, sweep = 0) {
   const idxs = sc.day == null ? null : [sc.day];
   // only the rows you can see make an entrance; the rest are simply there
   const onScreen = Math.ceil((ol.clientHeight || 600) / 50) + 1;
+  const rows = document.createDocumentFragment();
   const grow = [], swept = [];
   top.forEach(([domain, ms], i) => {
     const cat = CATEGORY_BY_ID[categorize(domain, activeOverrides())];
@@ -2957,9 +2956,13 @@ function buildSites(s, soft, sweep = 0) {
       grow.push([fill, w]);
     }
     li.append(faviconTile(domain, cat.color), main, time, bar);
-    ol.appendChild(li);
+    rows.appendChild(li);
   });
-  if (!top.length) ol.appendChild(Object.assign(emptyNote(`Nothing ${sc.when}.`), { className: 'dv-empty sites-none' }));
+  if (!top.length) rows.appendChild(Object.assign(emptyNote(`Nothing ${sc.when}.`), { className: 'dv-empty sites-none' }));
+  // the old rows give way to the new in one go (a sweep's still on their way out stay till they're gone): emptied
+  // first, the list was laid out with nothing in it and so scrolled back to its top, on every update
+  for (const el of [...ol.children]) if (!el.classList.contains('going')) el.remove();
+  ol.appendChild(rows);
   // the sweep: the rows that show once they're laid out (the list can be as tall as they are), in from the side
   // switched to, a beat behind the row each replaces; each bar grows once its row is in
   if (sweep) {
