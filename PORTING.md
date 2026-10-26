@@ -104,7 +104,7 @@ Rules that `Engine.cs` mirrors from `background.js` / `core.js`, and must keep i
 | Idle limit, audio keeps time running | `IDLE_SECONDS = 60` | `Engine.IdleLimit = 60000` |
 | Private key, exclusions as Private time | `PRIVATE_KEY`, `isExcluded` | `"~private"`, `Engine.Excluded` (same parent-domain rule, not for `app:`) |
 | Memoir's own pages | `~memoir` (`PAGE_NAMES`) | `~memoir`: Memoir's own window (`Tracker.RefreshForeground`; the tray menu's process stays ignored) |
-| Titles per site | `MAX_TITLES_PER_SITE = 30`, overflow under `''`, and the same hour by hour in `th` | same, in `Commit` |
+| Titles per site | every page while a day is recent, up to `RECENT_TITLES_PER_SITE = 100` (past it the shortest makes way, `makeRoomForPage`); a day more than `FULL_PAGES_DAYS = 7` old keeps each site's `MAX_TITLES_PER_SITE = 30` with the most time (`trimPages`, daily in `trimOldPages`, and on old days that arrive). Pages that go fold into `''`, the same hour by hour in `th`, links dropped | same: `MakeRoomForPage` in `Commit`, `TrimPages` daily in `Prune` (`TrimOldPages`) |
 | Title cleanup | `cleanTitle()` | `Engine.CleanTitle`: the same rules (unread-count prefix, spaces, addresses and the site's own name refused, 120 characters, reserved names) |
 | Never track, Erase titles | `anonymizeSites`, `eraseTitles` cover `ti`, `th`, `tu`, `tp` | `Engine.Redact` does the same |
 | Hour/day split | local time, split at each hour | same; DST-safe |

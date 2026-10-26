@@ -83,9 +83,21 @@ namespace Memoir {
             e.CheckGoal(At("2026-10-04T00:00:02Z")); Eq(notifications,3,"Pending time after midnight participates in next day's limit");
 
             s = Fresh(); e = UTC(s); var settings = Json.Object("titles",true);
-            for (int i=0;i<40;i++) e.Commit(App("example.com","Page "+i),t+i*1000,t+(i+1)*1000,settings);
-            var titles=Json.Map(Json.Get(Json.Map(Engine.Normalize(s.Data["day:2026-10-03"])["ti"]),"example.com"));
-            Eq(titles.Count,31,"Title storage is capped with an anonymous overflow bucket"); Eq(titles.Values.Sum(v=>Json.Number(v)),40000,"Title cap does not lose elapsed time");
+            // page i gets 1000 + i ms; past the ceiling (100) the shortest make way; a week on, the 30 longest stay
+            for (int i=0;i<110;i++) e.Commit(App("example.com","Page "+i),t+i*2000,t+i*2000+1000+i,settings);
+            e.Commit(App("example.com","Long video"),t+220000,t+820000,settings);
+            Func<Dictionary<string,object>> pagesOn = () => Json.Map(Json.Get(Json.Map(Engine.Normalize(s.Data["day:2026-10-03"])["ti"]),"example.com"));
+            Func<Dictionary<string,object>> hourPagesOn = () => Json.Map(Json.Get(Json.Map(Json.Get(Json.Map(Engine.Normalize(s.Data["day:2026-10-03"])["th"]),"12")),"example.com"));
+            Func<Dictionary<string,object>, string> same = map => Json.Encode(map.OrderBy(p=>p.Key, StringComparer.Ordinal).ToArray());
+            var titles=pagesOn();
+            Eq(titles.Count,101,"A recent day keeps every page, up to the ceiling, with an anonymous overflow bucket"); Eq(titles.Values.Sum(v=>Json.Number(v)),715995,"Pages making way lose no time");
+            Eq(Json.Number(titles[""]),11055,"Past the ceiling, the shortest pages make way"); Eq(Json.Number(Json.Get(titles,"Long video")),600000,"A page past the ceiling still gets its own row");
+            True(same(hourPagesOn())==same(titles),"An hour's pages make way the same");
+            e.TrimOldPages(new DateTime(2026,10,10)); Eq(pagesOn().Count,101,"A day a week old keeps every page");
+            e.Prune(new DateTime(2026,10,11)); titles=pagesOn();
+            Eq(titles.Count,31,"Older than a week, a site keeps 30 pages"); Eq(titles.Values.Sum(v=>Json.Number(v)),715995,"Trimming loses no time");
+            True(titles.ContainsKey("Long video") && titles.ContainsKey("Page 81") && !titles.ContainsKey("Page 80"),"The pages kept are the ones with the most time");
+            True(same(hourPagesOn())==same(titles),"An hour's pages are trimmed the same");
             s.Set(Json.Object("settings",Json.Object("retention",91),"day:2026-07-04",Engine.Normalize(null),"day:2026-07-05",Engine.Normalize(null)));
             e.Prune(new DateTime(2026,10,3)); True(!s.Data.ContainsKey("day:2026-07-04") && s.Data.ContainsKey("day:2026-07-05"),"Retention includes today and ninety previous days");
             s.Save(); var reload=new Store(Path.GetDirectoryName(s.FilePath)); True(Json.Encode(s.Data)==Json.Encode(reload.Data),"History survives a full store reload");

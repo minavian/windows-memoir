@@ -186,17 +186,63 @@ namespace Memoir {
                 if (browser != null) { sites[browser] = Json.Number(Json.Get(sites, browser)) + ms; slot[browser] = Json.Number(Json.Get(slot, browser)) + ms; }
                 rec["s"] = sites; rec["h"] = hours; rec["hs"] = slots;
                 if (!String.IsNullOrEmpty(title)) {
+                    // every page counts; only past the ceiling does the shortest one go into "other pages"
+                    MakeRoomForPage(rec, domain, title);
                     var titles = Json.Map(rec["ti"]); var pages = Json.Map(Json.Get(titles, domain));
-                    string name = pages.ContainsKey(title) || pages.Count < 30 ? title : "";
-                    pages[name] = Json.Number(Json.Get(pages, name)) + ms; titles[domain] = pages; rec["ti"] = titles;
+                    pages[title] = Json.Number(Json.Get(pages, title)) + ms; titles[domain] = pages; rec["ti"] = titles;
                     // and the same time hour by hour, so an hour can show its own pages and windows
                     var byHour = Json.Map(rec["th"]); var hourSlot = Json.Map(Json.Get(byHour, hour)); var hourPages = Json.Map(Json.Get(hourSlot, domain));
-                    hourPages[name] = Json.Number(Json.Get(hourPages, name)) + ms; hourSlot[domain] = hourPages; byHour[hour] = hourSlot; rec["th"] = byHour;
+                    hourPages[title] = Json.Number(Json.Get(hourPages, title)) + ms; hourSlot[domain] = hourPages; byHour[hour] = hourSlot; rec["th"] = byHour;
                 }
                 patch[key] = rec; from = end;
             }
             if (!priv && !String.IsNullOrEmpty(target.Origin)) { var origins = Json.Clone(Json.Map(Json.Get(store.Data, "origins"))); origins[domain] = target.Origin; patch["origins"] = origins; }
             store.Set(patch);
+        }
+        // A site's pages on a day (core.js): all of them while the day is recent, up to RecentTitlesPerSite (a
+        // ceiling for titles that change every second, like a timer's), and once it's more than FullPagesDays
+        // old, only its MaxTitlesPerSite with the most time. Pages that go join "other pages" (""): their time,
+        // each hour's share too; their links go. (In place, on a record from Normalize.)
+        public const int MaxTitlesPerSite = 30, RecentTitlesPerSite = 100, FullPagesDays = 7;
+        private static void FoldPages(Dictionary<string, object> rec, string domain, string[] titles) {
+            Action<Dictionary<string, object>> fold = into => {
+                foreach (string t in titles) { if (!into.ContainsKey(t)) continue; into[""] = Json.Number(Json.Get(into, "")) + Json.Number(into[t]); into.Remove(t); }
+            };
+            fold(Json.Map(Json.Get(Json.Map(rec["ti"]), domain)));
+            foreach (object slot in Json.Map(rec["th"]).Values) fold(Json.Map(Json.Get(Json.Map(slot), domain)));
+            var links = Json.Map(Json.Get(Json.Map(rec["tu"]), domain)); foreach (string t in titles) links.Remove(t);
+        }
+        // a new page on a site at the ceiling: the page with the least time so far makes way, so the new one
+        // gets its own row and only the shortest visits go
+        private static void MakeRoomForPage(Dictionary<string, object> rec, string domain, string title) {
+            var pages = Json.Map(Json.Get(Json.Map(rec["ti"]), domain));
+            if (pages.ContainsKey(title)) return;
+            string[] named = pages.Keys.Where(k => k.Length > 0).ToArray();
+            if (named.Length < RecentTitlesPerSite) return;
+            FoldPages(rec, domain, new[] { named.Aggregate((a, b) => Json.Number(pages[b]) < Json.Number(pages[a]) ? b : a) });
+        }
+        // a day more than a week old: each site keeps its MaxTitlesPerSite pages with the most time (true when anything changed)
+        private static bool HasTooManyPages(object value) {
+            return Json.Map(Json.Get(Json.Map(value), "ti")).Values.Any(pages => Json.Map(pages).Keys.Count(k => k.Length > 0) > MaxTitlesPerSite);
+        }
+        public static bool TrimPages(Dictionary<string, object> rec) {
+            bool changed = false;
+            foreach (var site in Json.Map(rec["ti"]).ToArray()) {
+                var pages = Json.Map(site.Value); string[] named = pages.Keys.Where(k => k.Length > 0).ToArray();
+                if (named.Length <= MaxTitlesPerSite) continue;
+                FoldPages(rec, site.Key, named.OrderByDescending(t => Json.Number(pages[t])).Skip(MaxTitlesPerSite).ToArray());
+                changed = true;
+            }
+            return changed;
+        }
+        // this app's days and linked extensions' alike, once each turns a week old (Prune, every day)
+        public void TrimOldPages(DateTime now) {
+            string cutoff = Day(now.Date.AddDays(-FullPagesDays));
+            var patch = new Dictionary<string, object>();
+            foreach (var pair in store.Data.Where(p => DayRecord.IsMatch(p.Key) && String.CompareOrdinal(RecordDate(p.Key), cutoff) < 0 && HasTooManyPages(p.Value)).ToArray()) {
+                var rec = Normalize(pair.Value); if (TrimPages(rec)) patch[pair.Key] = rec;
+            }
+            if (patch.Count > 0) store.Set(patch);
         }
         // A day as the extension keeps it (core.js normalizeDay): s, h and hs; ti, a site's titles;
         // th, the same titles hour by hour; tu, each title's link (web pages, from the extension);
@@ -256,10 +302,13 @@ namespace Memoir {
         private void Emit(string title, string text) { if (Notification != null) Notification(title, text); }
         private static string Duration(double ms) { int minutes = (int)Math.Floor(ms / 60000); return minutes >= 60 ? (minutes / 60) + "h " + (minutes % 60) + "m" : Math.Max(1, minutes) + "m"; }
         public void Prune(DateTime now) {
-            int days = (int)Json.Number(Json.Get(Settings, "retention")); if (days != 0 && days != 365 && days != 182 && days != 91) return; if (days == 0) return;
-            string cutoff = Day(now.Date.AddDays(-(days - 1)));
-            // this app's days and linked extensions' alike
-            store.Remove(store.Data.Keys.Where(k => DayRecord.IsMatch(k) && String.CompareOrdinal(RecordDate(k), cutoff) < 0).ToArray());
+            int days = (int)Json.Number(Json.Get(Settings, "retention"));
+            if (days == 365 || days == 182 || days == 91) {
+                string cutoff = Day(now.Date.AddDays(-(days - 1)));
+                // this app's days and linked extensions' alike
+                store.Remove(store.Data.Keys.Where(k => DayRecord.IsMatch(k) && String.CompareOrdinal(RecordDate(k), cutoff) < 0).ToArray());
+            }
+            TrimOldPages(now);
         }
         public void ScheduleReminder(DateTime from) {
             int weekday = (int)Json.Number(Json.Get(Settings, "reminderDay")), minutes = (int)Json.Number(Json.Get(Settings, "reminderMinutes"), 1140);
