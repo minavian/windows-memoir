@@ -133,6 +133,8 @@ a.p-author { text-decoration: none; }
 .ap-copy:active { transform: scale(0.95); }
 .ap-copy-label { display: inline-block; }
 .ap-copy-label.swap { animation: swap 0.35s var(--ease-out); }
+/* Copy is as wide as "Copied" from the start (an unseen line of no height), so saying it moves nothing */
+.ap-copy[data-copy] .ap-copy-label::before { content: "Copied"; display: block; height: 0; overflow: hidden; visibility: hidden; }
 /* a title and the address alone (no line between) */
 .ap-title + .ap-mail { margin-top: 10px; }
 /* the address and the website, one under the other: the same width, a line between */
