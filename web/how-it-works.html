@@ -81,7 +81,15 @@
       <li>Each app’s and site’s name and its time, hour by hour, and each app’s icon. Never what you type, click or see.</li>
       <li><b>Page and window titles</b>, only if you turn on <b>Page titles</b> in Settings: every one each day, and after a week an app’s or site’s 30 with the most time, the rest as “other pages”.</li>
       <li>Everything is kept for as long as you choose under <b>Keep history</b> (forever, unless you pick a shorter time).</li>
-      <li>It all stays on this computer: in the <b>Data</b> folder next to Memoir, and in the browsers you link. Sites show their own icons once a browser is linked; it passes them on from its own icon cache. More in the <a href="privacy.html">privacy policy</a>.</li>
+      <li>Sites show their own icons once a browser is linked; it passes them on from its own icon cache.</li>
+    </ul>
+
+    <h2>Where it’s kept</h2>
+    <ul>
+      <li><b>In the Data folder next to Memoir</b>: <code>%LOCALAPPDATA%\<wbr>Programs\<wbr>Memoir\<wbr>Data</code>, where Memoir Setup puts it. Paste that into File Explorer’s address bar to open it.</li>
+      <li><b>history.json</b> holds your history and your settings, and <b>history.json.backup</b> the save before it, in case one is ever cut short. <b>icons</b> holds your apps’ and sites’ icons, and <b>WebView</b> the cache of Memoir’s window and Today, like a browser’s.</li>
+      <li><b>In each browser you link</b>, Memoir there keeps its own copy, in that browser’s storage for extensions: in your profile’s folder, the <b>Profile Path</b> that <code>chrome://version</code> shows (<code>edge://version</code> in Edge), under <code>Local Extension Settings</code>.</li>
+      <li>Nowhere else: no server, no account. Uninstalling deletes the Data folder, unless you choose to keep your history. More in the <a href="privacy.html">privacy policy</a>.</li>
     </ul>
 
     <h2>Linked with Memoir in your browser</h2>
