@@ -52,6 +52,7 @@ namespace Memoir {
             this.owner = owner; this.store = store; this.engine = engine; this.version = version; this.settingsApplied = settingsApplied;
             this.iconDirectory = iconDirectory; siteIconDirectory = Path.Combine(iconDirectory, "sites");
             try { Directory.CreateDirectory(siteIconDirectory); } catch { }
+            ForgetMissingSiteIcons();
             PruneSiteIcons();
             settingsSeen = Json.Clone(engine.Settings);
             var record = Record();
@@ -317,7 +318,7 @@ namespace Memoir {
             foreach (string domain in siteSeen.ToArray()) {
                 if (want.Count >= 300) break;
                 siteSeen.Remove(domain);
-                if (!have.ContainsKey(domain) && !siteAsked.Contains(domain) && SyncData.SiteKey(domain) == domain && !Engine.Excluded(domain, excluded)) want.Add(domain);
+                if (!HasSiteIcon(have, domain) && !siteAsked.Contains(domain) && SyncData.SiteKey(domain) == domain && !Engine.Excluded(domain, excluded)) want.Add(domain);
             }
             if (want.Count == 0) return;
             siteAsked.UnionWith(want);
@@ -338,6 +339,21 @@ namespace Memoir {
                 if (Json.Text(Json.Get(favicons, domain)) != file) { favicons[domain] = file; changed = true; }
             }
             if (changed) { store.Set(Json.Object("favicons", favicons)); store.Save(); }
+        }
+        // A website has an icon only if its file is there: a name whose file has gone (a history carried over to a new
+        // install without its icons folder) is asked for again, as if it had none
+        private bool HasSiteIcon(Dictionary<string, object> have, string domain) {
+            string file = Json.Text(Json.Get(have, domain));
+            return IconFile.IsMatch(file) && File.Exists(Path.Combine(siteIconDirectory, file));
+        }
+        // At the start, names whose file has gone are let go, so the report draws the site's letter instead of a
+        // picture that can't load, and the browser is asked for it again
+        private void ForgetMissingSiteIcons() {
+            var favicons = Json.Map(Json.Get(store.Data, "favicons"));
+            var kept = new Dictionary<string, object>();
+            foreach (var pair in favicons) if (HasSiteIcon(favicons, pair.Key)) kept[pair.Key] = pair.Value;
+            if (kept.Count == favicons.Count) return;
+            store.Set(Json.Object("favicons", kept)); store.Save();
         }
         // A website's icon goes with its name (Never track, Clear all)
         private void PruneSiteIcons() {
