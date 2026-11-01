@@ -85,7 +85,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. The licence's f
 Copyright © 2026 Mina Vian.
 
 **The name and the clock.** The licence covers the code, not the name "Memoir" or its clock logo (an additional term
-under section 7(e) of the GPL): a changed version may be shared under the GPL, but under a name and a look of its own.
+under section 7(e) of the GPL): a changed version may be shared under the GPL, but under a name and a logo of its own.
 
 **What it's built with** keeps its own licences: the Microsoft Edge WebView2 SDK, under a BSD-style licence (`build-tools/webview2/LICENSE.txt`), and the Inter and Unbounded fonts, under the SIL Open Font License 1.1 (`web/fonts/`).
 
