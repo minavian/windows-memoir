@@ -851,3 +851,40 @@ html.cc-live :is(input[type="text"], input[type="search"], input:not([type]), in
 /* the system draws the arrow meanwhile (cursor.js): gone at once, no fade */
 .cc.is-native { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .cc-inner { transition: opacity 0.1s linear; } .cc-arrow { transition: none; } }
+
+/* ---------- numbers that roll like an odometer ----------
+   the RAM rolls up to Memoir's in the background (recap.js rollMemory): a column a digit,
+   blurred by its speed, the digits fading in and out at the window's top and bottom */
+.odo { display: inline-flex; vertical-align: top; }
+.odo-col {
+  display: inline-block;
+  height: 1.5em;
+  margin: -0.2em 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 0.2em, #000 1.3em, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 0.2em, #000 1.3em, transparent);
+}
+.odo-strip { display: flex; flex-direction: column; padding-top: 0.2em; will-change: transform, filter; }
+.odo-strip i { display: block; height: 1.1em; line-height: 1.1em; font-style: normal; text-align: center; }
+/* a time or a share that rolls the same way (shared/odo.js: every number in Memoir that changes): its letters, which open and close their room, and
+   its words, kept for screen readers */
+.odo-ch { display: inline-block; height: 1.1em; line-height: 1.1em; overflow: hidden; white-space: pre; }
+/* its digits a whole window apart, so at rest no neighbour shows at the window's edges (small type showed their tops),
+   and on the line's baseline like the words beside it. Every edge is soft: the fade above and below is the whole
+   number's (its own mask, with room at its sides for the blur), and a column clips only above and below, so a blurred
+   digit, or one whose column is opening or closing, spreads softly sideways (centred on its room) instead of being
+   cut. (Clipped, not hidden: a box that hides its overflow would sit on its bottom edge, not the baseline.) */
+.odo-t {
+  vertical-align: baseline;
+  align-items: baseline;
+  padding: 0.35em;
+  margin: -0.35em;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 0.5em, #000 calc(100% - 0.5em), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 0.5em, #000 calc(100% - 0.5em), transparent);
+}
+/* a window 1.8em tall, the fades 0.5em deep: a digit at rest is wholly inside the solid middle, and one on the move
+   fades in and out over most of its height */
+.odo-t .odo-col { display: inline-flex; justify-content: center; align-items: flex-start; height: 1.8em; margin: -0.35em 0; overflow: visible clip; -webkit-mask-image: none; mask-image: none; }
+.odo-t .odo-ch { display: inline-flex; justify-content: center; overflow: visible; }
+.odo-t .odo-strip { display: block; padding-top: 0; line-height: 1.8em; white-space: pre; text-align: center; }
+.odo-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

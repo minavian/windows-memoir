@@ -8,12 +8,13 @@ import {
   isApp, siteKey, cleanDay, mergeDay, anonymizeDay, setApps, listDayRecordKeys, recordDate,
 } from './shared/core.js';
 import {
-  animateNumber, tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath,
+  tween, reveal, createTooltip, faviconTile, reducedMotion, syncSegmented, slicePath,
   setOrigins, siteLinkHtml, morph, MorphPopover, replay, EASE_OUT, animateHeight, makeScroller, initSmoothScrolling, disableTitleTooltips,
   ARROW_SVG, POP,
 } from './shared/fx.js';
 import { getThemePref, setThemePref, watchTheme, THEME_SWITCH_MS, rainbowOn, setRainbow } from './shared/theme.js';
 import { createGoalRing, openPicker } from './shared/goal.js';
+import { rollTime, rollText } from './shared/odo.js';
 import { TrendChart } from './trend.js';
 import { runGauntlet } from './gauntlet.js';
 import { runTour, relight } from './tour.js';
@@ -535,124 +536,6 @@ function weekTitle() {
   return state.demo ? 'Sample week' : agoTitle(weeksAgo(state.weekStart));
 }
 
-// A time that rolls like an odometer as it changes (the RAM's look, rollMemory): a column a digit, each turning from
-// its old digit to its new one, up as the time grows and down as it shrinks, blurred by how fast it turns and sharp
-// as it settles. A column or a unit that comes or goes (an hour's digits, "h", "<") opens or closes its room as it
-// fades in or out. Changed again mid-roll, every column goes on from where it is. The words stay in a hidden copy,
-// for screen readers and anything that reads the text.
-const ODO = { ms: 1000, line: 1.8, cycle: 10 };   // a digit's height in em (recap.css .odo-t), a whole window apart; its strip holds 0-9 three times
-const ODO_ORDER = ['lt', 'h3', 'h2', 'h1', 'h0', 'hu', 'sp', 'm1', 'm0', 'mu'];
-function odoSlots(ms) {
-  const [, lt, h, m] = fmt(ms).match(/^(<)?(?:(\d+)h)? ?(?:(\d+)m)?$/) || [];
-  const slots = new Map();
-  if (lt) slots.set('lt', { ch: '<' });
-  const digits = (n, u) => [...n].forEach((d, i) => slots.set(`${u}${n.length - 1 - i}`, { d: +d }));
-  if (h) { digits(h, 'h'); slots.set('hu', { ch: 'h' }); if (m) slots.set('sp', { ch: '\u00a0' }); }   // (a space alone isn't drawn in its box)
-  if (m) { digits(m, 'm'); slots.set('mu', { ch: 'm' }); }
-  return slots;
-}
-function odoNode(key, slot) {
-  const n = document.createElement('span');
-  n.dataset.k = key;
-  if (slot.ch != null) { n.className = 'odo-ch'; n.textContent = slot.ch; return n; }
-  n.className = 'odo-col';
-  // its strip: the digits as lines of one text, not an element each (a card full of them was slow to change)
-  const strip = document.createElement('span');
-  strip.className = 'odo-strip';
-  strip.textContent = Array.from({ length: ODO.cycle * 3 }, (_, i) => i % 10).join('\n');
-  n.appendChild(strip);
-  return n;
-}
-const odoAt = (n, pos) => { n._pos = pos; n.firstChild.style.transform = `translateY(${(-pos * ODO.line).toFixed(4)}em)`; };
-function rollTime(el, ms, { instant = false, delay = 0, from = null } = {}) {
-  let st = el._odo;
-  if (!st || !el.contains(st.box)) {
-    // drawn afresh (or after plain words were put in): as it is, or from `from` if it's to roll in
-    const box = document.createElement('span');
-    box.className = 'odo odo-t';
-    box.setAttribute('aria-hidden', 'true');
-    const said = document.createElement('span');
-    said.className = 'odo-said';
-    el.replaceChildren(said, box);
-    st = el._odo = { box, said, ms: from ?? ms, run: 0, raf: 0 };
-    for (const [k, s] of odoSlots(st.ms)) { const n = odoNode(k, s); box.appendChild(n); if (s.d != null) odoAt(n, ODO.cycle + s.d); }
-    if (from == null) instant = true;
-  }
-  st.said.textContent = fmt(ms);
-  const dir = Math.sign(ms - st.ms);
-  st.ms = ms;
-  const run = ++st.run;
-  cancelAnimationFrame(st.raf);
-  clearTimeout(st.wait);
-  const want = odoSlots(ms);
-  const have = new Map([...st.box.children].map(n => [n.dataset.k, n]));
-  if (instant || reducedMotion()) {
-    st.box.replaceChildren(...ODO_ORDER.filter(k => want.has(k)).map(k => {
-      const n = have.get(k) || odoNode(k, want.get(k));
-      n._fade?.cancel();
-      if (want.get(k).d != null) { odoAt(n, ODO.cycle + want.get(k).d); n.firstChild.style.filter = ''; }
-      return n;
-    }));
-    return;
-  }
-  // where each column is now: whole, or (cut short opening or closing) as wide and clear as it is right then;
-  // only those are measured, so a change mostly asks nothing of the page's layout. Then every one there will be,
-  // in order.
-  const now = new Map([...have].map(([k, n]) => {
-    if (!n._fade || n._fade.playState !== 'running') return [k, null];
-    const was = { w: `${n.getBoundingClientRect().width}px`, o: +getComputedStyle(n).opacity };
-    n._fade.cancel();
-    return [k, was];
-  }));
-  const nodes = [];
-  for (const k of ODO_ORDER) {
-    if (!want.has(k) && !have.has(k)) continue;
-    const n = have.get(k) || odoNode(k, want.get(k));
-    if (!have.has(k)) { now.set(k, { w: '0px', o: 0 }); if (want.get(k).d != null) odoAt(n, ODO.cycle + (dir < 0 ? 9 : 0)); }
-    nodes.push(n);
-  }
-  st.box.replaceChildren(...nodes);
-  for (const n of nodes) if (n.className === 'odo-col') n.firstChild.style.filter = '';
-  // a column opens or closes its room up to a width no digit or letter reaches (so none is measured)
-  const WHOLE = { w: '1.1em', o: 1 };
-  const turns = [];
-  for (const n of nodes) {
-    const k = n.dataset.k, stays = want.has(k);
-    const was = now.get(k) || WHOLE;
-    const to = stays ? WHOLE : { w: '0px', o: 0 };
-    if (was.w !== to.w || Math.abs(was.o - to.o) > 0.01) {
-      const a = n._fade = n.animate([{ maxWidth: was.w, opacity: was.o }, { maxWidth: to.w, opacity: to.o }], { duration: 560, delay, easing: EASE_OUT, fill: stays ? 'backwards' : 'both' });
-      if (!stays) a.finished.then(() => { if (st.run === run) n.remove(); }, () => {});
-    } else if (!stays) n.remove();
-    if (n.className !== 'odo-col') continue;
-    // the column turns to its new digit the way the time went (a column going turns to 0), from where it is
-    const mod = v => ((v % ODO.cycle) + ODO.cycle) % ODO.cycle;
-    const p0 = ODO.cycle + mod(n._pos ?? ODO.cycle);
-    const d = stays ? want.get(k).d : 0;
-    const p1 = dir > 0 ? p0 + mod(d - p0) : dir < 0 ? p0 - mod(p0 - d) : ODO.cycle + d;
-    odoAt(n, p0);
-    if (Math.abs(p1 - p0) > 1e-3) turns.push({ n, p0, p1, last: p0 });
-  }
-  if (!turns.length) return;
-  const ease = t => 1 - Math.pow(1 - t, 4);
-  let start = 0, lastAt = 0;
-  const step = time => {
-    if (!start) { start = lastAt = time; }
-    const t = Math.min(1, (time - start) / ODO.ms);
-    for (const c of turns) {
-      const pos = c.p0 + (c.p1 - c.p0) * ease(t);
-      const speed = time > lastAt ? (Math.abs(pos - c.last) / (time - lastAt)) * 1000 : 0;   // digits a second
-      c.last = pos;
-      odoAt(c.n, pos);
-      c.n.firstChild.style.filter = t < 1 && speed > 0.05 ? `blur(${Math.min(3.2, speed * 0.11).toFixed(2)}px)` : '';
-    }
-    lastAt = time;
-    if (t < 1) st.raf = requestAnimationFrame(step);
-  };
-  const go = () => { st.raf = requestAnimationFrame(step); };
-  if (delay) st.wait = setTimeout(go, delay); else go();
-}
-
 function swapText(el, text, asHtml = false) {
   if (asHtml ? el.innerHTML === text : el.textContent === text) return;
   if (asHtml) el.innerHTML = text;
@@ -679,8 +562,8 @@ function renderNav(direction) {
 
 function renderSummary(s, soft) {
   const delay = state.queue ? 220 + introWait('.summary') : 0;
-  animateNumber($('stat-avg'), s.avg, { format: v => fmt(v), delay, duration: 1000 });
-  animateNumber($('stat-total'), s.total, { format: v => fmt(v), delay: delay + 60, duration: 1000 });
+  rollTime($('stat-avg'), s.avg, { from: 0, delay });
+  rollTime($('stat-total'), s.total, { from: 0, delay: delay + 60 });
 
   const trend = $('trend');
   $('trend-btn').disabled = s.total < 60_000;
@@ -1559,13 +1442,13 @@ function morphBar(bar, oldPct, newPct, i) {
   }
 }
 
-// The big number counts from the old value to the new one.
+// The big number rolls from the old value to the new one.
 function countTotal(cur, wrap) {
   const a = cur.querySelector('.dv-total');
   const b = wrap.querySelector('.dv-total');
   if (!a || !b || typeof a._ms !== 'number' || typeof b._ms !== 'number') return;
-  b._value = a._ms;
-  animateNumber(b, b._ms, { format: b._fmt || (v => fmt(v)), duration: 650 });
+  const say = b._fmt || (v => fmt(v));
+  rollText(b, say(b._ms), b._ms, { from: [say(a._ms), a._ms] });
 }
 
 // The pill behind the open day in a strip glides to the new day.
@@ -1842,8 +1725,7 @@ async function refreshTrend(wrap, animate) {
   const others = data.slice(0, -1).filter(d => d.avg != null && d.days > 0);
   const avgOthers = others.length ? sum(others.map(d => d.avg)) / others.length : null;
   const tot = wrap.querySelector('.tr-top .dv-total');
-  if (typeof tot._value !== 'number') tot._value = 0;
-  animateNumber(tot, focus.avg || 0, { format: v => fmt(v), duration: animate ? 900 : 1 });
+  rollTime(tot, focus.avg || 0, { from: 0, instant: !animate });
   const whose = state.demo ? 'this sample week' : isCurrentWeek() ? 'a day this week' : 'a day that week';
   let meta = whose;
   if (avgOthers && focus.avg) {
@@ -2910,6 +2792,8 @@ function buildSites(s, soft, sweep = 0) {
   const idxs = sc.day == null ? null : [sc.day];
   // only the rows you can see make an entrance; the rest are simply there
   const onScreen = Math.ceil((ol.clientHeight || 600) / 50) + 1;
+  // each site's time as it stood, so a redraw (Week ⇄ Day, a minute on) rolls it on from there
+  const was = new Map([...ol.querySelectorAll(':scope > .site:not(.going)')].map(li => [li.dataset.domain, li.querySelector('.site-time')?._ms]));
   const rows = document.createDocumentFragment();
   const grow = [], swept = [];
   top.forEach(([domain, ms], i) => {
@@ -2932,7 +2816,9 @@ function buildSites(s, soft, sweep = 0) {
     main.append(name, btn);
     const time = document.createElement('span');
     time.className = 'site-time';
-    time.textContent = fmt(ms);
+    time._ms = ms;
+    const before = soft && !sweep ? was.get(domain) : undefined;
+    rollTime(time, ms, typeof before === 'number' && before !== ms ? { from: before } : {});
     time.title = `${pct(ms, sc.total)}% ${sc.of}`;
     // a site with page titles (or titles that were deleted): the row opens its pages
     if (hasPages(domain, idxs)) {

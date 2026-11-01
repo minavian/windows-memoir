@@ -8,6 +8,7 @@
 
 import { formatDuration, goalLevel, GOAL_MIN_MS } from './core.js';
 import { reducedMotion, MorphPopover, EASE_OUT, EASE_IN_OUT, POP } from './fx.js';
+import { rollText, rollTime } from './odo.js';
 
 const FLAME = `<svg class="gr-flame" viewBox="0 0 24 24" aria-hidden="true">
   <path class="fl-out" d="M12.2 1.8c.7 3.3-1.1 5-2.9 7.1-1.5 1.8-2.3 3.6-1.6 6-1.3-.6-2.2-1.9-2.3-3.5-1.7 2.2-2.2 4.9-.9 7.4C5.8 21.3 8.6 23 12 23c3.8 0 6.8-2.3 7.4-5.9.5-3-.9-5.9-3-8.3.1 1.6-.6 2.9-1.8 3.6.5-4.2-.6-7.9-2.4-10.6Z"/>
@@ -60,19 +61,19 @@ export function createGoalRing(root, { variant = 'card', onSet = null } = {}) {
       // minute is <1m, and 0% only once it's all gone
       const t = el.querySelector('.gr-mini-text');
       const left = rem * 100;
-      t.textContent = !limit ? '-' : level === 'over' ? '' : left <= 0 ? '0%' : left < 0.5 ? '<1%' : `${Math.round(left)}%`;
+      rollText(t, !limit ? '-' : level === 'over' ? '' : left <= 0 ? '0%' : left < 0.5 ? '<1%' : `${Math.round(left)}%`, left);
       return level;
     }
     const big = el.querySelector('.gr-big');
     const sub = el.querySelector('.gr-sub');
     if (!limit) {
-      big.textContent = 'No limit';
+      rollText(big, 'No limit', 0);
       sub.textContent = 'Set a daily goal';
     } else if (level === 'over') {
-      big.textContent = formatDuration(used - limit);
+      rollTime(big, used - limit);
       sub.textContent = `over your ${formatDuration(limit)}`;
     } else {
-      big.textContent = formatDuration(limit - used);
+      rollTime(big, limit - used);
       sub.textContent = `left of ${formatDuration(limit)}`;
     }
     setBtn.textContent = limit ? 'Change' : 'Set limit';

@@ -5,10 +5,11 @@ import {
   getGoalHistory, limitOn, limitLocked, commitLimit, removeLimit, setApps, recordDate,
 } from './shared/core.js';
 import {
-  animateNumber, reveal, faviconTile, tween, slicePath, setOrigins, siteLinkHtml, replay, reducedMotion, POP, EASE_OUT, makeScroller, initSmoothScrolling, disableTitleTooltips, MorphPopover,
+  reveal, faviconTile, tween, slicePath, setOrigins, siteLinkHtml, replay, reducedMotion, POP, EASE_OUT, makeScroller, initSmoothScrolling, disableTitleTooltips, MorphPopover,
 } from './shared/fx.js';
 import { watchTheme } from './shared/theme.js';
 import { createGoalRing, openPicker } from './shared/goal.js';
+import { rollTime, rollText } from './shared/odo.js';
 import { initCursor } from './shared/cursor.js';
 import { syncAppearance, adoptAppearance } from './shared/appearance.js';
 import { initContextMenu } from './shared/context-menu.js';
@@ -137,7 +138,7 @@ function render() {
   const { visible, all } = split(sites);
   const cats = categoryTotals(sites);
 
-  animateNumber($('today-total'), all, { format: v => formatDuration(v), delay: 200, duration: 1100 });
+  rollTime($('today-total'), all, { from: 0, delay: 200 });
   renderCompare(all);
   drawRing(cats, all);
   renderLegend(cats, all);
@@ -201,10 +202,11 @@ function drawRing(cats, total) {
 function renderLegend(cats, total, rows = 3) {
   const ul = $('legend');
   const present = CATEGORIES.filter(c => cats[c.id]).sort((a, b) => cats[b.id] - cats[a.id]);
-  const share = id => `${Math.round((cats[id] / total) * 100)}%`;
+  const value = id => Math.round((cats[id] / total) * 100);
+  const share = id => `${value(id)}%`;
   const key = present.map(c => c.id).sort().join(',');
   if (ul.dataset.key === key && ul.dataset.rows === String(rows)) {
-    for (const li of ul.querySelectorAll('[data-cat]')) li.querySelector('b').textContent = share(li.dataset.cat);
+    for (const li of ul.querySelectorAll('[data-cat]')) rollText(li.querySelector('b'), share(li.dataset.cat), value(li.dataset.cat));
     return;
   }
   ul.dataset.key = key;
@@ -271,7 +273,7 @@ function renderSites(visible) {
 
     const time = document.createElement('span');
     time.className = 'site-time';
-    time.textContent = formatDuration(ms, { seconds: true });
+    rollTime(time, ms, { seconds: true });
 
     li.append(faviconTile(domain, cat.color), main, time);
     list.appendChild(li);
@@ -302,25 +304,39 @@ function updateGoal(all, initial = false) {
   btn.textContent = limit ? 'Change' : 'Set limit';
   btn.tabIndex = locked ? -1 : 0;
 
-  let main;
+  let main;   // [the time, its words], or just words
   let sub;
   if (!limit) {
     main = 'No daily limit';
     sub = 'Get a nudge when you reach it';
   } else if (level === 'over') {
-    main = `${formatDuration(all - limit)} over`;
+    main = [all - limit, ' over'];
     sub = `your ${formatDuration(limit)} daily limit`;
   } else {
-    main = `${formatDuration(limit - all)} left`;
+    main = [limit - all, ' left'];
     sub = `of your ${formatDuration(limit)} daily limit`;
   }
   const key = `${level}|${!!limit}|${locked}`;
   const text = $('goal-row').querySelector('.goal-text');
-  if ($('goal-main').textContent !== main) $('goal-main').textContent = main;
+  setMain(main);
   if ($('goal-sub').textContent !== sub) $('goal-sub').textContent = sub;
   // a new state (set, locked, over…) announces itself; ticking minutes don't
   if (!initial && state.goalKey && key !== state.goalKey) replay(text, 'swap');
   state.goalKey = key;
+}
+
+// the line by the ring: its time rolls as it changes, and its words stay put
+function setMain(main) {
+  const el = $('goal-main');
+  if (typeof main === 'string') { if (el.textContent !== main) el.textContent = main; return; }
+  let n = el.querySelector(':scope > .gm-n'), w = el.querySelector(':scope > .gm-w');
+  if (!n || !w) {
+    n = Object.assign(document.createElement('span'), { className: 'gm-n' });
+    w = Object.assign(document.createElement('span'), { className: 'gm-w' });
+    el.replaceChildren(n, w);
+  }
+  rollTime(n, main[0]);
+  if (w.textContent !== main[1]) w.textContent = main[1];
 }
 
 async function openGoal() {
@@ -371,7 +387,7 @@ function tick() {
     const v = id ? cats[id] || 0 : all;
     el._value = v;
     const text = formatDuration(v);
-    if (el.textContent !== text && !$('ring-center').classList.contains('swapping')) el.textContent = text;
+    if (!$('ring-center').classList.contains('swapping')) rollTime(el, v);
   }
   renderCompare(all);
   renderLegend(cats, all);
@@ -380,7 +396,7 @@ function tick() {
   if (s && !state.paused) {
     if (!isPrivate(s.domain)) {
       const row = $('site-list').querySelector(`[data-domain="${CSS.escape(s.domain)}"] .site-time`);
-      if (row) row.textContent = formatDuration(visible[s.domain] || 0, { seconds: true });
+      if (row) rollTime(row, visible[s.domain] || 0, { seconds: true });
     }
   }
 }
