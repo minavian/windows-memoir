@@ -73,4 +73,21 @@ Run **Unregister Browser Connector.ps1** to remove those native messaging regist
 
 `tests/run.ps1` checks native time accounting, privacy, limits, saving, and browser messaging. `tests/tray.ps1` checks native tray layout and action delivery across all themes. `tests/interface.cjs` checks the interface in Chrome with Playwright, and `tests/connector.cjs` checks the connector. `tests/performance.ps1` measures a minimized verification instance. See **VALIDATION.md** for results and practical limits. Diagnostic mode makes the tray popup discoverable as a window to accessibility inspection tools; normal mode keeps it out of the taskbar.
 
-`release.ps1` makes **Memoir Setup.exe** (in `release/`, or `-Out <folder>`): Memoir.exe built again with the rest of what it needs to run inside it (`app.zip`; `build.ps1 -Payload`), no .exe among it: its config, both icons, the three DLLs, the extension IDs without their notes, and the `web` folder with every developer comment taken out and the code written compactly (`installer/strip.mjs`: terser for JavaScript, its code unchanged; CSS and HTML by a careful pass of its own). What the licences of what ships ask for goes with it, in one `Third-party notices.txt` beside Memoir.exe: the WebView2 SDK's licence and notice (its DLLs) and the fonts' licence. Nothing else ships: no READMEs, notes, tests, scripts, the Browser Connector, icons only the extension uses, or `Data`. Run `npm install` in `installer/` once first. It warns while `extension-ids.txt` has no Chrome Web Store ID: until the store's ID is added there, a released Memoir links only with the development extension. Moving or rebuilding the app does not erase existing data.
+`release.ps1` makes **Memoir Setup.exe** (in `release/`, or `-Out <folder>`): Memoir.exe built again with the rest of what it needs to run inside it (`app.zip`; `build.ps1 -Payload`), no .exe among it: its config, both icons, the three DLLs, the extension IDs without their notes, and the `web` folder with every developer comment taken out and the code written compactly (`installer/strip.mjs`: terser for JavaScript, its code unchanged; CSS and HTML by a careful pass of its own). Memoir's own licence goes with it, as `LICENSE.txt` beside Memoir.exe, and what the licences of what ships ask for, in one `Third-party notices.txt`: the WebView2 SDK's licence and notice (its DLLs) and the fonts' licence. Nothing else ships: no READMEs, notes, tests, scripts, the Browser Connector, icons only the extension uses, or `Data`. Run `npm install` in `installer/` once first. It warns while `extension-ids.txt` has no Chrome Web Store ID: until the store's ID is added there, a released Memoir links only with the development extension. Moving or rebuilding the app does not erase existing data.
+
+## Licence
+
+Memoir for Windows is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. The licence's full text is in [LICENSE](LICENSE).
+
+Copyright © 2026 Mina Vian.
+
+**The name and the clock.** The licence covers the code, not the name "Memoir" or its clock logo (an additional term
+under section 7(e) of the GPL): a changed version may be shared under the GPL, but under a name and a look of its own.
+
+**What it's built with** keeps its own licences: the Microsoft Edge WebView2 SDK, under a BSD-style licence (`build-tools/webview2/LICENSE.txt`), and the Inter and Unbounded fonts, under the SIL Open Font License 1.1 (`web/fonts/`).
+
+Memoir's other half: [Memoir for Windows](https://github.com/minavian/windows-memoir) and [Memoir for
+Chrome](https://github.com/minavian/memoir-browser-screen-time) are both open source under the same licence.
