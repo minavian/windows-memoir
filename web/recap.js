@@ -72,6 +72,11 @@ const state = {
 };
 
 const tip = createTooltip();
+// A click focuses what it lands on, as the keyboard does. Only the keyboard's focus moves a card to its element: a
+// pointer's leaves the card where the pointer has it, so clicking (even fast) never makes it jump.
+let pointerDownAt = 0;
+addEventListener('pointerdown', () => { pointerDownAt = performance.now(); }, true);
+const byPointer = () => performance.now() - pointerDownAt < 600;
 const catPop = new MorphPopover($('cat-pop'), { radius: 16 });
 // A site's pages, as a second page of the Most used card (see openPagePop)
 const pages = {
@@ -862,11 +867,11 @@ function buildChart() {
   plot.addEventListener('pointerleave', () => { plot.classList.remove('hovering'); tip.hide(); });
   plot.addEventListener('focusin', e => {
     const col = e.target.closest('.col');
-    if (!col) return;
+    if (!col || byPointer()) return;
     const r = col.getBoundingClientRect();
     show(col, r.left + r.width / 2, r.top + 30);
   });
-  plot.addEventListener('focusout', () => tip.hide());
+  plot.addEventListener('focusout', () => { if (!byPointer()) tip.hide(); });
   plot.addEventListener('click', e => {
     const col = e.target.closest('.col');
     if (!col) return;
@@ -2955,10 +2960,11 @@ function buildHeat() {
     const cell = e.target.closest('.cell');
     if (!cell) return;
     heatFocus = { r: +cell.dataset.r, c: +cell.dataset.c };
+    if (byPointer()) return;
     const r = cell.getBoundingClientRect();
     showCell(cell, r.left + r.width / 2, r.top);
   });
-  wrap.addEventListener('focusout', () => tip.hide());
+  wrap.addEventListener('focusout', () => { if (!byPointer()) tip.hide(); });
   wrap.addEventListener('keydown', e => {
     const cell = e.target.closest('.cell');
     if (!cell) return;
