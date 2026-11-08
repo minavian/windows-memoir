@@ -4825,17 +4825,45 @@ function wire() {
     if (e.target.closest('.hstrip')) return;
     rowTip(e);
   });
-  $('detail-view').addEventListener('pointermove', e => tip.move(e.clientX, e.clientY));
+  $('detail-view').addEventListener('pointermove', e => { rowHint.move(e.clientX, e.clientY); tip.move(e.clientX, e.clientY); });
   $('detail-view').addEventListener('pointerout', e => {
-    if (!e.relatedTarget || !$('detail-view').contains(e.relatedTarget)) tip.hide();
-    else if (!e.relatedTarget.closest('.hstrip, .rows')) tip.hide();
+    if (!e.relatedTarget || !$('detail-view').contains(e.relatedTarget)) { rowHint.cancel(); tip.hide(); }
+    else if (!e.relatedTarget.closest('.hstrip, .rows')) { rowHint.cancel(); tip.hide(); }
   });
+
+  // The click hint (Most used, and the rows of the day and hour views) waits for the pointer to rest on a row for a
+  // second, as the page list's tip does, so a pointer only passing over the list shows nothing: each move starts the
+  // second again. A tip that's already up turns into it at once, and once it's up it follows the pointer and
+  // morphs from row to row like every other tip.
+  const rowHint = (() => {
+    let timer = 0, row = null, html = '';
+    const cancel = () => { clearTimeout(timer); row = null; };
+    const wait = (x, y) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const r = row;
+        row = null;
+        if (r && r.isConnected && r.matches(':hover') && !(pages.isOpen && popAnchor === r)) tip.show(html, x, y);
+      }, 1000);
+    };
+    return {
+      show(r, next, x, y) {
+        if (tip.visible) { cancel(); tip.show(next, x, y); return; }
+        row = r;
+        html = next;
+        wait(x, y);
+      },
+      move(x, y) { if (row) wait(x, y); },
+      cancel,
+    };
+  })();
 
   // page titles on hover (only when titles are recorded)
   function rowTip(e) {
     const row = e.target.closest('.row, .site');
     // between two rows of a list the tip stays, so it morphs from one row to the next
     if (!row && e.target.closest('.rows, .sites')) return;
+    rowHint.cancel();
     if (!row || !row.dataset.domain || e.target.closest('.cat-btn')) { tip.hide(); return; }
     // Most used, and the day and hour views: a click on the row shows each page's time
     // (the name itself opens the site)
@@ -4844,7 +4872,7 @@ function wire() {
       if (!row.classList.contains('has-pages') || e.target.closest('.site-link') || (pages.isOpen && popAnchor === row)) { tip.hide(); return; }
       const ol = row.parentElement;
       const when = inDetail ? pagesWhen(ol._days, ol._hour) : scoped().when;
-      tip.show(`<div class="tip-row"><span>Click to see each page’s time ${when}</span></div>`, e.clientX, e.clientY);
+      rowHint.show(row, `<div class="tip-row"><span>Click to see each page’s time ${when}</span></div>`, e.clientX, e.clientY);
       return;
     }
     const scope = row.parentElement && row.parentElement._days;
@@ -4853,7 +4881,7 @@ function wire() {
     else tip.hide();
   }
   // a row with pages (not its name or its category) opens them
-  const openRowPages = row => { tip.hide(true); openPagePop(row.dataset.domain, row); };
+  const openRowPages = row => { rowHint.cancel(); tip.hide(true); openPagePop(row.dataset.domain, row); };
   $('sites').addEventListener('click', e => {
     if (e.target.closest('.site-link, .cat-btn')) return;
     const row = e.target.closest('.site.has-pages');
@@ -4867,7 +4895,7 @@ function wire() {
     openRowPages(time.closest('.site'));
   });
   // the same from a row in the day or hour view, for that day or hour
-  const detailPages = row => { tip.hide(true); openPagePop(row.dataset.domain, row, { days: row.parentElement._days, hour: row.parentElement._hour }); };
+  const detailPages = row => { rowHint.cancel(); tip.hide(true); openPagePop(row.dataset.domain, row, { days: row.parentElement._days, hour: row.parentElement._hour }); };
   $('detail-view').addEventListener('click', e => {
     if (e.target.closest('.site-link')) return;
     const row = e.target.closest('.row.has-pages');
@@ -4883,8 +4911,8 @@ function wire() {
   wirePagePop();
   for (const id of ['sites', 'cat-pop']) {
     $(id).addEventListener('pointerover', rowTip);
-    $(id).addEventListener('pointermove', e => tip.move(e.clientX, e.clientY));
-    $(id).addEventListener('pointerleave', () => tip.hide());
+    $(id).addEventListener('pointermove', e => { rowHint.move(e.clientX, e.clientY); tip.move(e.clientX, e.clientY); });
+    $(id).addEventListener('pointerleave', () => { rowHint.cancel(); tip.hide(); });
   }
 
   // settings morph
