@@ -35,7 +35,7 @@ try {
         "Inter (web\fonts\InterVariable-memoir.woff2)`r`n`r`n" + (Get-Content -LiteralPath (Join-Path $fonts 'Inter-LICENSE.txt') -Raw) + $rule +
         "Unbounded (web\fonts\Unbounded-subset.woff2)`r`n`r`n" + (Get-Content -LiteralPath (Join-Path $fonts 'Unbounded-LICENSE.txt') -Raw)
     [IO.File]::WriteAllText((Join-Path $app 'Third-party notices.txt'), $notices, (New-Object Text.UTF8Encoding $false))
-    # Memoir's own licence (the GPL), which goes with every copy
+    # Memoir's own licence (the AGPL), which goes with every copy
     Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $app 'LICENSE.txt')
     Remove-Item -LiteralPath (Join-Path $fonts 'Inter-LICENSE.txt'), (Join-Path $fonts 'Unbounded-LICENSE.txt')
 

@@ -77,15 +77,18 @@ Run **Unregister Browser Connector.ps1** to remove those native messaging regist
 
 ## Licence
 
-Memoir for Windows is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
-version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+Memoir for Windows is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
+Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any
+later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. The licence's full text is in [LICENSE](LICENSE).
 
 Copyright © 2026 Mina Vian.
 
+**Over a network too.** A changed version that people use over a network, on a website or as an online service, has to
+offer them its source, just as a copy that's shared does (section 13 of the AGPL).
+
 **The name and the clock.** The licence covers the code, not the name "Memoir" or its clock logo (an additional term
-under section 7(e) of the GPL): a changed version may be shared under the GPL, but under a name and a logo of its own.
+under section 7(e) of the AGPL): a changed version may be shared under the AGPL, but under a name and a logo of its own.
 
 **What it's built with** keeps its own licences: the Microsoft Edge WebView2 SDK, under a BSD-style licence (`build-tools/webview2/LICENSE.txt`), and the Inter and Unbounded fonts, under the SIL Open Font License 1.1 (`web/fonts/`).
 
