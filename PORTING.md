@@ -19,7 +19,7 @@ Interface-only changes in the extension (layout, charts, animations, wording) po
 2. For every interface file (`*.html`, `*.css`, `*.js` except `background.js`, `shared/*`): take three versions, the extension's at the last sync (the base above), today's `web/` copy (Windows) and the extension's now, and run
    `git merge-file -L windows -L base -L extension <windows copy> <base> <extension now>`. Files the Windows copy doesn't change are simply copied; new files are copied.
 3. Resolve the conflicts by the rules in **Windows edits**: usually the extension's new code, with the Windows edit applied to it again. Then sweep the new text for browser words ("browsing", "browser", "site", "toolbar", "tab") and give it Windows wording.
-4. Copy `fonts/` and `icons/` over. Keep `web/desktop-bridge.js` (Windows only), `web/how-it-works.html` and `web/privacy.html` (Windows' own words: re-check them against the extension's for any new section).
+4. Copy `fonts/` and `icons/` over. Keep `web/desktop-bridge.js` and `web/app-picker.js` / `web/app-picker.css` (Windows only), `web/how-it-works.html` and `web/privacy.html` (Windows' own words: re-check them against the extension's for any new section).
 5. Compare the extension's `background.js` and `shared/core.js` with the base. Port any rule or schema change to `src/Engine.cs`, and update `tests/EngineTests.cs`.
 6. If the pages call a `chrome.*` API the bridge doesn't provide, add it to `desktop-bridge.js` (and an operation in `MainForm.OnMessage` if it needs the host). A missing one throws, and can stop a whole page.
 7. Run the checks in **Verification**, `build.ps1`, then update **Last synced** above.
@@ -51,6 +51,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - Wording: "browsing" becomes "screen time" / "activity", "sites" becomes "apps and websites", and "this browser" becomes "this computer": the summary and highlights, empty states, hour and heatmap tooltips ("Screen time"), the trend note and "Days used", the private-time note, the category list's titles, toasts, the hidden Never-track entries' labels, "Never track it" in the category menu, and the tour steps (the last one points at the clock in the notification area).
 - Tracking detail's text: titles on, "Saves page and window titles, like a video you watched on YouTube or a document you had open. They’re kept as long as your history."; off, "Only app and website names are saved, not titles, like Word or youtube.com."
 - `eraseTitles()`: also call `await window.memoir.request('privacy.titles');`. The native side erases titles from the backup too.
+- Never track takes apps too (`app-picker.js`, `src/AppPicker.cs`: `apps.list`, `apps.browse`): the import, `appPicker`, `exLabel` and `relabelChips` beside `exFlights`, `exSubmit` and `initAppPicker` in `wire()` (the form's submit goes to `appPicker.submit()`), `appPicker?.prefetch()` in `openSettings`, `appPicker?.close(true)` in `closeSettings`, `#ex-pick` in the press-outside check, and the chips' names, labels and toasts by `exLabel` (an app by its name, not `app:name.exe`).
 - The tour's "Sample week, tour and data" step: "sync with the <b>Memoir extension</b>" (not "Memoir for Windows").
 - (Shared, no edit: Start with Windows, `#startup-row` under Track screen time, hidden in the extension; `loadStartup` and its switch ask `startup.get` / `startup.set` only here.)
 - (Shared since `3ff332f`, no edit: the link row's Windows side in `renderLink`/`pressLink`, from the `sync` record's peers and `link.unlink`.)
@@ -58,7 +59,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.
 
 ### `recap.html`
-- "Track screen time" (tracking switch), "Names only" (detail option), "Never track these apps and websites" (Never track's heading), empty-state text, the link row's starting texts (`link-row` `data-key=""`, `link-title` "Memoir in browser", `link-desc` "Not linked yet", the button's label "Guide") and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
+- "Track screen time" (tracking switch), "Names only" (detail option), "Never track these apps and websites" (Never track's heading), its field (placeholder, `role`s, the `ex-actions` with Apps beside Add), `app-picker.css` after `recap.css`, the `#ex-pick` list after `#cat-menu`, empty-state text, the link row's starting texts (`link-row` `data-key=""`, `link-title` "Memoir in browser", `link-desc` "Not linked yet", the button's label "Guide") and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
 
 ### `welcome.js`
 - Tagline "Screen Time"; "This app tracks your screen time and summarizes it."; "Everything stays on this computer."

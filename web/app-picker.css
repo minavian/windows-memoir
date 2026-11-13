@@ -1,0 +1,77 @@
+/* Never track's apps (Memoir for Windows only: app-picker.js). The list is the category menu's glass and rows
+   (recap.css .menu), as wide as the field; one highlight glides from row to row under them. */
+
+/* Apps, at the field's end while it's empty; typing turns it into Add, in the same place */
+.ex-actions { flex: none; display: grid; }
+.ex-actions > .btn { grid-area: 1 / 1; justify-self: end; }
+.ex-apps {
+  gap: 5px;
+  padding: 0 9px 0 8px;
+  color: var(--label-2);
+  transition: opacity 0.2s var(--ease), transform 0.35s var(--pop), background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.ex-apps svg { width: 12px; height: 12px; }
+.ex-apps:hover, .ex-apps[aria-expanded="true"] { color: var(--label); }
+.ex-apps[aria-expanded="true"] { background: var(--fill-3); }
+.ex-form.has-text .ex-apps { opacity: 0; transform: scale(0.8); pointer-events: none; }
+
+.ex-pick { z-index: 2100; display: flex; flex-direction: column; min-width: 0; padding: 5px; }
+.touring .ex-pick { z-index: 5192; }
+/* the list scrolls in Memoir's own slider (fx.js makeScroller), reaching the glass's edges so its soft top and
+   bottom do too */
+.ex-pick > .scroller { margin: 0 -5px; }
+.xp-list { position: relative; padding: 0 5px; overscroll-behavior: contain; }
+.ex-pick .sb { right: 0; }
+/* the highlight: under the row it's on, gliding to the next */
+.xp-hl {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 0;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--fill-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s var(--ease-out), height 0.22s var(--ease-out), opacity 0.16s var(--ease);
+}
+.xp-hl.on { opacity: 1; }
+.ex-pick .menu-item { position: relative; height: 34px; gap: 10px; padding: 0 8px; cursor: var(--cursor-hand); }
+.ex-pick .xp-item:hover, .ex-pick .xp-item:active { background: transparent; }
+.ex-pick .favicon { width: 22px; height: 22px; border-radius: 6px; }
+.ex-pick .favicon img { width: 16px; height: 16px; border-radius: 3px; }
+.ex-pick .favicon .letter { font-size: 11px; }
+.ex-pick .favicon svg { width: 13px; height: 13px; margin: 0; }
+.xp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.xp-name b { font-weight: 650; }
+.xp-meta { flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--label-3); font-variant-numeric: tabular-nums; }
+.xp-meta:empty { display: none; }
+/* open now: a small green light before the word */
+.xp-meta.is-open::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--goal-ok); }
+.xp-title { margin: 9px 8px 3px; }
+.xp-list > .xp-hl + .xp-title { margin-top: 3px; }
+/* rows that come in once the list is up slide in */
+.xp-new { animation: xp-in 0.32s var(--ease-out) backwards; }
+@keyframes xp-in { from { opacity: 0; transform: translateY(-4px); } }
+.xp-empty { margin: 0; padding: 14px 10px 12px; font-size: 12px; line-height: 1.5; color: var(--label-2); text-align: center; }
+
+/* still being read: rows of shapes, breathing */
+.xp-skel { height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.xp-skel span { flex: none; border-radius: 6px; background: var(--fill-2); animation: xp-breathe 1.3s var(--ease) infinite; animation-delay: calc(var(--i) * 110ms); }
+.xp-skel-icon { width: 22px; height: 22px; }
+.xp-skel-bar { height: 9px; width: 44%; }
+.xp-skel:nth-child(odd) .xp-skel-bar { width: 30%; }
+@keyframes xp-breathe { 50% { opacity: 0.4; } }
+
+/* "Choose an app…": below the list, always there */
+.xp-foot { margin: 5px -5px 0; padding: 5px 5px 0; border-top: 0.5px solid var(--sep); }
+.ex-pick .xp-browse { transition: background-color 0.16s var(--ease); }
+.ex-pick .xp-browse:hover { background: transparent; }
+.ex-pick .xp-browse.active { background: var(--fill-2); }
+.xp-glyph { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--fill-1); color: var(--label-2); }
+.ex-pick .xp-glyph svg { width: 14px; height: 14px; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-hl { transition: none; }
+  .xp-new, .xp-skel span { animation: none; }
+}

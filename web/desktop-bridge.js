@@ -22,9 +22,10 @@
   // Today gets ready hidden; it draws (and plays its entrance) once it's shown
   let shown = null;
   const firstShown = flyout ? new Promise(resolve => { shown = resolve; }) : null;
-  const request = (op, data = {}) => new Promise((resolve, reject) => {
+  // wait: how long an answer may take (0: as long as it takes, for a dialog the person has open: app-picker.js)
+  const request = (op, data = {}, wait = 30000) => new Promise((resolve, reject) => {
     const id = ++sequence;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('The desktop request timed out.')); }, 30000);
+    const timer = wait ? setTimeout(() => { pending.delete(id); reject(new Error('The desktop request timed out.')); }, wait) : 0;
     pending.set(id, { resolve, reject, timer });
     native.postMessage({ id, op, data });
   });

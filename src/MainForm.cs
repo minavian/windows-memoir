@@ -470,6 +470,25 @@ namespace Memoir {
                     case "status": result = Json.Object("browser", tracker.BrowserStatus, "paused", engine.Paused, "uiLoaded", web != null, "dataDirectory", dataDirectory); break;
                     case "folder.open": Process.Start(new ProcessStartInfo(dataDirectory) { UseShellExecute = true }); break;
                     case "link.unlink": sync.Unlink(Json.Text(Json.Get(data, "device"))); break;
+                    // Never track's apps (AppPicker.cs, web/app-picker.js): the list is read off this thread and
+                    // answered when it's ready; "Choose an app…" opens Windows' own file dialog over the window
+                    case "apps.list": {
+                        var asker = from; var seen = Json.Clone(Json.Map(Json.Get(store.Data, "apps")));
+                        AppPicker.List(seen, delegate(object list) { try { BeginInvoke(new Action(delegate { Answer(asker, Json.Object("id", id, "result", list)); })); } catch { } });
+                        return;
+                    }
+                    case "apps.browse": {
+                        var asker = from;
+                        BeginInvoke(new Action(delegate {
+                            object picked = null;
+                            try {
+                                using (var dialog = new System.Windows.Forms.OpenFileDialog { Title = "Choose an app to never track", Filter = "Apps (*.exe, shortcuts)|*.exe;*.lnk", DereferenceLinks = false, CheckFileExists = true, RestoreDirectory = true, InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) })
+                                    if (dialog.ShowDialog(this) == DialogResult.OK) picked = AppPicker.Describe(dialog.FileName);
+                            } catch (Exception error) { Log("apps.browse: " + error.GetType().Name); }
+                            Answer(asker, Json.Object("id", id, "result", picked));
+                        }));
+                        return;
+                    }
                     case "log": Log(Json.Text(Json.Get(data, "message"))); break;
                     default: throw new InvalidOperationException("Unknown desktop request.");
                 }

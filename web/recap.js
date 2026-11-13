@@ -26,6 +26,7 @@ import { createDust } from './shared/dust.js';
 import { initContextMenu } from './shared/context-menu.js';
 import { mailPop } from './shared/mail-pop.js';
 import { playOverShow } from './shared/overshow.js';
+import { initAppPicker } from './app-picker.js';
 
 const $ = id => document.getElementById(id);
 const sum = arr => arr.reduce((a, b) => a + b, 0);
@@ -3421,6 +3422,7 @@ function openSettings() {
   $('settings-btn').setAttribute('aria-expanded', 'true');
   $('settings-btn').setAttribute('aria-label', 'Close settings');
   renderSettings();
+  appPicker?.prefetch();   // (Windows: the apps are read now, so the list is ready by the time it's opened)
   clearTimeout(dustNap);
   dust.pause(false);
   requestAnimationFrame(() => {
@@ -3441,6 +3443,7 @@ function closeSettings(focusTrigger = false) {
   pendingRetention = null;
   askPause(false);
   $('ex-form').classList.remove('invalid');
+  appPicker?.close(true);
   tip.hide();
   // the sites under Never track hide again as you leave; the dust rests once the panel is shut
   for (const li of $('ex-list').querySelectorAll('.ex-chip')) concealChip(li);
@@ -3567,6 +3570,19 @@ function renderSettings() {
 
 let exPrimed = false;   // the first fill of the list (when Settings opens) doesn't animate
 const exFlights = new Map(); // site -> its typed words, on their way from the field to its chip
+// (Memoir for Windows) the field's list of apps (app-picker.js), and what a hidden entry is called: an app by its own
+// name (its record goes when it's hidden, so the list's name, or its program file's), a website by its address
+let appPicker = null;
+const exLabel = site => (isApp(site) && appPicker ? appPicker.nameOf(site) : siteName(site));
+// the names came in (or changed): the chips take them, out of sight under their dust
+function relabelChips() {
+  for (const li of $('ex-list').querySelectorAll('.ex-chip')) {
+    const text = li.querySelector('.ex-text');
+    const label = exLabel(li.dataset.site);
+    if (text && text.textContent !== label) text.textContent = label;
+    if (li.classList.contains('shown')) li.querySelector('.ex-name').setAttribute('aria-label', `${label}. Press to hide it again`);
+  }
+}
 
 // Newest first: a site you add lands right under the field, the others make room.
 function renderExcluded(added = null) {
@@ -3591,7 +3607,7 @@ function renderExcluded(added = null) {
       const li = document.createElement('li');
       li.className = 'ex-chip';
       li.dataset.site = site;
-      li.innerHTML = `<canvas class="ex-dust" aria-hidden="true"></canvas><button class="ex-name" type="button" aria-label="${HIDDEN_SITE}"><span class="ex-text">${escapeHtml(site)}</span></button><button class="x" type="button" aria-label="Track this site again"><svg><use href="#i-x"/></svg></button>`;
+      li.innerHTML = `<canvas class="ex-dust" aria-hidden="true"></canvas><button class="ex-name" type="button" aria-label="${HIDDEN_SITE}"><span class="ex-text">${escapeHtml(exLabel(site))}</span></button><button class="x" type="button" aria-label="${isApp(site) ? 'Track this app again' : 'Track this site again'}"><svg><use href="#i-x"/></svg></button>`;
       ul.prepend(li);
       made.push(li);
     }
@@ -3666,7 +3682,7 @@ function revealChip(li, e) {
   li.classList.remove('hiding', 'landing');
   li.classList.add('shown');
   li._shownAt = performance.now();
-  li.querySelector('.ex-name').setAttribute('aria-label', `${li.dataset.site}. Press to hide it again`);
+  li.querySelector('.ex-name').setAttribute('aria-label', `${exLabel(li.dataset.site)}. Press to hide it again`);
   dust.reveal(chipDust(li), e);
   if (reducedMotion()) return;
   // the name clears up from where the click landed, as the dust blows away from there
@@ -4922,7 +4938,7 @@ function wire() {
   });
   document.addEventListener('pointerdown', e => {
     if (e.target.closest('.pk-layer, .gx-layer, .tour')) return;
-    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #import-pop, #link-pop, #guide-pop, #browsers-pop, #startup-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
+    if ($('settings').classList.contains('open') && !e.target.closest('#settings, #ex-pick, #import-pop, #link-pop, #guide-pop, #browsers-pop, #startup-pop, #author-pop, #site-pop, #privacy-pop')) closeSettings();
     if (importAnswer && !e.target.closest('#import-pop')) answerImport(null);
     if (linkPop.isOpen && !e.target.closest('#link-pop, #link-btn')) closeLink();
     if (startupPop.isOpen && !e.target.closest('#startup-pop, #startup-row .switch')) closeStartup();
@@ -5035,23 +5051,18 @@ function wire() {
     exForm.classList.toggle('has-text', exInput.value.trim().length > 0);
     exForm.classList.remove('invalid');
   });
-  exForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const site = normalizeSite(exInput.value);
-    if (!site) {
-      exForm.classList.add('invalid');
-      toast('That doesn’t look like a website');
-      return;
-    }
-    // a new site: the typed words lift off at once (the field empties under them) and
+  // (Memoir for Windows) an app as well as a website: the field finds it as you type, or Apps lists them all
+  // (app-picker.js), and what's taken comes back here
+  const exSubmit = async (site, { bird = null, label = exLabel(site) } = {}) => {
+    // a new one: the words lift off at once (the field empties under them; a row of the list lifts its own) and
     // fly into the chip once it's made
     if (!state.settings.excluded.includes(site) && !reducedMotion()) {
-      exFlights.set(site, liftTyped(site));
+      exFlights.set(site, bird || liftTyped(label));
       exInput.value = '';
       exForm.classList.remove('has-text');
       exForm.classList.add('sent');
       setTimeout(() => exForm.classList.remove('sent'), 420);
-    }
+    } else bird?.remove();
     if (await addExcluded(site)) {
       exInput.value = '';
       exForm.classList.remove('has-text');
@@ -5060,6 +5071,26 @@ function wire() {
     const stray = exFlights.get(site);
     exFlights.delete(site);
     if (stray) stray.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }).finished.then(() => stray.remove(), () => stray.remove());
+  };
+  if (window.memoir?.windows) {
+    appPicker = initAppPicker({
+      form: exForm, input: exInput, button: $('ex-apps'), menu: $('ex-pick'),
+      excluded: () => state.settings.excluded,
+      // each app's time this week, for the list's first part (none while it's the sample week or another week)
+      weekTimes: () => (state.summary?.isCurrent && !state.demo ? new Map(state.summary.nameList.filter(([d]) => isApp(d))) : new Map()),
+      choose: exSubmit, onNames: relabelChips, toast,
+    });
+  }
+  exForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (appPicker) { appPicker.submit(); return; }
+    const site = normalizeSite(exInput.value);
+    if (!site) {
+      exForm.classList.add('invalid');
+      toast('That doesn’t look like a website');
+      return;
+    }
+    exSubmit(site);
   });
   $('ex-list').addEventListener('click', async e => {
     const name = e.target.closest('.ex-name');
@@ -5086,7 +5117,7 @@ function wire() {
     if (reducedMotion()) { dropChip(li); li.remove(); }
     else foldChip(li);
     state.settings = await updateSettings({ excluded: state.settings.excluded.filter(s => s !== site) });
-    toast(`${site} will be tracked again`);
+    toast(`${exLabel(site)} will be tracked again`);
   });
   // pointing at a hidden site stirs its dust a little; leaving lets it settle (and the
   // "click again" hint goes with the pointer)
@@ -5367,11 +5398,12 @@ function wire() {
 
 async function addExcluded(site) {
   const list = state.settings.excluded;
-  if (list.includes(site)) { toast(`${site} is already private`); return true; }
+  const label = exLabel(site);
+  if (list.includes(site)) { toast(`${label} is already private`); return true; }
   state.settings = await updateSettings({ excluded: [...list, site] });
   renderExcluded(site);
   const n = await withData(() => anonymizeSites([site]));
-  toast(n ? `${site} won’t be tracked; its past time is now Private` : `${site} won’t be tracked`);
+  toast(n ? `${label} won’t be tracked; its past time is now Private` : `${label} won’t be tracked`);
   // repaint the report once the chip has landed, not while it's still moving
   setTimeout(() => render({ soft: true }), reducedMotion() ? 0 : 600);
   return true;
