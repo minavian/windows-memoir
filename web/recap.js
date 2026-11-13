@@ -3998,7 +3998,6 @@ function measureSure() {
 const bumpNuke = () => { if (!reducedMotion()) $('nuke').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }, { transform: 'scale(1)' }], { duration: 420, easing: EASE_OUT }); };
 
 // ----- Start with Windows (Memoir for Windows only: src/Startup.cs keeps it in Windows' startup list) -----
-const STARTUP_TEXT = { on: 'Opens in the notification area when you sign in', off: 'Starts only when you open it' };
 async function loadStartup() {
   if (!window.memoir?.windows) return;
   const s = await window.memoir.request('startup.get').catch(() => null);
@@ -4007,7 +4006,6 @@ async function loadStartup() {
 }
 function showStartup(on) {
   $('set-startup').checked = on;
-  swapText($('startup-desc'), on ? STARTUP_TEXT.on : STARTUP_TEXT.off);
 }
 async function setStartup(want) {
   const s = await window.memoir?.request('startup.set', { on: want }).catch(() => null);

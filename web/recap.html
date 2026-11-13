@@ -117,19 +117,19 @@
                       </div>
                     </div></div>
                     <div class="p-row p-row-gap">
-                      <span><b>Track screen time</b><small>Pause any time from Today or the tray</small></span>
+                      <span><b>Track screen time</b></span>
                       <label class="switch pause-switch"><input type="checkbox" id="set-tracking" aria-label="Track screen time"><span class="track"></span><span class="knob"></span><span class="sure-word" aria-hidden="true">Sure?</span></label>
                     </div>
                     <!-- Memoir for Windows only: Start with Windows (recap.js loadStartup; its src/Startup.cs) -->
                     <div class="p-row" id="startup-row" hidden>
-                      <span><b>Start with Windows</b><small id="startup-desc">Opens in the notification area when you sign in</small></span>
-                      <label class="switch"><input type="checkbox" id="set-startup" aria-label="Start with Windows" aria-describedby="startup-desc"><span class="track"></span><span class="knob"></span></label>
+                      <span><b>Start with Windows</b></span>
+                      <label class="switch"><input type="checkbox" id="set-startup" aria-label="Start with Windows"><span class="track"></span><span class="knob"></span></label>
                     </div>
                   </div>
 
                   <div class="p-block">
-                    <span class="p-label">Never track</span>
-                    <p class="p-desc">These apps and websites you add won’t be tracked, but their time still counts. Past time on them is made private too. They stay hidden here; click one twice to see it (or remove it).</p>
+                    <span class="p-label">Never track these apps and websites</span>
+                    <p class="p-desc">Their time, past too, counts as private.</p>
                     <form class="ex-form" id="ex-form" autocomplete="off">
                       <input id="ex-input" type="text" placeholder="Add a site, like youtube.com" aria-label="Site to never track" spellcheck="false">
                       <button class="btn btn-primary btn-xs ex-add" id="ex-add" type="submit" aria-label="Add site"><svg><use href="#i-plus"/></svg><span>Add</span></button>
@@ -183,15 +183,15 @@
 
                   <div class="p-block">
                     <div class="p-row">
-                      <span><b>Sample week</b><small>Look around with made-up data</small></span>
+                      <span><b>Sample week</b></span>
                       <label class="switch"><input type="checkbox" id="set-demo" aria-label="Sample week"><span class="track"></span><span class="knob"></span></label>
                     </div>
                     <div class="p-row">
-                      <span><b>Tutorial</b><small>A quick tour of every feature</small></span>
+                      <span><b>Tutorial</b></span>
                       <button class="btn btn-secondary btn-xs replay-btn" id="replay-tour" type="button"><svg><use href="#i-play"/></svg>Replay</button>
                     </div>
                     <div class="p-row">
-                      <span><b>How <span class="wordmark-plain">Memoir</span> works</b><small>What counts as time, and what’s saved</small></span>
+                      <span><b>How <span class="wordmark-plain">Memoir</span> works</b></span>
                       <a class="btn btn-secondary btn-xs open-btn" id="how-link" href="how-it-works.html" target="_blank" rel="noopener"><span class="ob-label">Open</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.4 8.6 8.4 3.6M4.4 3.4h2.7a1.5 1.5 0 0 1 1.5 1.5v2.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
                     </div>
                   </div>

@@ -58,7 +58,7 @@ Line endings: compare with `diff --strip-trailing-cr` (or `git diff`), or every 
 - `withData` (the `memoir-data` Web Lock) works in WebView2 but the native tracker doesn't take it; the page-side lock still orders the page's own writes, and the native `Store` applies each `storage.set` atomically.
 
 ### `recap.html`
-- "Track screen time" / "Pause any time from Today or the tray" (tracking switch), "Names only" (detail option), Never-track description in terms of apps and websites, empty-state text, the link row's starting texts (`link-row` `data-key=""`, `link-title` "Memoir in browser", `link-desc` "Not linked yet", the button's label "Guide") and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
+- "Track screen time" (tracking switch), "Names only" (detail option), "Never track these apps and websites" (Never track's heading), empty-state text, the link row's starting texts (`link-row` `data-key=""`, `link-title` "Memoir in browser", `link-desc` "Not linked yet", the button's label "Guide") and `nuke-also` ("Memoir in your browser is cleared too."), `aria-label="Apps and websites in this category"`, the heatmap's "Screen time by hour of day".
 
 ### `welcome.js`
 - Tagline "Screen Time"; "This app tracks your screen time and summarizes it."; "Everything stays on this computer."
